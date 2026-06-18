@@ -242,10 +242,31 @@
       <svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg> Marketing site</a>
     <div class="navspace"></div>
     <!-- FIREBASE: populate from auth.currentUser -->
-    <div class="me">
+    <div class="me" onclick="toggleProfileMenu()" style="cursor:pointer;position:relative">
       <div class="avatar" id="meAvatar">?</div>
       <div><div class="nm" id="meName">—</div><div class="em" id="meEmail"></div></div>
-      <button onclick="signOutUser()" title="Sign out" style="background:none;border:0;color:var(--bone-dim);font-size:16px;margin-left:auto;cursor:pointer">↩</button>
+      <span style="margin-left:auto;color:var(--bone-dim);font-size:11px">▲</span>
+    </div>
+    <!-- Profile menu -->
+    <div id="profileMenu" style="display:none;position:absolute;bottom:80px;left:12px;right:12px;
+      background:var(--ink-3);border:1px solid var(--line-strong);border-radius:14px;overflow:hidden;z-index:10">
+      <div style="padding:14px 16px;border-bottom:1px solid var(--line)">
+        <div style="font-size:13px;font-weight:600" id="menuName">—</div>
+        <div style="font-size:11px;color:var(--bone-dim)" id="menuEmail"></div>
+      </div>
+      <button onclick="toast('Account settings coming soon.')" style="width:100%;text-align:left;padding:12px 16px;background:none;border:0;color:var(--bone);font-size:14px;cursor:pointer;display:flex;align-items:center;gap:10px">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+        Account settings
+      </button>
+      <button onclick="toast('Billing coming soon.')" style="width:100%;text-align:left;padding:12px 16px;background:none;border:0;color:var(--bone);font-size:14px;cursor:pointer;display:flex;align-items:center;gap:10px">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+        Billing
+      </button>
+      <div style="height:1px;background:var(--line)"></div>
+      <button onclick="signOutUser()" style="width:100%;text-align:left;padding:12px 16px;background:none;border:0;color:var(--bad);font-size:14px;cursor:pointer;display:flex;align-items:center;gap:10px">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        Sign out
+      </button>
     </div>
   </aside>
 
@@ -483,10 +504,24 @@ const Auth = {
             getIdToken:async()=> "demo-id-token" }
 };
 function setUser(u){
-  document.getElementById("meName").textContent  = u?.displayName || "—";
-  document.getElementById("meEmail").textContent = u?.email || "";
-  document.getElementById("meAvatar").textContent= (u?.displayName||u?.email||"?")[0].toUpperCase();
+  const name = u?.displayName || "—";
+  const email = u?.email || "";
+  document.getElementById("meName").textContent   = name;
+  document.getElementById("meEmail").textContent  = email;
+  document.getElementById("meAvatar").textContent = (u?.displayName||u?.email||"?")[0].toUpperCase();
+  document.getElementById("menuName").textContent  = name;
+  document.getElementById("menuEmail").textContent = email;
 }
+function toggleProfileMenu(){
+  const m = document.getElementById("profileMenu");
+  m.style.display = m.style.display === "none" ? "block" : "none";
+}
+document.addEventListener("click", e => {
+  const menu = document.getElementById("profileMenu");
+  if(!document.querySelector(".me").contains(e.target) && !menu.contains(e.target)){
+    menu.style.display = "none";
+  }
+});
 
 /* ==================================================================
    AWS LAMBDA — PAYMENT PROCESSING
