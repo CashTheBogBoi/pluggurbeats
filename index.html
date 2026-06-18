@@ -336,6 +336,10 @@ asdasdasdasdasd
       <label>Producer / tag name</label>
       <input id="authName" type="text" placeholder="e.g. prodbynova" autocomplete="nickname" />
     </div>
+    <div class="field" id="phoneField" style="display:none">
+      <label>Phone number</label>
+      <input id="authPhone" type="tel" placeholder="+1 (555) 000-0000" autocomplete="tel" />
+    </div>
     <div class="field">
       <label>Email</label>
       <input id="authEmail" type="email" placeholder="you@studio.com" autocomplete="email" />
@@ -514,20 +518,31 @@ function setAuthMode(mode){
   authMode=mode;
   document.getElementById("tabSignin").classList.toggle("active",mode==="signin");
   document.getElementById("tabSignup").classList.toggle("active",mode==="signup");
-  document.getElementById("nameField").style.display = mode==="signup"?"block":"none";
+  document.getElementById("nameField").style.display  = mode==="signup"?"block":"none";
+  document.getElementById("phoneField").style.display = mode==="signup"?"block":"none";
   document.getElementById("authTitle").textContent = mode==="signup"?"Create your account":"Welcome back";
   document.getElementById("authSubmit").textContent = mode==="signup"?"Create account":"Sign in";
   setMsg("authMsg","");
 }
 async function submitAuth(){
-  const email=val("authEmail"), pass=val("authPass"), name=val("authName");
+  const email=val("authEmail"), pass=val("authPass"), name=val("authName"), phone=val("authPhone");
   const btn=document.getElementById("authSubmit"); btn.disabled=true; btn.textContent="Working…";
   setMsg("authMsg","");
   try{
-    const user = authMode==="signup" ? await Auth.signUp(email,pass,name) : await Auth.signIn(email,pass);
-    Auth.current=user; renderAuthState(user);
-    setMsg("authMsg","Signed in — redirecting…","ok");
-    setTimeout(()=>{ window.location.href = "dashboard.html"; },500);
+    if(authMode==="signup"){
+      await Auth.signUp(email,pass,name,phone);
+      setMsg("authMsg","Check your email for a verification link before signing in.","ok");
+    } else {
+      const user = await Auth.signIn(email,pass);
+      if(!user.emailVerified){
+        await Auth.signOut();
+        setMsg("authMsg","Please verify your email before signing in. Check your inbox.","err");
+        return;
+      }
+      Auth.current=user; renderAuthState(user);
+      setMsg("authMsg","Signed in — redirecting…","ok");
+      setTimeout(()=>{ window.location.href = "dashboard.html"; },500);
+    }
   }catch(e){ setMsg("authMsg",e.message,"err"); }
   finally{ btn.disabled=false; setAuthMode(authMode); }
 }
@@ -591,7 +606,8 @@ import { getAuth, onAuthStateChanged,
          createUserWithEmailAndPassword,
          signInWithEmailAndPassword,
          GoogleAuthProvider, signInWithPopup,
-         signOut, updateProfile }                 from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+         signOut, updateProfile,
+         sendEmailVerification }                  from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 const firebaseConfig = {
   apiKey:            "AIzaSyATP9LnN8pYEeXUd2TmDUZAPrAx9KNbudM",
@@ -608,10 +624,13 @@ const auth     = getAuth(app);
 const provider = new GoogleAuthProvider();
 
 // Replace stub Auth object with real Firebase calls
-Auth.signUp = async (email, pass, name) => {
+Auth.signUp = async (email, pass, name, phone) => {
   const cred = await createUserWithEmailAndPassword(auth, email, pass);
   if (name) await updateProfile(cred.user, { displayName: name });
-  return cred.user;
+  await sendEmailVerification(cred.user);
+  // phone stored here for when Firestore user doc is wired up
+  cred.user._phone = phone;
+  await signOut(auth);
 };
 Auth.signIn  = (email, pass) => signInWithEmailAndPassword(auth, email, pass).then(c => c.user);
 Auth.signOut = () => signOut(auth);
