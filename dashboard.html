@@ -332,6 +332,7 @@
         <div class="card">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
             <h3 style="font-size:18px">5 · Who should hear it</h3>
+            <p class="hint" id="pitchNote" style="margin-bottom:6px"></p>
             <span class="mono hint" id="tgCap">0 / 0</span>
           </div>
           <p class="hint" style="margin-bottom:14px">Anonymized target segments by lane and tier — not named individuals. Your package sets how many you can pick.</p>
@@ -452,6 +453,7 @@
       <div class="line"><span>Package</span><span id="csPkg">—</span></div>
       <div class="line"><span>Beats added</span><span id="csBeats">—</span></div>
       <div class="line"><span>Targets selected</span><span id="csTargets">—</span></div>
+      <div class="line"><span>Guaranteed pitches</span><span id="csPitches">—</span></div>
       <div class="total" style="display:flex;justify-content:space-between"><span>Total</span><span id="csTotal">—</span></div>
     </div>
     <div class="msg" id="payMsg"></div>
@@ -569,7 +571,7 @@ function closeNav(){document.getElementById("aside").classList.remove("open");do
 /* ==================================================================
    START A CAMPAIGN — package, beats, targets, review
    ================================================================== */
-let pkg=null, beatCap=0, targetCap=0;          // set by the chosen package
+let pkg=null, beatCap=0, targetCap=0, pitchCap=0; // set by the chosen package
 const selected=new Set();
 
 /* ----- Step 1: package paywall ----- */
@@ -593,6 +595,7 @@ function choosePackage(id){
   pkg = PACKAGES.find(p=>p.id===id);
   beatCap   = pkg.beats;
   targetCap = pkg.targets==="all" ? Infinity : pkg.targets;
+  pitchCap  = pkg.pitches;
   document.querySelectorAll(".pkg").forEach(el=>el.classList.toggle("on",el.dataset.id===id));
   document.getElementById("campaignBody").classList.remove("hide");
   // reset selections to fit the new package
@@ -600,7 +603,8 @@ function choosePackage(id){
   document.querySelectorAll(".target.on").forEach(el=>el.classList.remove("on"));
   updateTgCount();
   resetBeats();
-  toast(`${pkg.name} selected — load up to ${beatCap} beats, pick ${targetCap===Infinity?"all":targetCap} target${targetCap===1?"":"s"}.`);
+  toast(`${pkg.name} selected — up to ${beatCap} beats, ${targetCap===Infinity?"all":targetCap} lane${targetCap===1?"":"s"}, ${pitchCap} guaranteed pitches.`);
+  document.getElementById("pitchNote").textContent = `Your ${pkg.name} package guarantees ${pitchCap} qualified pitches to matched desks.`;
   document.getElementById("campaignBody").scrollIntoView({behavior:"smooth",block:"start"});
 }
 
@@ -692,6 +696,7 @@ function reviewCampaign(){
   document.getElementById("csPkg").textContent    = `${pkg.name} · $${pkg.price}`;
   document.getElementById("csBeats").textContent  = `${beats.length} of ${beatCap}`;
   document.getElementById("csTargets").textContent= targetCap===Infinity ? selected.size : `${selected.size} of ${targetCap}`;
+  document.getElementById("csPitches").textContent= pitchCap;
   document.getElementById("csTotal").textContent  = "$"+pkg.price+".00";
   msg("payMsg","");
   const pb=document.getElementById("payBtn"); pb.disabled=false; pb.textContent="Pay & launch";
@@ -704,7 +709,7 @@ async function pay(){
     await createCheckout({
       package:pkg.id, amount:pkg.price*100, currency:"usd",
       producer:{ name:v("bName"), instagram:v("bIg") },
-      beats, targets:[...selected], uid:Auth.current.uid
+      beats, targets:[...selected], pitches:pitchCap, uid:Auth.current.uid
     }, Auth.current);
     // On success the backend stores these beats against this uid.
     // Mirror that locally so the Paperwork dropdown updates immediately.

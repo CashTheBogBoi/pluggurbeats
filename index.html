@@ -458,7 +458,7 @@ async function createCheckout(plan, user){
   // const res = await fetch(PAYMENTS_ENDPOINT, {
   //   method:"POST",
   //   headers:{ "Content-Type":"application/json", "Authorization":`Bearer ${idToken}` },
-  //   body: JSON.stringify({ planId: plan.id, amount: plan.price*100, currency:"usd", uid:user?.uid })
+  //   body: JSON.stringify({ planId: plan.id, amount: plan.price*100, currency:"usd", pitches: plan.pitches, uid:user?.uid })
   // });
   // if(!res.ok) throw new Error("Payment could not be started.");
   // return res.json();   // e.g. { clientSecret } or { url } -> redirect
