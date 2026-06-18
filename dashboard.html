@@ -885,7 +885,7 @@ async function reviewCampaign(){
   if(window.saveCampaignDraft){
     const id = await window.saveCampaignDraft({
       package: pkg.id, price: pkg.price, pitches: pitchCap,
-      producer: { name:v("bName"), instagram:v("bIg") },
+      producer: { name:v("bName"), instagram:v("bIg"), email:Auth.current?.email||"", phone:Auth.profile?.phone||"" },
       beats, targets:[...selected]
     });
     document.getElementById("payOverlay").dataset.campaignId = id;
@@ -991,7 +991,7 @@ document.getElementById("sDate").valueAsDate=new Date();
 <script type="module">
 import { initializeApp }                          from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, onAuthStateChanged, signOut }                      from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, doc, getDoc, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, doc, getDoc, getDocs, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getStorage, ref, uploadBytesResumable, getDownloadURL }     from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 
 const firebaseConfig = {
@@ -1065,13 +1065,25 @@ onAuthStateChanged(auth, async user => {
   Auth.current = user;
   setUser(user);
 
-  // Load Firestore user doc to get phone and any extra profile fields
+  // Load user profile doc (displayName, email, phone)
   const snap = await getDoc(doc(db, "users", user.uid));
   if (snap.exists()) {
-    const data = snap.data();
-    // Make profile data available globally for future features
-    Auth.profile = data;
+    Auth.profile = snap.data();
   }
+
+  // Load all campaigns to restore beats across refreshes
+  const campaignsSnap = await getDocs(collection(db, "users", user.uid, "campaigns"));
+  campaignsSnap.forEach(cdoc => {
+    const cdata = cdoc.data();
+    if (Array.isArray(cdata.beats)) {
+      cdata.beats.forEach(beat => {
+        if (beat.title && !myBeats.find(b => b.title === beat.title && b.uid === user.uid)) {
+          myBeats.push({ title: beat.title, genre: beat.genre, uid: user.uid });
+        }
+      });
+    }
+  });
+  refreshBeatDropdown();
 });
 
 // Expose sign-out to the sidebar button
