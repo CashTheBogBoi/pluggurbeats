@@ -531,11 +531,13 @@ async function submitAuth(){
   try{
     if(authMode==="signup"){
       await Auth.signUp(email,pass,name,phone);
+      btn.disabled=false; btn.textContent="Create account";
       setMsg("authMsg","Check your email for a verification link before signing in.","ok");
     } else {
       const user = await Auth.signIn(email,pass);
       if(!user.emailVerified){
         await Auth.signOut();
+        btn.disabled=false; btn.textContent="Sign in";
         setMsg("authMsg","Please verify your email before signing in. Check your inbox.","err");
         return;
       }
@@ -543,8 +545,7 @@ async function submitAuth(){
       setMsg("authMsg","Signed in — redirecting…","ok");
       setTimeout(()=>{ window.location.href = "dashboard.html"; },500);
     }
-  }catch(e){ setMsg("authMsg",e.message,"err"); }
-  finally{ btn.disabled=false; setAuthMode(authMode); }
+  }catch(e){ btn.disabled=false; btn.textContent=authMode==="signup"?"Create account":"Sign in"; setMsg("authMsg",e.message,"err"); }
 }
 function renderAuthState(user){
   const el=document.getElementById("navActions");
@@ -595,7 +596,10 @@ function closeModal(id){ document.getElementById(id).classList.remove("show"); }
 function val(id){ return document.getElementById(id).value.trim(); }
 function setMsg(id,t,k=""){ const m=document.getElementById(id); m.textContent=t; m.className="msg "+k; }
 function toggleMenu(){ document.getElementById("mobileMenu").classList.toggle("show"); }
-document.addEventListener("keydown",e=>{ if(e.key==="Escape"){closeModal("authOverlay");closeModal("payOverlay");} });
+document.addEventListener("keydown",e=>{
+  if(e.key==="Escape"){ closeModal("authOverlay"); closeModal("payOverlay"); }
+  if(e.key==="Enter" && document.getElementById("authOverlay").classList.contains("show")){ submitAuth(); }
+});
 
 buildEq(); buildGenres(); buildTiers(); renderAuthState(null);
 </script>
