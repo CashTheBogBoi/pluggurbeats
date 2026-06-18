@@ -771,28 +771,17 @@ function handleBeatFile(input){
   if(!file) return;
   const card   = input.closest(".beat-card");
   const btn    = input.nextElementSibling;
-  const bar    = card.querySelector(".progress-bar");
-  const fill   = card.querySelector(".progress-fill");
   const status = card.querySelector(".beat-status");
 
-  // Build filename: BEATNAME(@ig1, @ig2, @ig3).ext
-  const ext     = file.name.split(".").pop();
-  const title   = (card.querySelector(".b-title").value.trim() || "beat").toUpperCase();
-  const handles = [...card.querySelectorAll(".b-collabs .beat-collab-row")]
-    .map(r => r.querySelectorAll("input")[1].value.trim())
-    .filter(ig => ig)
-    .map(ig => ig.startsWith("@") ? ig : "@"+ig);
-  const uniqueHandles = [...new Set(handles)];
-  const igPart  = uniqueHandles.length ? `(${uniqueHandles.join(", ")})` : "";
-  const safeName = `${title}${igPart}`.replace(/[\/\\:*?"<>|]/g,"");
-  const renamed  = new File([file], `${safeName}.${ext}`, { type: file.type });
+  // Store the raw file on the card — upload happens at submission with final name
+  card._pendingFile = file;
+  card.dataset.storagePath = "";
 
-  btn.textContent = renamed.name.length > 28 ? renamed.name.slice(0,26)+"…" : renamed.name;
+  const label = file.name.length > 28 ? file.name.slice(0,26)+"…" : file.name;
+  btn.textContent = label;
   btn.classList.add("done");
   status.textContent = "Ready";
   status.className   = "beat-status pending";
-
-  if(window.uploadBeatFile) window.uploadBeatFile(renamed, card, bar, fill, status);
 }
 
 function filledBeats(){
@@ -852,13 +841,44 @@ function updateTgCount(){
 async function reviewCampaign(){
   if(!pkg){ toast("Choose a package first."); return; }
   if(!v("bName")||!v("bIg")){ toast("Add your name and Instagram."); return; }
-  const beats=filledBeats();
-  if(beats.length===0){ toast("Name at least one beat."); return; }
-  const unuploaded = beats.filter(b=>!b.storagePath);
-  if(unuploaded.length>0){ toast(`${unuploaded.length} beat(s) still uploading — wait for them to finish.`); return; }
+  const cards = [...document.querySelectorAll("#beatRows .beat-card")];
+  const namedCards = cards.filter(c=>c.querySelector(".b-title").value.trim());
+  if(namedCards.length===0){ toast("Name at least one beat."); return; }
+  const missingFile = namedCards.find(c=>!c._pendingFile && !c.dataset.storagePath);
+  if(missingFile){ toast("Attach a file to every beat before continuing."); return; }
   if(selected.size===0){ toast("Select at least one target."); return; }
 
-  // Save campaign draft to Firestore before showing payment modal
+  // Upload all pending files now with final names (Instagrams are fully filled in)
+  const btn = document.getElementById("toPay");
+  btn.disabled=true; btn.textContent="Uploading beats…";
+  try {
+    await Promise.all(namedCards.map(card => {
+      if(!card._pendingFile) return Promise.resolve(); // already uploaded
+      const file    = card._pendingFile;
+      const ext     = file.name.split(".").pop();
+      const title   = (card.querySelector(".b-title").value.trim() || "beat").toUpperCase();
+      const handles = [...card.querySelectorAll(".b-collabs .beat-collab-row")]
+        .map(r => r.querySelectorAll("input")[1].value.trim())
+        .filter(ig => ig)
+        .map(ig => ig.startsWith("@") ? ig : "@"+ig);
+      const unique   = [...new Set(handles)];
+      const igPart   = unique.length ? `(${unique.join(", ")})` : "";
+      const safeName = `${title}${igPart}`.replace(/[\/\\:*?"<>|]/g,"");
+      const renamed  = new File([file], `${safeName}.${ext}`, { type: file.type });
+      const bar      = card.querySelector(".progress-bar");
+      const fill     = card.querySelector(".progress-fill");
+      const status   = card.querySelector(".beat-status");
+      return window.uploadBeatFile(renamed, card, bar, fill, status);
+    }));
+  } catch(e) {
+    toast("Upload failed: " + e.message);
+    btn.disabled=false; btn.textContent="Continue to payment →";
+    return;
+  }
+
+  const beats = filledBeats();
+
+  // Save campaign draft to Firestore
   if(window.saveCampaignDraft){
     const id = await window.saveCampaignDraft({
       package: pkg.id, price: pkg.price, pitches: pitchCap,
@@ -868,6 +888,7 @@ async function reviewCampaign(){
     document.getElementById("payOverlay").dataset.campaignId = id;
   }
 
+  btn.disabled=false; btn.textContent="Continue to payment →";
   document.getElementById("csPkg").textContent    = `${pkg.name} · $${pkg.price}`;
   document.getElementById("csBeats").textContent  = `${beats.length} of ${beatCap}`;
   document.getElementById("csTargets").textContent= targetCap===Infinity ? selected.size : `${selected.size} of ${targetCap}`;
@@ -989,32 +1010,35 @@ const storage = getStorage(app);
 // Only the owner can access it (enforced by Storage rules)
 window.uploadBeatFile = (file, card, bar, fill, status) => {
   const user = Auth.current;
-  if(!user) return;
-  const path    = `beats/${user.uid}/${Date.now()}_${file.name}`;
+  if(!user) return Promise.reject(new Error("Not signed in"));
+  const path    = `beats/${user.uid}/${file.name}`;
   const fileRef = ref(storage, path);
   const task    = uploadBytesResumable(fileRef, file);
   status.textContent = "Uploading…";
   status.className   = "beat-status uploading";
   bar.classList.add("show");
-  task.on("state_changed",
-    snap => {
-      const pct = Math.round(snap.bytesTransferred / snap.totalBytes * 100);
-      fill.style.width = pct + "%";
-    },
-    err => {
-      status.textContent = "Upload failed";
-      status.className   = "beat-status pending";
-      bar.classList.remove("show");
-      toast("Upload failed: " + err.message);
-    },
-    async () => {
-      await getDownloadURL(task.snapshot.ref); // confirm accessible
-      card.dataset.storagePath = path;
-      status.textContent = "Uploaded ✓";
-      status.className   = "beat-status uploaded";
-      bar.classList.remove("show");
-    }
-  );
+  return new Promise((resolve, reject) => {
+    task.on("state_changed",
+      snap => {
+        const pct = Math.round(snap.bytesTransferred / snap.totalBytes * 100);
+        fill.style.width = pct + "%";
+      },
+      err => {
+        status.textContent = "Upload failed";
+        status.className   = "beat-status pending";
+        bar.classList.remove("show");
+        reject(err);
+      },
+      async () => {
+        card._pendingFile        = null;
+        card.dataset.storagePath = path;
+        status.textContent = "Uploaded ✓";
+        status.className   = "beat-status uploaded";
+        bar.classList.remove("show");
+        resolve();
+      }
+    );
+  });
 };
 
 // Save campaign draft to Firestore under users/{uid}/campaigns/{id}
