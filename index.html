@@ -307,6 +307,7 @@ asdasdasdasdasd
       <details><summary>What do I need to send?</summary><p>An untagged, mixed beat (WAV preferred), the BPM and key, and the lane you're aiming at. Cleaner files pitch better.</p></details>
       <details><summary>Who keeps the publishing?</summary><p>You do. We're a pitching service, not a publisher — we don't take points on your beat. If a placement happens, you negotiate the split directly with the artist's team.</p></details>
       <details><summary>How fast do you start?</summary><p>First pitches typically go out within 72 hours of your files clearing review.</p></details>
+      <details><summary>What does "guaranteed pitches" mean?</summary><p>Each package guarantees a set number of qualified pitches to real, matched desks, with per-pitch status tracking. If we don't deliver the count, we top up or refund the difference. We guarantee delivery and reporting — never a placement.</p></details>
     </div>
   </div>
 </section>
@@ -383,12 +384,18 @@ const GENRES = ["Trap","Drill","R&B","Pop","Afrobeats","Hip-Hop","Jersey Club",
 /* Source of truth: mirrors the dashboard PACKAGES (Starter / Pro / Label).
    Each package = fixed beat cap + target-segment cap + all features. */
 const PLANS = [
-  { id:"starter", name:"Starter", price:250,  targets:"1 target segment",   blurb:"One lane, one shot — run a record up to the right room.",
-    feature:false, perks:["Up to 15 beats","Choose 1 target segment","Status report per pitch","All PluggurBeats features"] },
-  { id:"pro",     name:"Pro",     price:500,  targets:"3 target segments",  blurb:"Spread the same catalog across three lanes.",
-    feature:true,  perks:["Up to 15 beats","Choose 3 target segments","Priority pitch targets","Status report per pitch","All PluggurBeats features"] },
-  { id:"label",   name:"Label",   price:1500, targets:"all target segments", blurb:"A full catalog push to every lane we cover.",
-    feature:false, perks:["Up to 20 beats","All target segments","Dedicated pitch manager","Status report per pitch","All PluggurBeats features"] }
+  { id:"starter", name:"Starter", price:149, targets:"1 lane · 15 guaranteed pitches",
+    blurb:"“The Test” — run one record up one lane. Low risk, real desks.",
+    feature:false,
+    perks:["Up to 5 beats","1 target lane","15 guaranteed qualified pitches","Status report on every pitch","Dashboard + analytics","First pitch within 72h"] },
+  { id:"pro", name:"Pro", price:499, targets:"3 lanes · 50 guaranteed pitches",
+    blurb:"“The Run” — spread your catalog across three lanes with priority targeting.",
+    feature:true,
+    perks:["Up to 15 beats","3 target lanes","50 guaranteed qualified pitches","Priority desks","One free re-targeting","Written feedback summary","Everything in Starter"] },
+  { id:"label", name:"Label", price:1299, targets:"All lanes · 150 guaranteed pitches",
+    blurb:"“Catalog Push” — full-catalog push with a dedicated manager on your records.",
+    feature:false,
+    perks:["Up to 25 beats","All lanes + A&R / management","150 guaranteed qualified pitches","Dedicated pitch manager","Hand-off + 30-min strategy call","Priority review / rush","Everything in Pro"] }
 ];
 
 /* ==================================================================

@@ -508,9 +508,9 @@ async function createCheckout(payload, user){
    DATA (mock)
    ================================================================== */
 const PACKAGES = [
-  { id:"starter", name:"Starter", price:250,  beats:15, targets:1,     feat:false },
-  { id:"pro",     name:"Pro",     price:500,  beats:15, targets:3,     feat:true  },
-  { id:"label",   name:"Label",   price:1500, beats:20, targets:"all", feat:false }
+  { id:"starter", name:"Starter", price:149,  beats:5,  targets:1,     pitches:15,  feat:false },
+  { id:"pro",     name:"Pro",     price:499,  beats:15, targets:3,     pitches:50,  feat:true  },
+  { id:"label",   name:"Label",   price:1299, beats:25, targets:"all", pitches:150, feat:false }
 ];
 // Beats this user has submitted. In production this lives in Firestore,
 // queried by Auth.current.uid and locked down with security rules so
@@ -583,6 +583,7 @@ function buildPackages(){
       <div class="pprice">$${p.price}<small> /campaign</small></div>
       <ul>
         <li>Up to ${p.beats} beats</li>
+        <li>${p.pitches} guaranteed qualified pitches</li>
         <li>Choose ${tg} from “Who should hear it”</li>
         <li>All PluggurBeats features</li>
       </ul></div>`;
