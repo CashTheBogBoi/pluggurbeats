@@ -812,7 +812,8 @@ document.getElementById("sDate").valueAsDate=new Date();
 
 <script type="module">
 import { initializeApp }                          from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getAuth, onAuthStateChanged, signOut }   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getAuth, onAuthStateChanged, signOut }        from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore, doc, getDoc }                   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey:            "AIzaSyATP9LnN8pYEeXUd2TmDUZAPrAx9KNbudM",
@@ -826,15 +827,24 @@ const firebaseConfig = {
 
 const app  = initializeApp(firebaseConfig);
 const auth = getAuth(app);
+const db   = getFirestore(app);
 
 // Gate: redirect to marketing site if not signed in or email not verified
-onAuthStateChanged(auth, user => {
+onAuthStateChanged(auth, async user => {
   if (!user || !user.emailVerified) {
     signOut(auth).then(() => { window.location.href = "index.html"; });
     return;
   }
   Auth.current = user;
   setUser(user);
+
+  // Load Firestore user doc to get phone and any extra profile fields
+  const snap = await getDoc(doc(db, "users", user.uid));
+  if (snap.exists()) {
+    const data = snap.data();
+    // Make profile data available globally for future features
+    Auth.profile = data;
+  }
 });
 
 // Expose sign-out to the sidebar button

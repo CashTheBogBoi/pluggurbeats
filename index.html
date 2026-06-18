@@ -613,6 +613,7 @@ import { getAuth, onAuthStateChanged,
          GoogleAuthProvider, signInWithPopup,
          signOut, updateProfile,
          sendEmailVerification }                  from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore, doc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey:            "AIzaSyATP9LnN8pYEeXUd2TmDUZAPrAx9KNbudM",
@@ -626,6 +627,7 @@ const firebaseConfig = {
 
 const app      = initializeApp(firebaseConfig);
 const auth     = getAuth(app);
+const db       = getFirestore(app);
 const provider = new GoogleAuthProvider();
 
 // Flag to prevent onAuthStateChanged from redirecting during sign-up flow
@@ -637,9 +639,14 @@ Auth.signUp = async (email, pass, name, phone) => {
   try {
     const cred = await createUserWithEmailAndPassword(auth, email, pass);
     if (name) await updateProfile(cred.user, { displayName: name });
+    // Write user document to Firestore — only readable/writable by this uid
+    await setDoc(doc(db, "users", cred.user.uid), {
+      displayName: name || "",
+      email:       email,
+      phone:       phone || "",
+      createdAt:   serverTimestamp()
+    });
     await sendEmailVerification(cred.user);
-    // phone stored here for when Firestore user doc is wired up
-    cred.user._phone = phone;
     await signOut(auth);
   } finally {
     suppressRedirect = false;
