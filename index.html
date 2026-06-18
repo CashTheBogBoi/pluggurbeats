@@ -623,19 +623,24 @@ const app      = initializeApp(firebaseConfig);
 const auth     = getAuth(app);
 const provider = new GoogleAuthProvider();
 
+// Flag to prevent onAuthStateChanged from redirecting during sign-up flow
+let suppressRedirect = false;
+
 // Replace stub Auth object with real Firebase calls
 Auth.signUp = async (email, pass, name, phone) => {
+  suppressRedirect = true;
   const cred = await createUserWithEmailAndPassword(auth, email, pass);
   if (name) await updateProfile(cred.user, { displayName: name });
   await sendEmailVerification(cred.user);
   // phone stored here for when Firestore user doc is wired up
   cred.user._phone = phone;
   await signOut(auth);
+  suppressRedirect = false;
 };
 Auth.signIn  = (email, pass) => signInWithEmailAndPassword(auth, email, pass).then(c => c.user);
 Auth.signOut = () => signOut(auth);
 
-// Google sign-in
+// Google sign-in — Google accounts are already verified
 window.signInWithGoogle = () =>
   signInWithPopup(auth, provider)
     .then(() => { window.location.href = "dashboard.html"; })
@@ -645,10 +650,10 @@ window.signInWithGoogle = () =>
 onAuthStateChanged(auth, user => {
   Auth.current = user;
   renderAuthState(user);
-  // If already signed in, go straight to dashboard (unless a pending plan is waiting)
-  if (user && !pendingPlan) {
+  if (suppressRedirect) return;
+  if (user && user.emailVerified && !pendingPlan) {
     window.location.href = "dashboard.html";
-  } else if (user && pendingPlan) {
+  } else if (user && user.emailVerified && pendingPlan) {
     choosePlan(pendingPlan); pendingPlan = null;
   }
 });
