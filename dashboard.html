@@ -302,8 +302,8 @@
         <p>Where your records stand right now.</p>
       </div>
       <div class="stats">
-        <div class="stat"><div class="v" id="ovCampaigns">—</div><div class="l">Active campaigns</div></div>
-        <div class="stat"><div class="v" id="ovSent">—</div><div class="l">Pitches sent</div></div>
+        <div class="stat"><div class="v" id="ovCampaigns">—</div><div class="l">Campaigns submitted</div></div>
+        <div class="stat"><div class="v" id="ovSent">—</div><div class="l">Beats uploaded</div></div>
         <div class="stat"><div class="v" id="ovOpen">—</div><div class="l">Open rate</div></div>
         <div class="stat"><div class="v" id="ovDown">—</div><div class="l">Beat downloads</div></div>
       </div>
@@ -583,6 +583,7 @@ const ANR_TARGETS = [
 ];
 const PITCHES = [];
 const DOCS    = [];
+let myCampaigns = [];
 
 /* ==================================================================
    NAV
@@ -934,15 +935,43 @@ function refreshBeatDropdown(){
 /* ==================================================================
    ANALYTICS
    ================================================================== */
+function renderOverviewStats(){
+  const count = myCampaigns.length;
+  const beats = myCampaigns.reduce((sum,c)=>sum+(Array.isArray(c.beats)?c.beats.length:0),0);
+  document.getElementById("ovCampaigns").textContent = count || "0";
+  document.getElementById("ovSent").textContent      = beats || "0";
+  // open rate + downloads not yet collected
+  document.getElementById("ovOpen").textContent = "—";
+  document.getElementById("ovDown").textContent = "—";
+}
+
 function renderAnalytics(){
+  // engagement data not yet collected — leave blank
   document.getElementById("aSent").textContent="—";
   document.getElementById("aOpen").textContent="—";
   document.getElementById("aDown").textContent="—";
   document.getElementById("aView").textContent="—";
   document.getElementById("aOpenPct").textContent="";
-  document.getElementById("funnel").innerHTML=`<p class="hint">No campaign data yet. Start a campaign to see your funnel.</p>`;
+  document.getElementById("funnel").innerHTML=`<p class="hint">Engagement data will appear once pitches go out.</p>`;
   document.getElementById("chart").innerHTML=`<p class="hint">Chart will populate once pitches go out.</p>`;
-  document.getElementById("pitchRows").innerHTML=`<tr><td colspan="5" style="color:var(--bone-dim);text-align:center;padding:24px">No pitches sent yet.</td></tr>`;
+
+  // Build one row per beat across all campaigns
+  const rows=[];
+  myCampaigns.forEach(c=>{
+    const date = c.createdAt?.toDate ? c.createdAt.toDate().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}) : "—";
+    (c.beats||[]).forEach(b=>{
+      rows.push(`<tr>
+        <td>${b.title||"Untitled"}</td>
+        <td>${b.genre||"—"}</td>
+        <td>${date}</td>
+        <td><span class="pill sent">queued</span></td>
+        <td style="color:var(--bone-dim)">—</td>
+      </tr>`);
+    });
+  });
+  document.getElementById("pitchRows").innerHTML = rows.length
+    ? rows.join("")
+    : `<tr><td colspan="5" style="color:var(--bone-dim);text-align:center;padding:24px">No beats submitted yet.</td></tr>`;
 }
 
 /* ==================================================================
@@ -1071,10 +1100,11 @@ onAuthStateChanged(auth, async user => {
     Auth.profile = snap.data();
   }
 
-  // Load all campaigns to restore beats across refreshes
+  // Load all campaigns — drives overview stats, analytics table, and paperwork dropdown
   const campaignsSnap = await getDocs(collection(db, "users", user.uid, "campaigns"));
   campaignsSnap.forEach(cdoc => {
-    const cdata = cdoc.data();
+    const cdata = { id: cdoc.id, ...cdoc.data() };
+    myCampaigns.push(cdata);
     if (Array.isArray(cdata.beats)) {
       cdata.beats.forEach(beat => {
         if (beat.title && !myBeats.find(b => b.title === beat.title && b.uid === user.uid)) {
@@ -1084,6 +1114,7 @@ onAuthStateChanged(auth, async user => {
     }
   });
   refreshBeatDropdown();
+  renderOverviewStats();
 });
 
 // Expose sign-out to the sidebar button
