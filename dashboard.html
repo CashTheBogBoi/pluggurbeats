@@ -792,10 +792,10 @@ const firebaseConfig = {
 const app  = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 
-// Gate: redirect to marketing site if not signed in
+// Gate: redirect to marketing site if not signed in or email not verified
 onAuthStateChanged(auth, user => {
-  if (!user) {
-    window.location.href = "index.html";
+  if (!user || !user.emailVerified) {
+    signOut(auth).then(() => { window.location.href = "index.html"; });
     return;
   }
   Auth.current = user;
