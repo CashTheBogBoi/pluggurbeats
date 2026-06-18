@@ -528,8 +528,8 @@ async function submitAuth(){
   try{
     const user = authMode==="signup" ? await Auth.signUp(email,pass,name) : await Auth.signIn(email,pass);
     Auth.current=user; renderAuthState(user);
-    setMsg("authMsg","Signed in.","ok");
-    setTimeout(()=>{ closeModal("authOverlay"); if(pendingPlan){ choosePlan(pendingPlan); pendingPlan=null; } },500);
+    setMsg("authMsg","Signed in — redirecting…","ok");
+    setTimeout(()=>{ window.location.href = "dashboard.html"; },500);
   }catch(e){ setMsg("authMsg",e.message,"err"); }
   finally{ btn.disabled=false; setAuthMode(authMode); }
 }
@@ -618,16 +618,21 @@ Auth.signUp = async (email, pass, name) => {
 Auth.signIn  = (email, pass) => signInWithEmailAndPassword(auth, email, pass).then(c => c.user);
 Auth.signOut = () => signOut(auth);
 
-// Google sign-in — call this from a "Sign in with Google" button
+// Google sign-in
 window.signInWithGoogle = () =>
   signInWithPopup(auth, provider)
-    .then(result => { Auth.current = result.user; renderAuthState(result.user); })
-    .catch(e => console.error(e));
+    .then(() => { window.location.href = "dashboard.html"; })
+    .catch(e => setMsg("authMsg", e.message, "err"));
 
 // Single source of truth for auth state
 onAuthStateChanged(auth, user => {
   Auth.current = user;
   renderAuthState(user);
-  if (user && pendingPlan) { choosePlan(pendingPlan); pendingPlan = null; }
+  // If already signed in, go straight to dashboard (unless a pending plan is waiting)
+  if (user && !pendingPlan) {
+    window.location.href = "dashboard.html";
+  } else if (user && pendingPlan) {
+    choosePlan(pendingPlan); pendingPlan = null;
+  }
 });
 </script>
