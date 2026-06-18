@@ -265,10 +265,10 @@
         <p>Where your records stand right now.</p>
       </div>
       <div class="stats">
-        <div class="stat"><div class="v">3</div><div class="l">Active campaigns</div><div class="d up">+1 this week</div></div>
-        <div class="stat"><div class="v">187</div><div class="l">Pitches sent</div><div class="d up">+42 this week</div></div>
-        <div class="stat"><div class="v">61%</div><div class="l">Open rate</div><div class="d up">+4 pts</div></div>
-        <div class="stat"><div class="v">23</div><div class="l">Beat downloads</div><div class="d up">+6</div></div>
+        <div class="stat"><div class="v" id="ovCampaigns">—</div><div class="l">Active campaigns</div></div>
+        <div class="stat"><div class="v" id="ovSent">—</div><div class="l">Pitches sent</div></div>
+        <div class="stat"><div class="v" id="ovOpen">—</div><div class="l">Open rate</div></div>
+        <div class="stat"><div class="v" id="ovDown">—</div><div class="l">Beat downloads</div></div>
       </div>
       <div class="card" style="margin-top:18px">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
@@ -308,8 +308,8 @@
         <div class="card">
           <h3 style="font-size:18px;margin-bottom:18px">2 · Your details</h3>
           <div class="row2">
-            <div class="field"><label>Your name <span class="req">*</span></label><input id="bName" class="inp" placeholder="Nova"></div>
-            <div class="field"><label>Your Instagram <span class="req">*</span></label><input id="bIg" class="inp" placeholder="@prodbynova"></div>
+            <div class="field"><label>Your name <span class="req">*</span></label><input id="bName" class="inp" placeholder="Your name"></div>
+            <div class="field"><label>Your Instagram <span class="req">*</span></label><input id="bIg" class="inp" placeholder="@yourhandle"></div>
           </div>
         </div>
 
@@ -355,7 +355,7 @@
     <!-- ---------- ANALYTICS ---------- -->
     <section id="view-analytics" class="hide">
       <div class="page-head">
-        <div class="eyebrow">Campaign · Midnight Run</div>
+        <div class="eyebrow">Analytics</div>
         <h1>Pitch analytics</h1>
         <p>Live email and engagement tracking for this campaign.</p>
       </div>
@@ -437,7 +437,7 @@
         <div style="overflow-x:auto">
           <table>
             <thead><tr><th>Document</th><th>Type</th><th>Status</th><th>Updated</th></tr></thead>
-            <tbody id="docRows"></tbody>
+            <tbody id="docRows"><tr><td colspan="4" style="color:var(--bone-dim);text-align:center;padding:24px">No documents on file yet.</td></tr></tbody>
           </table>
         </div>
       </div>
@@ -537,24 +537,8 @@ const ANR_TARGETS = [
   { id:"anr-sync",       lane:"Sync / placement", tier:"Music supervisor", reach:"~14 contacts" },
   { id:"anr-mgmt",       lane:"Management", tier:"Artist managers", reach:"~31 contacts" }
 ];
-const PITCHES = [
-  ["Trap · A-list desk #4","Trap","Jun 14","downloaded","2h ago"],
-  ["R&B · Rising desk #12","R&B","Jun 14","opened","5h ago"],
-  ["Pop · Major A&R #2","Pop","Jun 13","opened","1d ago"],
-  ["Trap · Rising desk #7","Trap","Jun 13","downloaded","1d ago"],
-  ["Afrobeats · Rising #3","Afrobeats","Jun 12","sent","—"],
-  ["Drill · Rising desk #9","Drill","Jun 12","passed","2d ago"],
-  ["Sync · supervisor #1","Sync","Jun 11","opened","3d ago"]
-];
-const DOCS = [
-  ["Midnight Run — split sheet","Split sheet","complete","Jun 14"],
-  ["Nova × Kairo — WFH agreement","Work-for-hire","awaiting signature","Jun 13"],
-  ["Beat license — exclusive","License","draft","Jun 12"]
-];
-// 14-day cumulative series
-const SERIES = (()=>{ const s=[],o=[],d=[]; let S=0,O=0,D=0;
-  for(let i=0;i<14;i++){ S+=Math.round(8+Math.random()*10); O=Math.round(S*(0.55+Math.random()*0.12));
-    D=Math.round(O*(0.18+Math.random()*0.1)); s.push(S);o.push(O);d.push(D);} return {s,o,d}; })();
+const PITCHES = [];
+const DOCS    = [];
 
 /* ==================================================================
    NAV
@@ -736,45 +720,15 @@ function refreshBeatDropdown(){
 /* ==================================================================
    ANALYTICS
    ================================================================== */
-let analyticsDrawn=false;
 function renderAnalytics(){
-  const {s,o,d}=SERIES, S=s.at(-1),O=o.at(-1),D=d.at(-1), V=Math.round(O*1.6);
-  document.getElementById("aSent").textContent=S;
-  document.getElementById("aOpen").textContent=O;
-  document.getElementById("aDown").textContent=D;
-  document.getElementById("aView").textContent=V;
-  document.getElementById("aOpenPct").textContent=Math.round(O/S*100)+"% open rate";
-  // funnel
-  document.getElementById("funnel").innerHTML=[
-    ["Sent",S,100],["Opened",O,Math.round(O/S*100)],
-    ["Downloaded",D,Math.round(D/S*100)],["Responded",Math.round(D*0.4),Math.round(D*0.4/S*100)]
-  ].map(([k,val,pct])=>`<div class="meter"><div class="top"><span>${k}</span>
-     <span class="pct">${val} · ${pct}%</span></div><div class="bar"><i style="width:${pct}%"></i></div></div>`).join("");
-  // table
-  document.getElementById("pitchRows").innerHTML=PITCHES.map(p=>`<tr>
-    <td>${p[0]}</td><td>${p[1]}</td><td class="mono">${p[2]}</td>
-    <td><span class="pill ${p[3]}">${p[3]}</span></td><td style="color:var(--bone-dim)">${p[4]}</td></tr>`).join("");
-  if(!analyticsDrawn){ drawChart(s,o,d); analyticsDrawn=true; }
-}
-function drawChart(s,o,d){
-  const W=720,H=240,P=28, max=Math.max(...s)*1.05, n=s.length;
-  const x=i=>P+i*(W-2*P)/(n-1), y=val=>H-P-(val/max)*(H-2*P);
-  const path=arr=>arr.map((v,i)=>(i?"L":"M")+x(i).toFixed(1)+" "+y(v).toFixed(1)).join(" ");
-  const area=arr=>path(arr)+` L${x(n-1)} ${H-P} L${P} ${H-P} Z`;
-  let grid=""; for(let g=0;g<=4;g++){const gy=P+g*(H-2*P)/4;
-    grid+=`<line x1="${P}" y1="${gy}" x2="${W-P}" y2="${gy}" stroke="rgba(255,255,255,.06)"/>`;}
-  document.getElementById("chart").innerHTML=`
-   <svg class="chart" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
-     <defs>
-       <linearGradient id="gi" x1="0" y1="0" x2="0" y2="1">
-         <stop offset="0" stop-color="#6EC1FF" stop-opacity=".25"/><stop offset="1" stop-color="#6EC1FF" stop-opacity="0"/></linearGradient>
-     </defs>
-     ${grid}
-     <path d="${area(s)}" fill="url(#gi)"/>
-     <path d="${path(s)}" fill="none" stroke="#6EC1FF" stroke-width="2.5" stroke-linejoin="round"/>
-     <path d="${path(o)}" fill="none" stroke="#E4C16B" stroke-width="2.5" stroke-linejoin="round"/>
-     <path d="${path(d)}" fill="none" stroke="#7CE2A4" stroke-width="2.5" stroke-linejoin="round"/>
-   </svg>`;
+  document.getElementById("aSent").textContent="—";
+  document.getElementById("aOpen").textContent="—";
+  document.getElementById("aDown").textContent="—";
+  document.getElementById("aView").textContent="—";
+  document.getElementById("aOpenPct").textContent="";
+  document.getElementById("funnel").innerHTML=`<p class="hint">No campaign data yet. Start a campaign to see your funnel.</p>`;
+  document.getElementById("chart").innerHTML=`<p class="hint">Chart will populate once pitches go out.</p>`;
+  document.getElementById("pitchRows").innerHTML=`<tr><td colspan="5" style="color:var(--bone-dim);text-align:center;padding:24px">No pitches sent yet.</td></tr>`;
 }
 
 /* ==================================================================
@@ -817,7 +771,7 @@ buildPackages();
 buildTargets();
 addCollab();
 refreshBeatDropdown();
-addWriter("","Producer","","");
+addWriter();
 document.getElementById("sDate").valueAsDate=new Date();
 </script>
 
