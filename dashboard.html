@@ -857,10 +857,13 @@ async function reviewCampaign(){
       const file    = card._pendingFile;
       const ext     = file.name.split(".").pop();
       const title   = (card.querySelector(".b-title").value.trim() || "beat").toUpperCase();
-      const handles = [...card.querySelectorAll(".b-collabs .beat-collab-row")]
-        .map(r => r.querySelectorAll("input")[1].value.trim())
-        .filter(ig => ig)
-        .map(ig => ig.startsWith("@") ? ig : "@"+ig);
+      const ownerIg = v("bIg");
+      const handles = [
+        ownerIg,
+        ...[...card.querySelectorAll(".b-collabs .beat-collab-row")]
+          .map(r => r.querySelectorAll("input")[1].value.trim())
+      ].filter(ig => ig)
+       .map(ig => ig.startsWith("@") ? ig : "@"+ig);
       const unique   = [...new Set(handles)];
       const igPart   = unique.length ? `(${unique.join(", ")})` : "";
       const safeName = `${title}${igPart}`.replace(/[\/\\:*?"<>|]/g,"");
