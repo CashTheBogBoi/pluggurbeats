@@ -348,6 +348,15 @@ asdasdasdasdasd
     </div>
     <div class="msg" id="authMsg"></div>
     <button class="btn btn-gold btn-block" id="authSubmit" style="margin-top:18px" onclick="submitAuth()">Sign in</button>
+    <div style="display:flex;align-items:center;gap:10px;margin:14px 0 4px">
+      <div style="flex:1;height:1px;background:var(--line-strong)"></div>
+      <span style="font-size:12px;color:var(--bone-dim)">or</span>
+      <div style="flex:1;height:1px;background:var(--line-strong)"></div>
+    </div>
+    <button class="btn btn-ghost btn-block" onclick="signInWithGoogle()" style="gap:10px">
+      <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#4285F4" d="M44.5 20H24v8.5h11.8C34.7 33.9 29.8 37 24 37c-7.2 0-13-5.8-13-13s5.8-13 13-13c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 5.1 29.6 3 24 3 12.4 3 3 12.4 3 24s9.4 21 21 21c10.5 0 20-7.6 20-21 0-1.4-.1-2.7-.5-4z"/></svg>
+      Continue with Google
+    </button>
   </div>
 </div>
 
@@ -576,4 +585,49 @@ function toggleMenu(){ document.getElementById("mobileMenu").classList.toggle("s
 document.addEventListener("keydown",e=>{ if(e.key==="Escape"){closeModal("authOverlay");closeModal("payOverlay");} });
 
 buildEq(); buildGenres(); buildTiers(); renderAuthState(null);
+</script>
+
+<script type="module">
+import { initializeApp }                          from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, onAuthStateChanged,
+         createUserWithEmailAndPassword,
+         signInWithEmailAndPassword,
+         GoogleAuthProvider, signInWithPopup,
+         signOut, updateProfile }                 from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
+const firebaseConfig = {
+  apiKey:            "AIzaSyATP9LnN8pYEeXUd2TmDUZAPrAx9KNbudM",
+  authDomain:        "pluggurbeats.firebaseapp.com",
+  projectId:         "pluggurbeats",
+  storageBucket:     "pluggurbeats.firebasestorage.app",
+  messagingSenderId: "990734368924",
+  appId:             "1:990734368924:web:1be6ebfbccab82cb576d59",
+  measurementId:     "G-J1M418YLQL"
+};
+
+const app      = initializeApp(firebaseConfig);
+const auth     = getAuth(app);
+const provider = new GoogleAuthProvider();
+
+// Replace stub Auth object with real Firebase calls
+Auth.signUp = async (email, pass, name) => {
+  const cred = await createUserWithEmailAndPassword(auth, email, pass);
+  if (name) await updateProfile(cred.user, { displayName: name });
+  return cred.user;
+};
+Auth.signIn  = (email, pass) => signInWithEmailAndPassword(auth, email, pass).then(c => c.user);
+Auth.signOut = () => signOut(auth);
+
+// Google sign-in — call this from a "Sign in with Google" button
+window.signInWithGoogle = () =>
+  signInWithPopup(auth, provider)
+    .then(result => { Auth.current = result.user; renderAuthState(result.user); })
+    .catch(e => console.error(e));
+
+// Single source of truth for auth state
+onAuthStateChanged(auth, user => {
+  Auth.current = user;
+  renderAuthState(user);
+  if (user && pendingPlan) { choosePlan(pendingPlan); pendingPlan = null; }
+});
 </script>

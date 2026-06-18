@@ -243,8 +243,9 @@
     <div class="navspace"></div>
     <!-- FIREBASE: populate from auth.currentUser -->
     <div class="me">
-      <div class="avatar" id="meAvatar">N</div>
-      <div><div class="nm" id="meName">prodbynova</div><div class="em" id="meEmail">nova@studio.com</div></div>
+      <div class="avatar" id="meAvatar">?</div>
+      <div><div class="nm" id="meName">—</div><div class="em" id="meEmail"></div></div>
+      <button onclick="signOutUser()" title="Sign out" style="background:none;border:0;color:var(--bone-dim);font-size:16px;margin-left:auto;cursor:pointer">↩</button>
     </div>
   </aside>
 
@@ -812,12 +813,41 @@ function toast(t){const el=document.getElementById("toast");el.textContent=t;el.
 document.addEventListener("keydown",e=>{if(e.key==="Escape")closeModal();});
 
 /* init */
-setUser(Auth.current);
 buildPackages();
 buildTargets();
 addCollab();
 refreshBeatDropdown();
-addWriter("Nova","Producer",60,"@prodbynova");
-addWriter("Kairo","Writer",40,"@kairowrites");
+addWriter("","Producer","","");
 document.getElementById("sDate").valueAsDate=new Date();
+</script>
+
+<script type="module">
+import { initializeApp }                          from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, onAuthStateChanged, signOut }   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
+const firebaseConfig = {
+  apiKey:            "AIzaSyATP9LnN8pYEeXUd2TmDUZAPrAx9KNbudM",
+  authDomain:        "pluggurbeats.firebaseapp.com",
+  projectId:         "pluggurbeats",
+  storageBucket:     "pluggurbeats.firebasestorage.app",
+  messagingSenderId: "990734368924",
+  appId:             "1:990734368924:web:1be6ebfbccab82cb576d59",
+  measurementId:     "G-J1M418YLQL"
+};
+
+const app  = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+
+// Gate: redirect to marketing site if not signed in
+onAuthStateChanged(auth, user => {
+  if (!user) {
+    window.location.href = "index.html";
+    return;
+  }
+  Auth.current = user;
+  setUser(user);
+});
+
+// Expose sign-out to the sidebar button
+window.signOutUser = () => signOut(auth);
 </script>
