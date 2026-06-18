@@ -532,7 +532,8 @@ async function submitAuth(){
     if(authMode==="signup"){
       await Auth.signUp(email,pass,name,phone);
       btn.disabled=false; btn.textContent="Create account";
-      setMsg("authMsg","Check your email for a verification link before signing in.","ok");
+      show("authOverlay");
+      setMsg("authMsg","✓ Account created! Check your email for a verification link before signing in.","ok");
     } else {
       const user = await Auth.signIn(email,pass);
       if(!user.emailVerified){
@@ -633,13 +634,16 @@ let suppressRedirect = false;
 // Replace stub Auth object with real Firebase calls
 Auth.signUp = async (email, pass, name, phone) => {
   suppressRedirect = true;
-  const cred = await createUserWithEmailAndPassword(auth, email, pass);
-  if (name) await updateProfile(cred.user, { displayName: name });
-  await sendEmailVerification(cred.user);
-  // phone stored here for when Firestore user doc is wired up
-  cred.user._phone = phone;
-  await signOut(auth);
-  suppressRedirect = false;
+  try {
+    const cred = await createUserWithEmailAndPassword(auth, email, pass);
+    if (name) await updateProfile(cred.user, { displayName: name });
+    await sendEmailVerification(cred.user);
+    // phone stored here for when Firestore user doc is wired up
+    cred.user._phone = phone;
+    await signOut(auth);
+  } finally {
+    suppressRedirect = false;
+  }
 };
 Auth.signIn  = (email, pass) => signInWithEmailAndPassword(auth, email, pass).then(c => c.user);
 Auth.signOut = () => signOut(auth);
