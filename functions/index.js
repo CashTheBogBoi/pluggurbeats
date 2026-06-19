@@ -1,14 +1,14 @@
-const functions  = require("firebase-functions");
-const admin      = require("firebase-admin");
-const JSZip      = require("jszip");
-const { Resend } = require("resend");
-const contacts   = require("./contacts.json");
+const { onDocumentCreated } = require("firebase-functions/v2/firestore");
+const { defineSecret }      = require("firebase-functions/params");
+const admin                 = require("firebase-admin");
+const { Resend }            = require("resend");
+const contacts              = require("./contacts.json");
 
 admin.initializeApp();
 
-// Resend client is created inside the function so it doesn't block cold start
+const RESEND_API_KEY = defineSecret("RESEND_API_KEY");
 
-// Maps the target IDs chosen on the dashboard to genre lane names in contacts.json
+// Maps target IDs from the dashboard to genre lane names in contacts.json
 const TARGET_LANE_MAP = {
   "trap-a":          "Trap",
   "trap-r":          "Trap",
@@ -25,66 +25,49 @@ const TARGET_LANE_MAP = {
   "anr-mgmt":        "All"
 };
 
-exports.pitchCampaign = functions
-  .runWith({ secrets: ["RESEND_API_KEY"] })
-  .firestore
-  .document("users/{uid}/campaigns/{campaignId}")
-  .onCreate(async (snap, context) => {
-    const campaign     = snap.data();
-    const { uid, campaignId } = context.params;
-    const storage      = admin.storage().bucket();
-    const resend       = new Resend(process.env.RESEND_API_KEY);
+exports.pitchCampaign = onDocumentCreated(
+  { document: "users/{uid}/campaigns/{campaignId}", secrets: [RESEND_API_KEY] },
+  async (event) => {
+    const snap     = event.data;
+    const { uid, campaignId } = event.params;
+    const campaign = snap.data();
+    const storage  = admin.storage().bucket();
+    const resend   = new Resend(RESEND_API_KEY.value());
 
     const producer = campaign.producer || {};
-    const beats    = (campaign.beats  || []).filter(b => b.storagePath);
-    const targets  = campaign.targets || [];
+    const beats    = campaign.beats    || [];
+    const targets  = campaign.targets  || [];
+    const zipPath  = campaign.zipPath;
 
-    if (beats.length === 0) {
-      console.log("No uploaded beats on campaign", campaignId);
-      return null;
+    if (!zipPath) {
+      console.log("No zip on campaign", campaignId);
+      return;
     }
 
     // Resolve unique lanes from selected targets, then collect emails
     const lanes = [...new Set(targets.map(t => TARGET_LANE_MAP[t]).filter(Boolean))];
     const emailSet = new Set();
-    lanes.forEach(lane => {
-      (contacts[lane]  || []).forEach(e => emailSet.add(e));
-    });
+    lanes.forEach(lane => (contacts[lane] || []).forEach(e => emailSet.add(e)));
     (contacts["All"] || []).forEach(e => emailSet.add(e));
     const emails = [...emailSet];
 
     if (emails.length === 0) {
       console.log("No contacts mapped for lanes:", lanes);
       await snap.ref.update({ status: "no_contacts" });
-      return null;
+      return;
     }
 
-    // Download every beat file and add to zip
-    const zip = new JSZip();
-    await Promise.all(beats.map(async beat => {
-      const [buffer] = await storage.file(beat.storagePath).download();
-      const filename  = beat.storagePath.split("/").pop();
-      zip.file(filename, buffer);
-    }));
-
-    // Upload zip to Storage and generate a 30-day signed download link
-    const zipBuffer = await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
-    const zipPath   = `pitches/${uid}/${campaignId}/beats.zip`;
-    const zipFile   = storage.file(zipPath);
-    await zipFile.save(zipBuffer, { contentType: "application/zip" });
-    const [downloadUrl] = await zipFile.getSignedUrl({
+    // Generate a 30-day signed download link for the already-uploaded zip
+    const [downloadUrl] = await storage.file(zipPath).getSignedUrl({
       action:  "read",
       expires: Date.now() + 30 * 24 * 60 * 60 * 1000
     });
 
-    // Build beat list HTML for the email body
-    const beatListHtml = beats
+    const beatListHtml  = beats
       .map(b => `<li><strong>${b.title}</strong> — ${b.genre || ""}${b.bpm ? `, ${b.bpm} BPM` : ""}${b.key ? `, ${b.key}` : ""}</li>`)
       .join("");
+    const packageLabel  = { starter: "Starter", pro: "Pro", label: "Label" }[campaign.package] || campaign.package;
 
-    const packageLabel = { starter: "Starter", pro: "Pro", label: "Label" }[campaign.package] || campaign.package;
-
-    // Send one email per contact
     await Promise.all(emails.map(to =>
       resend.emails.send({
         from:    "PluggurBeats Pitching <pitching@pluggurbeat.com>",
@@ -114,13 +97,12 @@ exports.pitchCampaign = functions
       })
     ));
 
-    // Mark campaign as pitched in Firestore
     await snap.ref.update({
-      status:     "pitched",
-      pitchedAt:  admin.firestore.FieldValue.serverTimestamp(),
-      pitchedTo:  emails
+      status:    "pitched",
+      pitchedAt: admin.firestore.FieldValue.serverTimestamp(),
+      pitchedTo: emails
     });
 
     console.log(`Campaign ${campaignId}: pitched ${beats.length} beats to ${emails.length} contacts`);
-    return null;
-  });
+  }
+);
