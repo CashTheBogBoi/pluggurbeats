@@ -120,15 +120,29 @@ exports.pitchCampaign = onDocumentCreated(
           </div>`
       });
 
+      // Resend returns { data, error } — it does NOT throw on API errors
+      // (e.g. unverified domain), so surface those explicitly.
+      if (sent?.error) {
+        console.error(`Resend rejected email to ${to}:`, JSON.stringify(sent.error));
+        return { to, error: sent.error };
+      }
       // Index the Resend email id -> same recipient so webhook opens resolve
       const emailId = sent?.data?.id;
       if (emailId) await db.collection("emailIndex").doc(emailId).set(recipient);
+      console.log(`Email sent to ${to} (id ${emailId})`);
       return { to, emailId };
     }));
 
     results.forEach(r => {
-      if (r.status === "rejected") console.error("Email failed:", r.reason);
+      if (r.status === "rejected") console.error("Email send threw:", r.reason);
     });
+
+    const sentCount = results.filter(r => r.status === "fulfilled" && r.value.emailId).length;
+    if (sentCount === 0) {
+      console.error(`Campaign ${campaignId}: NO emails sent — check Resend domain verification`);
+      await snap.ref.update({ status: "send_failed" });
+      return;
+    }
 
     await snap.ref.update({
       status:    "pitched",
