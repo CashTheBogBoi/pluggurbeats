@@ -393,7 +393,7 @@
         <div class="stat"><div class="v" id="aSent">0</div><div class="l">Emails sent</div></div>
         <div class="stat"><div class="v" id="aOpen">0</div><div class="l">Opened</div><div class="d up" id="aOpenPct"></div></div>
         <div class="stat"><div class="v" id="aDown">0</div><div class="l">Beats downloaded</div></div>
-        <div class="stat"><div class="v" id="aView">0</div><div class="l">Profile / link views</div></div>
+        <div class="stat"><div class="v" id="aView">0</div><div class="l">Link clicks</div></div>
       </div>
 
       <div class="card" style="margin-top:18px">
@@ -416,7 +416,7 @@
         <h3 style="font-size:17px;margin-bottom:14px">Per-pitch activity</h3>
         <div style="overflow-x:auto">
           <table>
-            <thead><tr><th>Target</th><th>Lane</th><th>Sent</th><th>Status</th><th>Last activity</th></tr></thead>
+            <thead><tr><th>Recipient</th><th>Campaign</th><th>Opened</th><th>Downloaded</th><th>Last activity</th></tr></thead>
             <tbody id="pitchRows"></tbody>
           </table>
         </div>
@@ -939,41 +939,57 @@ function refreshBeatDropdown(){
    ================================================================== */
 function renderOverviewStats(){
   const count = myCampaigns.length;
-  const beats = myCampaigns.reduce((sum,c)=>sum+(Array.isArray(c.beats)?c.beats.length:0),0);
+  const sent  = myCampaigns.reduce((s,c)=>s+(Array.isArray(c.pitchedTo)?c.pitchedTo.length:0),0);
+  const opens = myCampaigns.reduce((s,c)=>s+(c.opens||0),0);
+  const downs = myCampaigns.reduce((s,c)=>s+(c.downloads||0),0);
   document.getElementById("ovCampaigns").textContent = count || "0";
-  document.getElementById("ovSent").textContent      = beats || "0";
-  // open rate + downloads not yet collected
-  document.getElementById("ovOpen").textContent = "—";
-  document.getElementById("ovDown").textContent = "—";
+  document.getElementById("ovSent").textContent      = sent || "0";
+  document.getElementById("ovOpen").textContent      = sent ? Math.round(opens/sent*100)+"%" : "—";
+  document.getElementById("ovDown").textContent      = downs || "0";
 }
 
-function renderAnalytics(){
-  // engagement data not yet collected — leave blank
-  document.getElementById("aSent").textContent="—";
-  document.getElementById("aOpen").textContent="—";
-  document.getElementById("aDown").textContent="—";
-  document.getElementById("aView").textContent="—";
-  document.getElementById("aOpenPct").textContent="";
-  document.getElementById("funnel").innerHTML=`<p class="hint">Engagement data will appear once pitches go out.</p>`;
-  document.getElementById("chart").innerHTML=`<p class="hint">Chart will populate once pitches go out.</p>`;
+async function renderAnalytics(){
+  document.getElementById("pitchRows").innerHTML =
+    `<tr><td colspan="5" style="color:var(--bone-dim);text-align:center;padding:24px">Loading…</td></tr>`;
 
-  // Build one row per beat across all campaigns
-  const rows=[];
-  myCampaigns.forEach(c=>{
-    const date = c.createdAt?.toDate ? c.createdAt.toDate().toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}) : "—";
-    (c.beats||[]).forEach(b=>{
-      rows.push(`<tr>
-        <td>${b.title||"Untitled"}</td>
-        <td>${b.genre||"—"}</td>
-        <td>${date}</td>
-        <td><span class="pill sent">queued</span></td>
-        <td style="color:var(--bone-dim)">—</td>
-      </tr>`);
-    });
-  });
+  const { sent, opens, downloads, clicks, recipients } =
+    window.fetchAnalytics ? await window.fetchAnalytics() : { sent:0, opens:0, downloads:0, clicks:0, recipients:[] };
+
+  const openRate = sent ? Math.round(opens / sent * 100) : 0;
+
+  document.getElementById("aSent").textContent    = sent;
+  document.getElementById("aOpen").textContent    = opens;
+  document.getElementById("aDown").textContent    = downloads;
+  document.getElementById("aView").textContent    = clicks;
+  document.getElementById("aOpenPct").textContent = sent ? `${openRate}% open rate` : "";
+
+  // Conversion funnel: Sent → Opened → Downloaded
+  const funnel = [
+    ["Sent",       sent,      100],
+    ["Opened",     opens,     sent ? Math.round(opens/sent*100) : 0],
+    ["Downloaded", downloads, sent ? Math.round(downloads/sent*100) : 0]
+  ];
+  document.getElementById("funnel").innerHTML = sent
+    ? funnel.map(([k,val,pct])=>`<div class="meter"><div class="top"><span>${k}</span>
+        <span class="pct">${val} · ${pct}%</span></div>
+        <div class="bar"><i style="width:${pct}%"></i></div></div>`).join("")
+    : `<p class="hint">Engagement data will appear once pitches go out.</p>`;
+
+  document.getElementById("chart").innerHTML =
+    `<p class="hint">Sends ${sent} · Opens ${opens} · Downloads ${downloads} · Clicks ${clicks}</p>`;
+
+  // Per-recipient activity (anonymized)
+  const fmt = ms => ms ? new Date(ms).toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}) : "—";
+  const rows = recipients.map(r=>`<tr>
+    <td>${r.label}</td>
+    <td class="mono" style="font-size:12px">${r.campaign}</td>
+    <td>${r.opened ? '<span class="pill opened">opened</span>' : '<span style="color:var(--bone-dim)">—</span>'}</td>
+    <td>${r.downloaded ? '<span class="pill downloaded">downloaded</span>' : '<span style="color:var(--bone-dim)">—</span>'}</td>
+    <td style="color:var(--bone-dim)">${fmt(r.last)}</td>
+  </tr>`);
   document.getElementById("pitchRows").innerHTML = rows.length
     ? rows.join("")
-    : `<tr><td colspan="5" style="color:var(--bone-dim);text-align:center;padding:24px">No beats submitted yet.</td></tr>`;
+    : `<tr><td colspan="5" style="color:var(--bone-dim);text-align:center;padding:24px">No engagement yet — opens and downloads appear here once recipients interact.</td></tr>`;
 }
 
 /* ==================================================================
@@ -1086,6 +1102,52 @@ window.saveCampaignDraft = async (campaignId, data) => {
     createdAt: serverTimestamp()
   });
   return campaignId;
+};
+
+// Fetch + aggregate engagement events across all campaigns.
+// Contact emails are kept private — recipients are anonymized as "Contact N".
+window.fetchAnalytics = async () => {
+  const user = Auth.current;
+  if(!user) return { sent:0, opens:0, downloads:0, clicks:0, recipients:[] };
+
+  let sent = 0, opens = 0, downloads = 0, clicks = 0;
+  const recipients = [];
+
+  for(const c of myCampaigns){
+    sent += Array.isArray(c.pitchedTo) ? c.pitchedTo.length : 0;
+    const evSnap = await getDocs(collection(db, "users", user.uid, "campaigns", c.id, "events"));
+
+    // Group events by contact within this campaign
+    const byContact = new Map();
+    evSnap.forEach(ev => {
+      const e = ev.data();
+      const key = e.contact || "unknown";
+      if(!byContact.has(key)) byContact.set(key, { opened:false, downloaded:false, clicked:false, last:null });
+      const rec = byContact.get(key);
+      if(e.type === "opened")     rec.opened     = true;
+      if(e.type === "downloaded") rec.downloaded = true;
+      if(e.type === "clicked")    rec.clicked    = true;
+      const t = e.timestamp?.toMillis ? e.timestamp.toMillis() : 0;
+      if(t && (!rec.last || t > rec.last)) rec.last = t;
+    });
+
+    let n = 0;
+    byContact.forEach(rec => {
+      n++;
+      if(rec.opened)     opens++;
+      if(rec.downloaded) downloads++;
+      if(rec.clicked)    clicks++;
+      recipients.push({
+        label:      `Contact ${n}`,
+        campaign:   c.id,
+        opened:     rec.opened,
+        downloaded: rec.downloaded,
+        last:       rec.last
+      });
+    });
+  }
+
+  return { sent, opens, downloads, clicks, recipients };
 };
 
 // Gate: redirect to marketing site if not signed in or email not verified
