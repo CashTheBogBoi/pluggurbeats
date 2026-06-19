@@ -2,6 +2,12 @@
   "functions": {
     "source": "functions"
   },
+  "firestore": {
+    "rules": "firestore.rules"
+  },
+  "storage": {
+    "rules": "storage.rules"
+  },
   "hosting": {
     "site": "pluggurbeats",
     "public": ".",
@@ -10,7 +16,10 @@
       "**/.*",
       "**/node_modules/**",
       "BUISINESS FILES/**",
-      "functions/**"
+      "functions/**",
+      "*.rules",
+      "*.md",
+      "skills-lock.json"
     ],
     "headers": [
       {
