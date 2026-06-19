@@ -3,6 +3,7 @@
     "source": "functions"
   },
   "hosting": {
+    "site": "pluggurbeats",
     "public": ".",
     "ignore": [
       "firebase.json",
@@ -10,6 +11,17 @@
       "**/node_modules/**",
       "BUISINESS FILES/**",
       "functions/**"
+    ],
+    "headers": [
+      {
+        "source": "**",
+        "headers": [
+          {
+            "key": "Strict-Transport-Security",
+            "value": "max-age=31536000; includeSubDomains; preload"
+          }
+        ]
+      }
     ]
   }
 }
