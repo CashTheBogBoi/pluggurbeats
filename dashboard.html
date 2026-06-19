@@ -849,8 +849,8 @@ async function reviewCampaign(){
   if(missingFile){ toast("Attach a file to every beat before continuing."); return; }
   if(selected.size===0){ toast("Select at least one target."); return; }
 
-  // Pre-generate campaign ID so beats land in the right folder from the start
-  const campaignId = window.generateCampaignId ? window.generateCampaignId() : ("tmp-" + Date.now());
+  // Campaign ID: {package}_campaign{n} e.g. "starter_campaign1", "pro_campaign2"
+  const campaignId = `${pkg.id}_campaign${myCampaigns.length + 1}`;
 
   const btn = document.getElementById("toPay");
   btn.disabled=true; btn.textContent="Uploading beats…";
@@ -1073,13 +1073,6 @@ window.uploadBeatFile = (file, card, bar, fill, status, campaignId) => {
       }
     );
   });
-};
-
-// Pre-generate a campaign ID so beats can be stored under the right folder before saving
-window.generateCampaignId = () => {
-  const user = Auth.current;
-  if(!user) return null;
-  return doc(collection(db, "users", user.uid, "campaigns")).id;
 };
 
 // Save campaign draft to Firestore under users/{uid}/campaigns/{campaignId}
