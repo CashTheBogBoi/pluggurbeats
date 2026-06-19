@@ -6,6 +6,8 @@ const contacts   = require("./contacts.json");
 
 admin.initializeApp();
 
+// Resend client is created inside the function so it doesn't block cold start
+
 // Maps the target IDs chosen on the dashboard to genre lane names in contacts.json
 const TARGET_LANE_MAP = {
   "trap-a":          "Trap",
@@ -23,11 +25,13 @@ const TARGET_LANE_MAP = {
   "anr-mgmt":        "All"
 };
 
-exports.pitchCampaign = functions.firestore
+exports.pitchCampaign = functions
+  .runWith({ secrets: ["RESEND_API_KEY"] })
+  .firestore
   .document("users/{uid}/campaigns/{campaignId}")
   .onCreate(async (snap, context) => {
     const campaign     = snap.data();
-    const { campaignId } = context.params;
+    const { uid, campaignId } = context.params;
     const storage      = admin.storage().bucket();
     const resend       = new Resend(process.env.RESEND_API_KEY);
 
@@ -65,7 +69,7 @@ exports.pitchCampaign = functions.firestore
 
     // Upload zip to Storage and generate a 30-day signed download link
     const zipBuffer = await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
-    const zipPath   = `pitches/${campaignId}/beats.zip`;
+    const zipPath   = `pitches/${uid}/${campaignId}/beats.zip`;
     const zipFile   = storage.file(zipPath);
     await zipFile.save(zipBuffer, { contentType: "application/zip" });
     const [downloadUrl] = await zipFile.getSignedUrl({

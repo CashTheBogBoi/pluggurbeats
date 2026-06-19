@@ -849,6 +849,9 @@ async function reviewCampaign(){
   if(missingFile){ toast("Attach a file to every beat before continuing."); return; }
   if(selected.size===0){ toast("Select at least one target."); return; }
 
+  // Pre-generate campaign ID so beats land in the right folder from the start
+  const campaignId = window.generateCampaignId ? window.generateCampaignId() : ("tmp-" + Date.now());
+
   // Upload all pending files now with final names (Instagrams are fully filled in)
   const btn = document.getElementById("toPay");
   btn.disabled=true; btn.textContent="Uploading beats…";
@@ -872,7 +875,7 @@ async function reviewCampaign(){
       const bar      = card.querySelector(".progress-bar");
       const fill     = card.querySelector(".progress-fill");
       const status   = card.querySelector(".beat-status");
-      return window.uploadBeatFile(renamed, card, bar, fill, status);
+      return window.uploadBeatFile(renamed, card, bar, fill, status, campaignId);
     }));
   } catch(e) {
     toast("Upload failed: " + e.message);
@@ -882,14 +885,14 @@ async function reviewCampaign(){
 
   const beats = filledBeats();
 
-  // Save campaign draft to Firestore
+  // Save campaign draft to Firestore using the pre-generated ID
   if(window.saveCampaignDraft){
-    const id = await window.saveCampaignDraft({
+    await window.saveCampaignDraft(campaignId, {
       package: pkg.id, price: pkg.price, pitches: pitchCap,
       producer: { name:v("bName"), instagram:v("bIg"), email:Auth.current?.email||"", phone:Auth.profile?.phone||"" },
       beats, targets:[...selected]
     });
-    document.getElementById("payOverlay").dataset.campaignId = id;
+    document.getElementById("payOverlay").dataset.campaignId = campaignId;
   }
 
   btn.disabled=false; btn.textContent="Continue to payment →";
@@ -1020,7 +1023,7 @@ document.getElementById("sDate").valueAsDate=new Date();
 <script type="module">
 import { initializeApp }                          from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, onAuthStateChanged, signOut }                      from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, doc, getDoc, getDocs, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, doc, getDoc, getDocs, setDoc, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { getStorage, ref, uploadBytesResumable, getDownloadURL }     from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
 
 const firebaseConfig = {
@@ -1038,12 +1041,12 @@ const auth    = getAuth(app);
 const db      = getFirestore(app);
 const storage = getStorage(app);
 
-// Upload a beat file to Firebase Storage under beats/{uid}/{timestamp}_{filename}
+// Upload a beat file to Firebase Storage under beats/{uid}/{campaignId}/{filename}
 // Only the owner can access it (enforced by Storage rules)
-window.uploadBeatFile = (file, card, bar, fill, status) => {
+window.uploadBeatFile = (file, card, bar, fill, status, campaignId) => {
   const user = Auth.current;
   if(!user) return Promise.reject(new Error("Not signed in"));
-  const path    = `beats/${user.uid}/${file.name}`;
+  const path    = `beats/${user.uid}/${campaignId}/${file.name}`;
   const fileRef = ref(storage, path);
   const task    = uploadBytesResumable(fileRef, file);
   status.textContent = "Uploading…";
@@ -1073,16 +1076,24 @@ window.uploadBeatFile = (file, card, bar, fill, status) => {
   });
 };
 
-// Save campaign draft to Firestore under users/{uid}/campaigns/{id}
-window.saveCampaignDraft = async (data) => {
+// Pre-generate a campaign ID so beats can be stored under the right folder before saving
+window.generateCampaignId = () => {
   const user = Auth.current;
   if(!user) return null;
-  const ref = await addDoc(collection(db, "users", user.uid, "campaigns"), {
+  return doc(collection(db, "users", user.uid, "campaigns")).id;
+};
+
+// Save campaign draft to Firestore under users/{uid}/campaigns/{campaignId}
+window.saveCampaignDraft = async (campaignId, data) => {
+  const user = Auth.current;
+  if(!user) return null;
+  const campaignRef = doc(db, "users", user.uid, "campaigns", campaignId);
+  await setDoc(campaignRef, {
     ...data,
     status:    "pending_payment",
     createdAt: serverTimestamp()
   });
-  return ref.id;
+  return campaignId;
 };
 
 // Gate: redirect to marketing site if not signed in or email not verified
