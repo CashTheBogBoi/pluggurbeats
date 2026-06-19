@@ -14,7 +14,6 @@
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Inter:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 
 <style>
   :root{
@@ -850,18 +849,16 @@ async function reviewCampaign(){
   if(missingFile){ toast("Attach a file to every beat before continuing."); return; }
   if(selected.size===0){ toast("Select at least one target."); return; }
 
-  // Pre-generate campaign ID
+  // Pre-generate campaign ID so beats land in the right folder from the start
   const campaignId = window.generateCampaignId ? window.generateCampaignId() : ("tmp-" + Date.now());
 
   const btn = document.getElementById("toPay");
-  btn.disabled=true; btn.textContent="Zipping beats…";
+  btn.disabled=true; btn.textContent="Uploading beats…";
 
   try {
-    // Build zip client-side — one file per named beat with proper filename
-    const zip = new JSZip();
-    namedCards.forEach(card => {
-      const file  = card._pendingFile;
-      if(!file) return;
+    await Promise.all(namedCards.map(card => {
+      if(!card._pendingFile) return Promise.resolve();
+      const file    = card._pendingFile;
       const ext     = file.name.split(".").pop();
       const title   = (card.querySelector(".b-title").value.trim() || "beat").toUpperCase();
       const ownerIg = v("bIg");
@@ -874,25 +871,12 @@ async function reviewCampaign(){
       const unique   = [...new Set(handles)];
       const igPart   = unique.length ? `(${unique.join(", ")})` : "";
       const safeName = `${title}${igPart}`.replace(/[\/\\:*?"<>|]/g, "");
-      zip.file(`${safeName}.${ext}`, file);
-    });
-
-    btn.textContent = "Uploading zip…";
-    const zipPath = await window.uploadCampaignZip(zip, campaignId, pct => {
-      btn.textContent = `Uploading… ${pct}%`;
-    });
-
-    const beats = filledBeats();
-
-    if(window.saveCampaignDraft){
-      await window.saveCampaignDraft(campaignId, {
-        package: pkg.id, price: pkg.price, pitches: pitchCap,
-        zipPath,
-        producer: { name:v("bName"), instagram:v("bIg"), email:Auth.current?.email||"", phone:Auth.profile?.phone||"" },
-        beats, targets:[...selected]
-      });
-      document.getElementById("payOverlay").dataset.campaignId = campaignId;
-    }
+      const renamed  = new File([file], `${safeName}.${ext}`, { type: file.type });
+      const bar      = card.querySelector(".progress-bar");
+      const fill     = card.querySelector(".progress-fill");
+      const status   = card.querySelector(".beat-status");
+      return window.uploadBeatFile(renamed, card, bar, fill, status, campaignId);
+    }));
   } catch(e) {
     toast("Upload failed: " + e.message);
     btn.disabled=false; btn.textContent="Continue to payment →";
@@ -900,6 +884,15 @@ async function reviewCampaign(){
   }
 
   const beats = filledBeats();
+
+  if(window.saveCampaignDraft){
+    await window.saveCampaignDraft(campaignId, {
+      package: pkg.id, price: pkg.price, pitches: pitchCap,
+      producer: { name:v("bName"), instagram:v("bIg"), email:Auth.current?.email||"", phone:Auth.profile?.phone||"" },
+      beats, targets:[...selected]
+    });
+    document.getElementById("payOverlay").dataset.campaignId = campaignId;
+  }
 
   btn.disabled=false; btn.textContent="Continue to payment →";
   document.getElementById("csPkg").textContent    = `${pkg.name} · $${pkg.price}`;
@@ -1047,25 +1040,39 @@ const auth    = getAuth(app);
 const db      = getFirestore(app);
 const storage = getStorage(app);
 
-// Zip all beats client-side and upload as a single file to pitches/{uid}/{campaignId}/beats.zip
-window.uploadCampaignZip = (zip, campaignId, onProgress) => {
+// Upload a single beat file to beats/{uid}/{campaignId}/{filename}
+// Individual files are stored for staff access and future A&R/artist dashboards
+window.uploadBeatFile = (file, card, bar, fill, status, campaignId) => {
   const user = Auth.current;
   if(!user) return Promise.reject(new Error("Not signed in"));
-  const path    = `pitches/${user.uid}/${campaignId}/beats.zip`;
+  const path    = `beats/${user.uid}/${campaignId}/${file.name}`;
   const fileRef = ref(storage, path);
-  return zip.generateAsync({ type: "blob", compression: "DEFLATE" }, meta => {
-    onProgress && onProgress(Math.round(meta.percent / 2)); // first 50% = zipping
-  }).then(blob => new Promise((resolve, reject) => {
-    const task = uploadBytesResumable(fileRef, blob, { contentType: "application/zip" });
+  const task    = uploadBytesResumable(fileRef, file);
+  status.textContent = "Uploading…";
+  status.className   = "beat-status uploading";
+  bar.classList.add("show");
+  return new Promise((resolve, reject) => {
     task.on("state_changed",
       snap => {
-        const pct = 50 + Math.round(snap.bytesTransferred / snap.totalBytes * 50);
-        onProgress && onProgress(pct); // second 50% = uploading
+        const pct = Math.round(snap.bytesTransferred / snap.totalBytes * 100);
+        fill.style.width = pct + "%";
       },
-      reject,
-      () => resolve(path)
+      err => {
+        status.textContent = "Upload failed";
+        status.className   = "beat-status pending";
+        bar.classList.remove("show");
+        reject(err);
+      },
+      () => {
+        card._pendingFile        = null;
+        card.dataset.storagePath = path;
+        status.textContent = "Uploaded ✓";
+        status.className   = "beat-status uploaded";
+        bar.classList.remove("show");
+        resolve(path);
+      }
     );
-  }));
+  });
 };
 
 // Pre-generate a campaign ID so beats can be stored under the right folder before saving

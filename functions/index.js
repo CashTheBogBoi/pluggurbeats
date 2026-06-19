@@ -1,6 +1,7 @@
 const { onDocumentCreated } = require("firebase-functions/v2/firestore");
 const { defineSecret }      = require("firebase-functions/params");
 const admin                 = require("firebase-admin");
+const JSZip                 = require("jszip");
 const { Resend }            = require("resend");
 const contacts              = require("./contacts.json");
 
@@ -35,12 +36,11 @@ exports.pitchCampaign = onDocumentCreated(
     const resend   = new Resend(RESEND_API_KEY.value());
 
     const producer = campaign.producer || {};
-    const beats    = campaign.beats    || [];
-    const targets  = campaign.targets  || [];
-    const zipPath  = campaign.zipPath;
+    const beats    = (campaign.beats || []).filter(b => b.storagePath);
+    const targets  = campaign.targets || [];
 
-    if (!zipPath) {
-      console.log("No zip on campaign", campaignId);
+    if (beats.length === 0) {
+      console.log("No uploaded beats on campaign", campaignId);
       return;
     }
 
@@ -57,16 +57,27 @@ exports.pitchCampaign = onDocumentCreated(
       return;
     }
 
-    // Generate a 30-day signed download link for the already-uploaded zip
-    const [downloadUrl] = await storage.file(zipPath).getSignedUrl({
+    // Download individual beat files and zip server-side
+    const zip = new JSZip();
+    await Promise.all(beats.map(async beat => {
+      const [buffer] = await storage.file(beat.storagePath).download();
+      zip.file(beat.storagePath.split("/").pop(), buffer);
+    }));
+
+    const zipBuffer = await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE" });
+    const zipPath   = `pitches/${uid}/${campaignId}/beats.zip`;
+    const zipFile   = storage.file(zipPath);
+    await zipFile.save(zipBuffer, { contentType: "application/zip" });
+
+    const [downloadUrl] = await zipFile.getSignedUrl({
       action:  "read",
       expires: Date.now() + 30 * 24 * 60 * 60 * 1000
     });
 
-    const beatListHtml  = beats
+    const beatListHtml = beats
       .map(b => `<li><strong>${b.title}</strong> — ${b.genre || ""}${b.bpm ? `, ${b.bpm} BPM` : ""}${b.key ? `, ${b.key}` : ""}</li>`)
       .join("");
-    const packageLabel  = { starter: "Starter", pro: "Pro", label: "Label" }[campaign.package] || campaign.package;
+    const packageLabel = { starter: "Starter", pro: "Pro", label: "Label" }[campaign.package] || campaign.package;
 
     await Promise.all(emails.map(to =>
       resend.emails.send({
