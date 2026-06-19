@@ -94,7 +94,7 @@ exports.pitchCampaign = onDocumentCreated(
 
       const downloadUrl = `${FN_BASE}/downloadBeats?e=${token}`;
       const sent = await resend.emails.send({
-        from:    "PluggurBeats Pitching <pitching@pluggurbeat.com>",
+        from:    "PluggurBeats Pitching <pitching@mail.pluggurbeat.com>",
         to,
         subject: `New beats from ${producer.name || "a producer"} — PluggurBeats`,
         html: `
