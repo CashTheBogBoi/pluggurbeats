@@ -198,10 +198,15 @@ exports.resendWebhook = onRequest(
 
     const type    = evt.type;                 // e.g. "email.opened"
     const emailId = evt.data?.email_id;
+    console.log("Webhook event:", type, "email_id:", emailId);
     if (!emailId) { res.status(200).send("ok"); return; }
 
     const idx = await db.collection("emailIndex").doc(emailId).get();
-    if (!idx.exists) { res.status(200).send("ok"); return; }
+    if (!idx.exists) {
+      console.warn("No emailIndex entry for", emailId, "— event ignored:", type);
+      res.status(200).send("ok");
+      return;
+    }
 
     const { uid, campaignId, contact } = idx.data();
     const campaignRef = db.doc(`users/${uid}/campaigns/${campaignId}`);
@@ -219,6 +224,7 @@ exports.resendWebhook = onRequest(
       await campaignRef.update({ opens: admin.firestore.FieldValue.increment(1) });
     }
 
+    console.log(`Recorded ${shortType} for campaign ${campaignId} (contact ${contact})`);
     res.status(200).send("ok");
   }
 );
