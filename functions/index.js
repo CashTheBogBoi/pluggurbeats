@@ -181,6 +181,7 @@ exports.downloadBeats = onRequest({ region: REGION }, async (req, res) => {
     timestamp: admin.firestore.FieldValue.serverTimestamp()
   });
   await campaignRef.update({ downloads: admin.firestore.FieldValue.increment(1) });
+  console.log(`Recorded download for campaign ${campaignId} (contact ${contact})`);
 
   // Fresh 1-hour signed URL each click
   const [url] = await file.getSignedUrl({ action: "read", expires: Date.now() + 60 * 60 * 1000 });
