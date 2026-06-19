@@ -1,13 +1,25 @@
-const { onDocumentCreated } = require("firebase-functions/v2/firestore");
-const { onRequest }         = require("firebase-functions/v2/https");
-const { defineSecret }      = require("firebase-functions/params");
-const admin                 = require("firebase-admin");
-const JSZip                 = require("jszip");
-const { Resend }            = require("resend");
-const { Webhook }           = require("svix");
-const contacts              = require("./contacts.json");
+const { onDocumentUpdated }    = require("firebase-functions/v2/firestore");
+const { onRequest, onCall, HttpsError } = require("firebase-functions/v2/https");
+const { defineSecret }         = require("firebase-functions/params");
+const admin                    = require("firebase-admin");
+const JSZip                    = require("jszip");
+const { Resend }               = require("resend");
+const { Webhook }              = require("svix");
+const contacts                 = require("./contacts.json");
+const staffConfig              = require("./staff.json");
 
 admin.initializeApp();
+
+// Staff allowlist — emails permitted to access the moderation dashboard
+const STAFF_EMAILS = (staffConfig.emails || []).map(e => e.toLowerCase());
+function assertStaff(auth) {
+  const email = auth?.token?.email?.toLowerCase();
+  const verified = auth?.token?.email_verified;
+  if (!email || !verified || !STAFF_EMAILS.includes(email)) {
+    throw new HttpsError("permission-denied", "Not authorized for staff access.");
+  }
+  return email;
+}
 
 const RESEND_API_KEY        = defineSecret("RESEND_API_KEY");
 const RESEND_WEBHOOK_SECRET = defineSecret("RESEND_WEBHOOK_SECRET");
@@ -35,14 +47,22 @@ const TARGET_LANE_MAP = {
 };
 
 // ====================================================================
-// pitchCampaign — zips beats, emails each contact a tracked link
+// pitchCampaign — fires when a campaign is APPROVED by staff:
+// zips beats, emails each contact a tracked link
 // ====================================================================
-exports.pitchCampaign = onDocumentCreated(
+exports.pitchCampaign = onDocumentUpdated(
   { document: "users/{uid}/campaigns/{campaignId}", region: REGION, secrets: [RESEND_API_KEY] },
   async (event) => {
-    const snap     = event.data;
+    const before = event.data.before.data();
+    const after  = event.data.after.data();
+
+    // Only pitch on the transition INTO "approved" (ignore all other updates,
+    // including the webhook's opens/downloads counter writes)
+    if (before.status === "approved" || after.status !== "approved") return;
+
+    const snap     = event.data.after;
     const { uid, campaignId } = event.params;
-    const campaign = snap.data();
+    const campaign = after;
     const db       = admin.firestore();
     const storage  = admin.storage().bucket();
     const resend   = new Resend(RESEND_API_KEY.value());
@@ -243,3 +263,78 @@ exports.resendWebhook = onRequest(
     res.status(200).send("ok");
   }
 );
+
+// ====================================================================
+// listReviewCampaigns — staff-only: returns every campaign across all
+// users with signed playback URLs for each beat, grouped client-side.
+// ====================================================================
+exports.listReviewCampaigns = onCall({ region: REGION }, async (request) => {
+  assertStaff(request.auth);
+  const db      = admin.firestore();
+  const storage = admin.storage().bucket();
+
+  const snap = await db.collectionGroup("campaigns").get();
+  const campaigns = await Promise.all(snap.docs.map(async (doc) => {
+    const c    = doc.data();
+    const path = doc.ref.path;                       // users/{uid}/campaigns/{id}
+    const uid  = path.split("/")[1];
+
+    // Signed URL per beat so staff can listen without loosening Storage rules
+    const beats = await Promise.all((c.beats || []).map(async (b) => {
+      let playUrl = null;
+      if (b.storagePath) {
+        try {
+          const [url] = await storage.file(b.storagePath)
+            .getSignedUrl({ action: "read", expires: Date.now() + 2 * 60 * 60 * 1000 });
+          playUrl = url;
+        } catch (e) { console.warn("Signed URL failed for", b.storagePath, e.message); }
+      }
+      return { title:b.title||"Untitled", genre:b.genre||"", key:b.key||"", bpm:b.bpm||"",
+               collabs:b.collabs||[], playUrl };
+    }));
+
+    return {
+      path,
+      uid,
+      id:        doc.id,
+      status:    c.status || "pending_review",
+      package:   c.package || "",
+      pitches:   c.pitches || 0,
+      producer:  c.producer || {},
+      targets:   c.targets || [],
+      beats,
+      createdAt: c.createdAt?.toMillis ? c.createdAt.toMillis() : null
+    };
+  }));
+
+  // Newest first
+  campaigns.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  return { campaigns };
+});
+
+// ====================================================================
+// moderateCampaign — staff-only: approve (→ triggers pitch) or reject
+// ====================================================================
+exports.moderateCampaign = onCall({ region: REGION }, async (request) => {
+  const staffEmail = assertStaff(request.auth);
+  const { path, decision } = request.data || {};
+  if (!path || !["approved", "rejected"].includes(decision)) {
+    throw new HttpsError("invalid-argument", "path and a valid decision are required.");
+  }
+  // Guard: only operate on a campaign document path
+  if (!/^users\/[^/]+\/campaigns\/[^/]+$/.test(path)) {
+    throw new HttpsError("invalid-argument", "Invalid campaign path.");
+  }
+
+  const ref  = admin.firestore().doc(path);
+  const snap = await ref.get();
+  if (!snap.exists) throw new HttpsError("not-found", "Campaign not found.");
+
+  await ref.update({
+    status:       decision,
+    moderatedBy:  staffEmail,
+    moderatedAt:  admin.firestore.FieldValue.serverTimestamp()
+  });
+  console.log(`Campaign ${path} ${decision} by ${staffEmail}`);
+  return { ok: true, status: decision };
+});

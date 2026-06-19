@@ -377,7 +377,7 @@
         </div>
 
         <div style="display:flex;justify-content:flex-end;gap:12px;margin-top:8px">
-          <button class="btn btn-gold" id="toPay" onclick="reviewCampaign()">Continue to payment →</button>
+          <button class="btn btn-gold" id="toPay" onclick="reviewCampaign()">Submit for review →</button>
         </div>
       </div>
     </section>
@@ -479,7 +479,7 @@
 <div class="overlay" id="payOverlay" onclick="if(event.target===this)closeModal()">
   <div class="modal" role="dialog" aria-modal="true">
     <button class="x" onclick="closeModal()" aria-label="Close">✕</button>
-    <h3 style="font-size:22px">Launch campaign</h3>
+    <h3 style="font-size:22px">Submit for review</h3>
     <div class="summary">
       <div class="line"><span>Package</span><span id="csPkg">—</span></div>
       <div class="line"><span>Beats added</span><span id="csBeats">—</span></div>
@@ -487,15 +487,10 @@
       <div class="line"><span>Guaranteed pitches</span><span id="csPitches">—</span></div>
       <div class="total" style="display:flex;justify-content:space-between"><span>Total</span><span id="csTotal">—</span></div>
     </div>
+    <p class="hint" style="margin:14px 0">Our team reviews every campaign before any beats are pitched or you're charged. You'll be notified once it's approved.</p>
     <div class="msg" id="payMsg"></div>
-    <div class="field" style="margin-top:4px"><label>Payment method</label>
-      <!-- STRIPE: mount Stripe Elements card field here (PLAN.md · Milestone 1) -->
-      <div id="card-element" class="inp" style="color:var(--bone-dim);min-height:46px;display:flex;align-items:center">
-        Card field mounts here once Stripe + Lambda are connected
-      </div>
-    </div>
-    <button class="btn btn-gold" style="width:100%" id="payBtn" onclick="pay()">Pay &amp; launch</button>
-    <p class="mono" style="font-size:11px;color:var(--bone-dim);text-align:center;margin:12px 0 0">Secured by AWS Lambda · stub</p>
+    <button class="btn btn-gold" style="width:100%" id="payBtn" onclick="pay()">Submit campaign for review</button>
+    <p class="mono" style="font-size:11px;color:var(--bone-dim);text-align:center;margin:12px 0 0">No charge until your campaign is approved</p>
   </div>
 </div>
 
@@ -879,7 +874,7 @@ async function reviewCampaign(){
     }));
   } catch(e) {
     toast("Upload failed: " + e.message);
-    btn.disabled=false; btn.textContent="Continue to payment →";
+    btn.disabled=false; btn.textContent="Submit for review →";
     return;
   }
 
@@ -894,32 +889,28 @@ async function reviewCampaign(){
     document.getElementById("payOverlay").dataset.campaignId = campaignId;
   }
 
-  btn.disabled=false; btn.textContent="Continue to payment →";
+  btn.disabled=false; btn.textContent="Submit for review →";
   document.getElementById("csPkg").textContent    = `${pkg.name} · $${pkg.price}`;
   document.getElementById("csBeats").textContent  = `${beats.length} of ${beatCap}`;
   document.getElementById("csTargets").textContent= targetCap===Infinity ? selected.size : `${selected.size} of ${targetCap}`;
   document.getElementById("csPitches").textContent= pitchCap;
   document.getElementById("csTotal").textContent  = "$"+pkg.price+".00";
   msg("payMsg","");
-  const pb=document.getElementById("payBtn"); pb.disabled=false; pb.textContent="Pay & launch";
+  const pb=document.getElementById("payBtn"); pb.disabled=false; pb.textContent="Submit campaign for review";
   document.getElementById("payOverlay").classList.add("show");
 }
 async function pay(){
-  const btn=document.getElementById("payBtn"); btn.disabled=true; btn.textContent="Contacting payment service…";
+  // The campaign was already saved as "pending_review" in reviewCampaign().
+  // This just confirms submission — no charge happens until staff approves.
+  const btn=document.getElementById("payBtn"); btn.disabled=true; btn.textContent="Submitting…";
   try{
     const beats=filledBeats();
-    await createCheckout({
-      package:pkg.id, amount:pkg.price*100, currency:"usd",
-      producer:{ name:v("bName"), instagram:v("bIg") },
-      beats, targets:[...selected], pitches:pitchCap, uid:Auth.current.uid
-    }, Auth.current);
-    // On success the backend stores these beats against this uid.
-    // Mirror that locally so the Paperwork dropdown updates immediately.
+    // Mirror beats locally so the Paperwork dropdown updates immediately.
     beats.forEach(b=> myBeats.push({ title:b.title, genre:b.genre, uid:Auth.current.uid }));
     refreshBeatDropdown();
-    msg("payMsg","Payment confirmed — campaign launching. (demo)","ok");
-    btn.textContent="Done";
-    setTimeout(()=>{ closeModal(); toast("Campaign launched — your beats are now available under Paperwork."); },900);
+    msg("payMsg","Submitted! Your campaign is now pending review.","ok");
+    btn.textContent="Submitted ✓";
+    setTimeout(()=>{ closeModal(); toast("Campaign submitted for review — you'll be notified once it's approved."); },900);
   }catch(e){ msg("payMsg",e.message,"err"); btn.disabled=false; btn.textContent="Try again"; }
 }
 function closeModal(){ document.getElementById("payOverlay").classList.remove("show"); }
@@ -1098,7 +1089,7 @@ window.saveCampaignDraft = async (campaignId, data) => {
   const campaignRef = doc(db, "users", user.uid, "campaigns", campaignId);
   await setDoc(campaignRef, {
     ...data,
-    status:    "pending_payment",
+    status:    "pending_review",
     createdAt: serverTimestamp()
   });
   return campaignId;

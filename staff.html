@@ -1,0 +1,236 @@
+<!--
+  PluggurBeats — Staff moderation dashboard
+  -------------------------------------------------------------------
+  Access is restricted to emails listed in functions/staff.json and
+  enforced server-side by the listReviewCampaigns / moderateCampaign
+  callables. Non-staff are bounced back to the marketing site.
+-->
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>PluggurBeats — Staff Review</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Inter:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+
+<style>
+  :root{
+    --ink:#0B0A0F; --ink-2:#131119; --ink-3:#1B1822;
+    --line:rgba(255,255,255,.09); --line-strong:rgba(255,255,255,.16);
+    --bone:#F3EFE6; --bone-dim:#A29DAC;
+    --gold:#E4C16B; --gold-deep:#C9A24B; --violet:#7C5CFF;
+    --bad:#FF6B6B; --ok:#7CE2A4; --info:#6EC1FF;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ink);color:var(--bone);font-family:"Inter",system-ui,sans-serif;font-size:15px;-webkit-font-smoothing:antialiased}
+  h1,h2,h3,h4{font-family:"Bricolage Grotesque",sans-serif;font-weight:800;letter-spacing:-.02em;margin:0;line-height:1.05}
+  .mono{font-family:"Space Mono",monospace;letter-spacing:.02em}
+  button{font-family:inherit;cursor:pointer}
+  main{max-width:1000px;margin:0 auto;padding:34px 24px 100px}
+  .head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:22px;gap:16px;flex-wrap:wrap}
+  .eyebrow{font-family:"Space Mono",monospace;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--gold)}
+  .head h1{font-size:clamp(24px,4vw,34px);margin-top:6px}
+  .who{font-size:12px;color:var(--bone-dim);text-align:right}
+  .signout{background:none;border:1px solid var(--line-strong);color:var(--bone-dim);border-radius:8px;padding:7px 12px;font-size:12px;margin-top:6px}
+  .signout:hover{color:var(--bone);border-color:var(--bone)}
+
+  .seg{display:inline-flex;background:var(--ink-2);border:1px solid var(--line);border-radius:999px;padding:4px;margin-bottom:22px;flex-wrap:wrap}
+  .seg button{border:0;background:none;color:var(--bone-dim);padding:8px 18px;border-radius:999px;font-size:13px;font-weight:600}
+  .seg button.active{background:var(--gold);color:#1a1405}
+  .seg .count{font-family:"Space Mono",monospace;font-size:11px;opacity:.7;margin-left:6px}
+
+  .card{background:var(--ink-2);border:1px solid var(--line);border-radius:16px;padding:22px;margin-bottom:16px}
+  .crow{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap}
+  .cmeta{font-size:13px;color:var(--bone-dim);margin-top:4px}
+  .badge{font-family:"Space Mono",monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;padding:4px 10px;border-radius:999px;white-space:nowrap}
+  .badge.pending_review{background:rgba(228,193,107,.16);color:var(--gold)}
+  .badge.approved{background:rgba(124,226,164,.14);color:var(--ok)}
+  .badge.rejected{background:rgba(255,107,107,.12);color:var(--bad)}
+  .badge.pitched{background:rgba(110,193,255,.14);color:var(--info)}
+
+  .beat{background:var(--ink);border:1px solid var(--line-strong);border-radius:12px;padding:14px;margin-top:12px}
+  .beat .bt{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
+  .beat .bname{font-weight:600;font-size:15px}
+  .beat .bspec{font-family:"Space Mono",monospace;font-size:11px;color:var(--bone-dim)}
+  .beat audio{width:100%;margin-top:10px;height:38px}
+  .collabs{margin-top:8px;font-size:12px;color:var(--bone-dim)}
+  .collabs span{display:inline-block;background:var(--ink-3);border:1px solid var(--line);border-radius:999px;padding:3px 9px;margin:3px 4px 0 0}
+
+  .targets{margin-top:12px;font-size:12px;color:var(--bone-dim)}
+  .actions{display:flex;gap:10px;margin-top:18px}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:11px 20px;border-radius:999px;font-weight:600;font-size:14px;border:1px solid transparent}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  .btn-approve{background:var(--ok);color:#062a14}
+  .btn-reject{background:transparent;color:var(--bad);border-color:var(--bad)}
+  .btn-reject:hover{background:rgba(255,107,107,.1)}
+
+  .state{color:var(--bone-dim);text-align:center;padding:60px 20px;font-size:14px}
+  #toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);opacity:0;background:var(--ink-3);border:1px solid var(--gold-deep);color:var(--bone);padding:13px 20px;border-radius:12px;font-size:14px;z-index:100;transition:.25s;pointer-events:none}
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  .hide{display:none !important}
+</style>
+
+<main id="app" class="hide">
+  <div class="head">
+    <div>
+      <div class="eyebrow">Staff · Moderation</div>
+      <h1>Campaign review</h1>
+    </div>
+    <div>
+      <div class="who" id="who"></div>
+      <div style="text-align:right"><button class="signout" onclick="signOutStaff()">Sign out</button></div>
+    </div>
+  </div>
+
+  <div class="seg">
+    <button id="seg-pending"  class="active" onclick="setTab('pending')">Pending <span class="count" id="ct-pending"></span></button>
+    <button id="seg-approved" onclick="setTab('approved')">Approved <span class="count" id="ct-approved"></span></button>
+    <button id="seg-rejected" onclick="setTab('rejected')">Rejected <span class="count" id="ct-rejected"></span></button>
+  </div>
+
+  <div id="list"><div class="state">Loading campaigns…</div></div>
+</main>
+
+<div id="gate" class="state" style="padding-top:120px">Checking access…</div>
+<div id="toast"></div>
+
+<script type="module">
+import { initializeApp }                          from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, onAuthStateChanged, signOut }   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFunctions, httpsCallable }            from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
+
+const firebaseConfig = {
+  apiKey:            "AIzaSyATP9LnN8pYEeXUd2TmDUZAPrAx9KNbudM",
+  authDomain:        "pluggurbeats.firebaseapp.com",
+  projectId:         "pluggurbeats",
+  storageBucket:     "pluggurbeats.firebasestorage.app",
+  messagingSenderId: "990734368924",
+  appId:             "1:990734368924:web:1be6ebfbccab82cb576d59",
+  measurementId:     "G-J1M418YLQL"
+};
+
+const app  = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const fns  = getFunctions(app, "us-central1");
+const listReviewCampaigns = httpsCallable(fns, "listReviewCampaigns");
+const moderateCampaign    = httpsCallable(fns, "moderateCampaign");
+
+let allCampaigns = [];
+let tab = "pending";
+
+window.signOutStaff = () => signOut(auth).then(()=> location.href="index.html");
+
+function toast(t){ const el=document.getElementById("toast"); el.textContent=t; el.classList.add("show");
+  clearTimeout(window._tt); window._tt=setTimeout(()=>el.classList.remove("show"),2600); }
+
+window.setTab = (t) => {
+  tab = t;
+  ["pending","approved","rejected"].forEach(s =>
+    document.getElementById("seg-"+s).classList.toggle("active", s===t));
+  renderList();
+};
+
+const STATUS_BY_TAB = {
+  pending:  ["pending_review"],
+  approved: ["approved","pitched","no_contacts","send_failed"],
+  rejected: ["rejected"]
+};
+
+function esc(s){ return String(s??"").replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c])); }
+function fmtDate(ms){ return ms ? new Date(ms).toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}) : "—"; }
+
+function counts(){
+  const c = { pending:0, approved:0, rejected:0 };
+  allCampaigns.forEach(cp=>{
+    if(STATUS_BY_TAB.pending.includes(cp.status))  c.pending++;
+    else if(STATUS_BY_TAB.rejected.includes(cp.status)) c.rejected++;
+    else c.approved++;
+  });
+  document.getElementById("ct-pending").textContent  = c.pending;
+  document.getElementById("ct-approved").textContent = c.approved;
+  document.getElementById("ct-rejected").textContent = c.rejected;
+}
+
+function renderList(){
+  const wanted = STATUS_BY_TAB[tab];
+  const items  = allCampaigns.filter(c => wanted.includes(c.status));
+  const el = document.getElementById("list");
+  if(items.length === 0){ el.innerHTML = `<div class="state">No ${tab} campaigns.</div>`; return; }
+
+  el.innerHTML = items.map(c => {
+    const beats = c.beats.map(b=>{
+      const spec = [b.genre, b.key, b.bpm && b.bpm+" BPM"].filter(Boolean).join(" · ");
+      const collabs = (b.collabs||[]).map(x=>`<span>${esc(x.name)}${x.instagram?" "+esc(x.instagram):""}${x.role?" · "+esc(x.role):""}</span>`).join("");
+      const audio = b.playUrl ? `<audio controls preload="none" src="${esc(b.playUrl)}"></audio>` : `<div class="bspec">No file</div>`;
+      return `<div class="beat">
+        <div class="bt"><span class="bname">${esc(b.title)}</span><span class="bspec">${esc(spec)}</span></div>
+        ${audio}
+        ${collabs ? `<div class="collabs">${collabs}</div>` : ""}
+      </div>`;
+    }).join("");
+
+    const isPending = c.status === "pending_review";
+    const actions = isPending ? `
+      <div class="actions">
+        <button class="btn btn-approve" onclick="decide('${esc(c.path)}','approved',this)">Approve &amp; pitch</button>
+        <button class="btn btn-reject"  onclick="decide('${esc(c.path)}','rejected',this)">Reject</button>
+      </div>` : "";
+
+    return `<div class="card">
+      <div class="crow">
+        <div>
+          <h3 style="font-size:18px">${esc(c.producer.name||"Unknown producer")} ${c.producer.instagram?`<span class="bspec">${esc(c.producer.instagram)}</span>`:""}</h3>
+          <div class="cmeta">${esc(c.package||"—")} package · ${c.pitches} guaranteed pitches · ${c.beats.length} beat${c.beats.length!==1?"s":""} · ${fmtDate(c.createdAt)}</div>
+          <div class="cmeta mono" style="font-size:11px">${esc(c.id)}</div>
+        </div>
+        <span class="badge ${esc(c.status)}">${esc((c.status||"").replace("_"," "))}</span>
+      </div>
+      ${beats}
+      <div class="targets">Targets: ${c.targets.length ? esc(c.targets.join(", ")) : "—"}</div>
+      ${actions}
+    </div>`;
+  }).join("");
+}
+
+window.decide = async (path, decision, btn) => {
+  const card = btn.closest(".card");
+  card.querySelectorAll(".btn").forEach(b=>b.disabled=true);
+  btn.textContent = decision==="approved" ? "Approving…" : "Rejecting…";
+  try{
+    await moderateCampaign({ path, decision });
+    const c = allCampaigns.find(x=>x.path===path);
+    if(c) c.status = decision;
+    counts();
+    renderList();
+    toast(decision==="approved" ? "Approved — pitching now." : "Campaign rejected.");
+  }catch(e){
+    toast("Failed: " + (e.message||e));
+    card.querySelectorAll(".btn").forEach(b=>b.disabled=false);
+  }
+};
+
+onAuthStateChanged(auth, async user => {
+  if(!user || !user.emailVerified){ location.href = "index.html"; return; }
+
+  // Probe staff access first — the callable rejects non-staff with permission-denied
+  let res;
+  try{
+    res = await listReviewCampaigns();
+  }catch(e){
+    if(e.code === "functions/permission-denied"){ location.href = "dashboard.html"; return; }
+    // Some other error (network etc.) — show the shell with a message
+    document.getElementById("who").textContent = user.email;
+    document.getElementById("app").classList.remove("hide");
+    document.getElementById("gate").classList.add("hide");
+    document.getElementById("list").innerHTML = `<div class="state">Could not load campaigns: ${esc(e.message||e)}</div>`;
+    return;
+  }
+
+  // Authorized — reveal the dashboard
+  document.getElementById("who").textContent = user.email;
+  document.getElementById("app").classList.remove("hide");
+  document.getElementById("gate").classList.add("hide");
+  allCampaigns = res.data.campaigns || [];
+  counts();
+  renderList();
+});
+</script>
