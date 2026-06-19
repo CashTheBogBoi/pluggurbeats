@@ -1,7 +1,24 @@
 # planning / backend docs — kept locally, not published
+BUISINESS FILES/
 CLAUDE.md
 PLAN.md
 README.md
 REFERENCE_CHAT.txt
 *.zip
+
+# macOS junk
 .DS_Store
+._*
+
+# Firebase
+.firebase/
+firebase-debug.log
+
+# Node
+node_modules/
+functions/node_modules/
+
+# local skills/agents tooling
+.agents/
+.claude/
+skills-lock.json
