@@ -45,11 +45,14 @@ exports.pitchCampaign = onDocumentCreated(
     }
 
     // Resolve unique lanes from selected targets, then collect emails
+    console.log("Targets selected:", targets);
     const lanes = [...new Set(targets.map(t => TARGET_LANE_MAP[t]).filter(Boolean))];
+    console.log("Lanes resolved:", lanes);
     const emailSet = new Set();
     lanes.forEach(lane => (contacts[lane] || []).forEach(e => emailSet.add(e)));
     (contacts["All"] || []).forEach(e => emailSet.add(e));
     const emails = [...emailSet];
+    console.log("Emails to pitch:", emails);
 
     if (emails.length === 0) {
       console.log("No contacts mapped for lanes:", lanes);
@@ -79,9 +82,9 @@ exports.pitchCampaign = onDocumentCreated(
       .join("");
     const packageLabel = { starter: "Starter", pro: "Pro", label: "Label" }[campaign.package] || campaign.package;
 
-    await Promise.all(emails.map(to =>
+    const results = await Promise.allSettled(emails.map(to =>
       resend.emails.send({
-        from:    "PluggurBeats Pitching <pitching@pluggurbeat.com>",
+        from:    "PluggurBeats Pitching <onboarding@resend.dev>",
         to,
         subject: `New beats from ${producer.name || "a producer"} — PluggurBeats`,
         html: `
@@ -107,6 +110,10 @@ exports.pitchCampaign = onDocumentCreated(
           </div>`
       })
     ));
+    results.forEach((r, i) => {
+      if (r.status === "rejected") console.error(`Email to ${emails[i]} failed:`, r.reason);
+      else console.log(`Email to ${emails[i]} sent:`, r.value);
+    });
 
     await snap.ref.update({
       status:    "pitched",
