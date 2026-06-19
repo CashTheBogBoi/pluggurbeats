@@ -84,7 +84,7 @@ exports.pitchCampaign = onDocumentCreated(
 
     const results = await Promise.allSettled(emails.map(to =>
       resend.emails.send({
-        from:    "PluggurBeats Pitching <onboarding@resend.dev>",
+        from:    "PluggurBeats Pitching <pitching@pluggurbeat.com>",
         to,
         subject: `New beats from ${producer.name || "a producer"} — PluggurBeats`,
         html: `
