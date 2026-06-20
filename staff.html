@@ -198,7 +198,7 @@
 
   <!-- ============ USERS VIEW ============ -->
   <div id="usersView" class="hide">
-    <input class="search-inp" id="userSearch" placeholder="Search users by name, email or location…" oninput="renderUsers()" style="margin-bottom:16px;width:100%">
+    <input class="search-inp" id="userSearch" placeholder="Search users by name, email, location or UID…" oninput="renderUsers()" style="margin-bottom:16px;width:100%">
     <div id="userList"><div class="state">Loading users…</div></div>
   </div>
 </main>
@@ -312,7 +312,8 @@ window.renderUsers = () => {
   const items = allUsers.filter(u =>
     !q || (u.displayName||"").toLowerCase().includes(q)
        || (u.email||"").toLowerCase().includes(q)
-       || (u.location||"").toLowerCase().includes(q));
+       || (u.location||"").toLowerCase().includes(q)
+       || (u.uid||"").toLowerCase().includes(q));
   const el = document.getElementById("userList");
   if(items.length===0){ el.innerHTML = `<div class="state">No users found.</div>`; return; }
   el.innerHTML = items.map((u,i) => {
@@ -348,6 +349,7 @@ window.openUser = (idx) => {
     ${field("Phone", u.phone)}
     ${field("Bio", u.bio)}
     ${field("Joined", u.createdAt ? new Date(u.createdAt).toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"}) : "")}
+    <div class="ufield"><div class="lab">User ID</div><div class="val mono" style="font-size:12px;word-break:break-all">${esc(u.uid)}</div></div>
   `;
   document.getElementById("userOverlay").classList.add("show");
 };
