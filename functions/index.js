@@ -107,6 +107,9 @@ async function debitCredits(uid, kind, amount, reason, refId = null) {
 const REGION  = "us-central1";
 const PROJECT = "pluggurbeats";
 const FN_BASE = `https://${REGION}-${PROJECT}.cloudfunctions.net`;
+// Public site origin — custom domain serving the React SPA. Used for
+// Stripe Checkout return URLs (routes are SPA paths, not .html files).
+const SITE_URL = "https://pluggurbeat.com";
 
 // Maps target IDs from the dashboard to genre lane names in contacts.json
 const TARGET_LANE_MAP = {
@@ -597,8 +600,8 @@ exports.createSubscriptionCheckout = onCall(
       customer,
       line_items: [{ price: priceId, quantity: 1 }],
       metadata: { uid, kind: "subscription", tier: plan },
-      success_url: "https://pluggurbeats.web.app/dashboard.html?sub=success",
-      cancel_url:  "https://pluggurbeats.web.app/dashboard.html?sub=cancel"
+      success_url: `${SITE_URL}/dashboard?sub=success`,
+      cancel_url:  `${SITE_URL}/dashboard?sub=cancel`
     });
     return { url: session.url };
   }
@@ -622,8 +625,8 @@ exports.buyCreditPack = onCall(
       customer,
       line_items: [{ price: priceId, quantity: 1 }],
       metadata: { uid, kind: "pack", pack },
-      success_url: "https://pluggurbeats.web.app/dashboard.html?pack=success",
-      cancel_url:  "https://pluggurbeats.web.app/dashboard.html?pack=cancel"
+      success_url: `${SITE_URL}/dashboard?pack=success`,
+      cancel_url:  `${SITE_URL}/dashboard?pack=cancel`
     });
     return { url: session.url };
   }
