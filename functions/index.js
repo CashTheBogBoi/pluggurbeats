@@ -5,8 +5,10 @@ const admin                    = require("firebase-admin");
 const JSZip                    = require("jszip");
 const { Resend }               = require("resend");
 const { Webhook }              = require("svix");
+const Stripe                   = require("stripe");
 const contacts                 = require("./contacts.json");
 const staffConfig              = require("./staff.json");
+const stripePrices             = require("./stripe-prices.json");
 
 admin.initializeApp();
 
@@ -21,8 +23,27 @@ function assertStaff(auth) {
   return email;
 }
 
-const RESEND_API_KEY        = defineSecret("RESEND_API_KEY");
-const RESEND_WEBHOOK_SECRET = defineSecret("RESEND_WEBHOOK_SECRET");
+const RESEND_API_KEY          = defineSecret("RESEND_API_KEY");
+const RESEND_WEBHOOK_SECRET   = defineSecret("RESEND_WEBHOOK_SECRET");
+const STRIPE_SECRET           = defineSecret("STRIPE_SECRET");
+const STRIPE_WEBHOOK_SECRET   = defineSecret("STRIPE_WEBHOOK_SECRET");
+
+// Monthly credit grants by tier. Roll over = ADD on each paid invoice,
+// capped at ROLLOVER_CAP_MULT × the monthly grant so balances don't grow forever.
+const TIER_GRANTS = {
+  free:  { pitch: 0,  loop: 5  },
+  plugg: { pitch: 15, loop: 20 },
+  pro:   { pitch: 50, loop: 60 }
+};
+const PACK_CREDITS = { pack10: 10, pack25: 25 };
+const ROLLOVER_CAP_MULT = 3;
+
+// Reverse lookup: Stripe price id -> our plan key
+function tierForPriceId(priceId) {
+  if (priceId && priceId === stripePrices.plugg) return "plugg";
+  if (priceId && priceId === stripePrices.pro)   return "pro";
+  return null;
+}
 
 // ====================================================================
 // Credit plumbing — the ONLY way credit balances change. Both helpers
@@ -497,3 +518,179 @@ exports.setVerifiedPuller = onCall({ region: REGION }, async (request) => {
   console.log(`verifiedPuller=${value} for ${uid} by ${staffEmail}`);
   return { ok: true, uid, verifiedPuller: value };
 });
+
+// ====================================================================
+// STRIPE — subscriptions ($29 Plugg / $99 Pro) + à-la-carte credit packs
+// ====================================================================
+
+// Get or create a Stripe customer for this uid, caching the id on the user doc
+async function getOrCreateCustomer(stripe, uid) {
+  const db   = admin.firestore();
+  const ref  = db.doc(`users/${uid}`);
+  const snap = await ref.get();
+  const existing = snap.get("subscription.stripeCustomerId");
+  if (existing) return existing;
+
+  const email = snap.get("email") || undefined;
+  const customer = await stripe.customers.create({ email, metadata: { uid } });
+  await ref.update({ "subscription.stripeCustomerId": customer.id });
+  await db.doc(`stripeCustomers/${customer.id}`).set({ uid });   // fast reverse lookup
+  return customer.id;
+}
+
+// createSubscriptionCheckout({ plan }) -> { url }
+exports.createSubscriptionCheckout = onCall(
+  { region: REGION, secrets: [STRIPE_SECRET] },
+  async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
+    const uid  = request.auth.uid;
+    const plan = request.data?.plan;
+    if (!["plugg", "pro"].includes(plan)) throw new HttpsError("invalid-argument", "Unknown plan.");
+    const priceId = stripePrices[plan];
+    if (!priceId) throw new HttpsError("failed-precondition", "Plan price not configured.");
+
+    const stripe   = Stripe(STRIPE_SECRET.value());
+    const customer = await getOrCreateCustomer(stripe, uid);
+    const session  = await stripe.checkout.sessions.create({
+      mode: "subscription",
+      customer,
+      line_items: [{ price: priceId, quantity: 1 }],
+      metadata: { uid, kind: "subscription", tier: plan },
+      success_url: "https://pluggurbeats.web.app/dashboard.html?sub=success",
+      cancel_url:  "https://pluggurbeats.web.app/dashboard.html?sub=cancel"
+    });
+    return { url: session.url };
+  }
+);
+
+// buyCreditPack({ pack }) -> { url }
+exports.buyCreditPack = onCall(
+  { region: REGION, secrets: [STRIPE_SECRET] },
+  async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
+    const uid  = request.auth.uid;
+    const pack = request.data?.pack;
+    if (!["pack10", "pack25"].includes(pack)) throw new HttpsError("invalid-argument", "Unknown pack.");
+    const priceId = stripePrices[pack];
+    if (!priceId) throw new HttpsError("failed-precondition", "Pack price not configured.");
+
+    const stripe   = Stripe(STRIPE_SECRET.value());
+    const customer = await getOrCreateCustomer(stripe, uid);
+    const session  = await stripe.checkout.sessions.create({
+      mode: "payment",
+      customer,
+      line_items: [{ price: priceId, quantity: 1 }],
+      metadata: { uid, kind: "pack", pack },
+      success_url: "https://pluggurbeats.web.app/dashboard.html?pack=success",
+      cancel_url:  "https://pluggurbeats.web.app/dashboard.html?pack=cancel"
+    });
+    return { url: session.url };
+  }
+);
+
+// Resolve a Stripe customer id -> our uid (mapping doc, fallback to metadata)
+async function uidForCustomer(stripe, customerId) {
+  const map = await admin.firestore().doc(`stripeCustomers/${customerId}`).get();
+  if (map.exists) return map.get("uid");
+  const cust = await stripe.customers.retrieve(customerId);
+  return cust?.metadata?.uid || null;
+}
+
+// Apply a tier's monthly grants (ADD, capped at ROLLOVER_CAP_MULT × grant)
+async function applyMonthlyGrants(uid, tier) {
+  const db = admin.firestore();
+  const grants = TIER_GRANTS[tier] || TIER_GRANTS.free;
+  for (const kind of ["pitch", "loop"]) {
+    const field   = kind === "pitch" ? "pitchCredits" : "loopCredits";
+    const grant   = grants[kind];
+    const snap    = await db.doc(`users/${uid}`).get();
+    const balance = snap.get(`${field}.balance`) || 0;
+    const cap     = grant * ROLLOVER_CAP_MULT;
+    const target  = Math.min(balance + grant, Math.max(cap, balance)); // never reduce below current
+    const delta   = target - balance;
+    if (delta > 0) await grantCredits(uid, kind, delta, `monthly_${tier}`);
+    await db.doc(`users/${uid}`).update({
+      [`${field}.monthlyGrant`]: grant,
+      [`${field}.lastGrantAt`]:  admin.firestore.FieldValue.serverTimestamp()
+    });
+  }
+}
+
+// stripeWebhook — verifies signature, applies subscription/pack effects
+exports.stripeWebhook = onRequest(
+  { region: REGION, secrets: [STRIPE_SECRET, STRIPE_WEBHOOK_SECRET] },
+  async (req, res) => {
+    const stripe = Stripe(STRIPE_SECRET.value());
+    let event;
+    try {
+      event = stripe.webhooks.constructEvent(
+        req.rawBody, req.header("stripe-signature"), STRIPE_WEBHOOK_SECRET.value());
+    } catch (e) {
+      console.error("Stripe signature verification failed:", e.message);
+      res.status(400).send(`Webhook Error: ${e.message}`);
+      return;
+    }
+
+    const db = admin.firestore();
+    try {
+      if (event.type === "checkout.session.completed") {
+        const s = event.data.object;
+        const uid = s.metadata?.uid;
+        if (uid && s.metadata?.kind === "pack") {
+          const amount = PACK_CREDITS[s.metadata.pack] || 0;
+          if (amount) await grantCredits(uid, "pitch", amount, "pack_purchase", s.id);
+          console.log(`Pack ${s.metadata.pack}: +${amount} pitch credits to ${uid}`);
+        } else if (uid && s.metadata?.kind === "subscription") {
+          const tier = s.metadata.tier;
+          await db.doc(`users/${uid}`).update({
+            "subscription.tier":      tier,
+            "subscription.status":    "active",
+            "subscription.stripeSubId": s.subscription || null
+          });
+          console.log(`Subscription ${tier} activated for ${uid}`);
+          // First-period credits are granted by the invoice.paid below.
+        }
+      }
+
+      else if (event.type === "invoice.paid") {
+        const inv = event.data.object;
+        const priceId = inv.lines?.data?.[0]?.price?.id;
+        const tier = tierForPriceId(priceId);
+        if (tier) {
+          const uid = await uidForCustomer(stripe, inv.customer);
+          if (uid) {
+            await db.doc(`users/${uid}`).update({
+              "subscription.tier":     tier,
+              "subscription.status":   "active",
+              "subscription.renewsAt": inv.lines.data[0].period?.end
+                ? admin.firestore.Timestamp.fromMillis(inv.lines.data[0].period.end * 1000) : null
+            });
+            await applyMonthlyGrants(uid, tier);
+            console.log(`invoice.paid: granted ${tier} credits to ${uid}`);
+          }
+        }
+      }
+
+      else if (event.type === "customer.subscription.deleted") {
+        const sub = event.data.object;
+        const uid = await uidForCustomer(stripe, sub.customer);
+        if (uid) {
+          await db.doc(`users/${uid}`).update({
+            "subscription.tier":            "free",
+            "subscription.status":          "canceled",
+            "subscription.stripeSubId":     null,
+            "pitchCredits.monthlyGrant":    0,
+            "loopCredits.monthlyGrant":     TIER_GRANTS.free.loop
+          });
+          console.log(`Subscription canceled — ${uid} downgraded to free`);
+        }
+      }
+    } catch (e) {
+      console.error("stripeWebhook handler error:", e.message);
+      res.status(500).send("handler error");
+      return;
+    }
+
+    res.status(200).send("ok");
+  }
+);

@@ -44,6 +44,11 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // Stripe customer→uid mapping — Cloud Functions only
+    match /stripeCustomers/{customerId} {
+      allow read, write: if false;
+    }
+
     // Deny everything else
     match /{document=**} {
       allow read, write: if false;

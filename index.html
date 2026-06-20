@@ -284,11 +284,16 @@ asdasdasdasdasd
 <section class="section" id="pricing" style="background:var(--ink-2);border-top:1px solid var(--line);border-bottom:1px solid var(--line)">
   <div class="wrap">
     <div class="head" style="margin:0 auto 48px;text-align:center">
-      <span class="eyebrow" style="display:inline-flex">Pick a package</span>
-      <h2>Pay per push. No subscriptions.</h2>
-      <p style="margin-left:auto;margin-right:auto">Every package is a fixed-scope pitching campaign. You only pay when you've got a record ready to run.</p>
+      <span class="eyebrow" style="display:inline-flex">Membership</span>
+      <h2>Subscribe. Earn credits. Pitch.</h2>
+      <p style="margin-left:auto;margin-right:auto">Every plan grants monthly loop + pitch credits that roll over while you're subscribed. Need more? Top up any time.</p>
     </div>
     <div class="tiers" id="tiers"></div>
+    <div style="text-align:center;margin-top:40px">
+      <div class="eyebrow" style="display:inline-flex;margin-bottom:14px">Need more pitch credits?</div>
+      <div id="packs" style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap"></div>
+      <p class="hint" style="margin-top:12px;color:var(--bone-dim);font-size:13px">One-time top-ups — available on any plan, including Free.</p>
+    </div>
   </div>
 </section>
 
@@ -394,19 +399,26 @@ const GENRES = ["Trap","Drill","R&B","Pop","Afrobeats","Hip-Hop","Jersey Club",
 
 /* Source of truth: mirrors the dashboard PACKAGES (Starter / Pro / Label).
    Each package = fixed beat cap + target-segment cap + all features. */
-const PLANS = [
-  { id:"starter", name:"Starter", price:149, targets:"1 lane · 15 guaranteed pitches",
-    blurb:"“The Test” — run one record up one lane. Low risk, real desks.",
-    feature:false,
-    perks:["Up to 5 beats","1 target lane","15 guaranteed qualified pitches","Status report on every pitch","Dashboard + analytics","First pitch within 72h"] },
-  { id:"pro", name:"Pro", price:499, targets:"3 lanes · 50 guaranteed pitches",
-    blurb:"“The Run” — spread your catalog across three lanes with priority targeting.",
-    feature:true,
-    perks:["Up to 15 beats","3 target lanes","50 guaranteed qualified pitches","Priority desks","One free re-targeting","Written feedback summary","Everything in Starter"] },
-  { id:"label", name:"Label", price:1299, targets:"All lanes · 150 guaranteed pitches",
-    blurb:"“Catalog Push” — full-catalog push with a dedicated manager on your records.",
-    feature:false,
-    perks:["Up to 25 beats","All lanes + A&R / management","150 guaranteed qualified pitches","Dedicated pitch manager","Hand-off + 30-min strategy call","Priority review / rush","Everything in Pro"] }
+// Subscription tiers (display). Credit grants & enforcement live server-side.
+const TIERS = [
+  { id:"free", name:"Free", price:0, cadence:"forever",
+    blurb:"Start submitting loops and explore the platform.",
+    feature:false, cta:"Get started",
+    perks:["5 loop credits / mo","Submit to the loop pool","1 lane per campaign","Up to 5 beats","Buy pitch credits à la carte","Dashboard + analytics"] },
+  { id:"plugg", name:"Plugg", price:29, cadence:"/mo",
+    blurb:"For producers running records to artist lanes every month.",
+    feature:true, cta:"Subscribe",
+    perks:["20 loop credits / mo","15 pitch credits / mo (roll over)","3 lanes per campaign","Up to 15 beats","Submit + pull loops (if verified)","Everything in Free"] },
+  { id:"pro", name:"Plugg Pro", price:99, cadence:"/mo",
+    blurb:"Full catalog firepower with A&R lanes and priority queue.",
+    feature:false, cta:"Subscribe",
+    perks:["60 loop credits / mo","50 pitch credits / mo (roll over)","Unlimited lanes","Up to 25 beats","A&R / management lanes","Priority queue (<48h) + feedback","Everything in Plugg"] }
+];
+
+// À-la-carte pitch-credit packs (one-time)
+const PACKS = [
+  { id:"pack10", credits:10, price:25 },
+  { id:"pack25", credits:25, price:50 }
 ];
 
 /* ==================================================================
@@ -496,17 +508,25 @@ function buildGenres(){
     GENRES.map(g=>`<span class="chip">${g}</span>`).join("");
 }
 function buildTiers(){
-  document.getElementById("tiers").innerHTML = PLANS.map(p=>`
+  document.getElementById("tiers").innerHTML = TIERS.map(p=>`
     <div class="tier ${p.feature?"feature":""}">
       ${p.feature?'<span class="tag">Most picked</span>':''}
       <div class="name">${p.name}</div>
-      <div class="price">$${p.price}<small> / campaign</small></div>
+      <div class="price">$${p.price}<small> ${p.cadence}</small></div>
       <div class="blurb">${p.blurb}</div>
       <ul>${p.perks.map(x=>`<li>${x}</li>`).join("")}</ul>
       <button class="btn ${p.feature?"btn-gold":"btn-ghost"} btn-block" onclick="choosePlan('${p.id}')">
-        Choose ${p.name}
+        ${p.cta}
       </button>
     </div>`).join("");
+
+  const pk = document.getElementById("packs");
+  if(pk){
+    pk.innerHTML = PACKS.map(p=>`
+      <button class="btn btn-ghost" onclick="buyPack('${p.id}')">
+        ${p.credits} pitch credits — $${p.price}
+      </button>`).join("");
+  }
 }
 
 /* ==================================================================
@@ -565,28 +585,25 @@ function renderAuthState(user){
 /* ==================================================================
    CHECKOUT UI
    ================================================================== */
-let pendingPlan=null, activePlan=null;
-function choosePlan(id){
+let pendingPlan=null;
+async function choosePlan(id){
+  // Free tier = just make an account
+  if(id==="free"){
+    if(Auth.current){ window.location.href="dashboard.html"; }
+    else { openAuth("signup"); }
+    return;
+  }
   if(!Auth.current){ pendingPlan=id; openAuth("signup");
-    setMsg("authMsg","Create an account to start your campaign.","ok"); return; }
-  activePlan = PLANS.find(p=>p.id===id);
-  document.getElementById("sumName").textContent   = activePlan.name;
-  document.getElementById("sumPrice").textContent  = "$"+activePlan.price;
-  document.getElementById("sumPitches").textContent= activePlan.targets;
-  document.getElementById("sumTotal").textContent  = "$"+activePlan.price+".00";
-  const btn=document.getElementById("payBtn"); btn.disabled=false; btn.textContent="Pay & start pitching";
-  setMsg("payMsg","");
-  show("payOverlay");
+    setMsg("authMsg","Create an account, then choose your plan.","ok"); return; }
+  // Redirect to Stripe Checkout for the subscription
+  try{ await window.startSubscription(id); }
+  catch(e){ alert(e.message || "Could not start checkout."); }
 }
-async function pay(){
-  const btn=document.getElementById("payBtn"); btn.disabled=true; btn.textContent="Contacting payment service…";
-  setMsg("payMsg","");
-  try{
-    const session = await createCheckout(activePlan, Auth.current);
-    // With real Stripe: confirm with session.clientSecret, or window.location = session.url
-    setMsg("payMsg","Payment confirmed — your campaign is queued. (demo)","ok");
-    btn.textContent="Done";
-  }catch(e){ setMsg("payMsg",e.message,"err"); btn.disabled=false; btn.textContent="Try again"; }
+async function buyPack(id){
+  if(!Auth.current){ openAuth("signup");
+    setMsg("authMsg","Create an account to buy credits.","ok"); return; }
+  try{ await window.startPack(id); }
+  catch(e){ alert(e.message || "Could not start checkout."); }
 }
 
 /* ==================================================================
@@ -614,6 +631,7 @@ import { getAuth, onAuthStateChanged,
          signOut, updateProfile,
          sendEmailVerification }                  from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, doc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFunctions, httpsCallable }            from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
 
 const firebaseConfig = {
   apiKey:            "AIzaSyATP9LnN8pYEeXUd2TmDUZAPrAx9KNbudM",
@@ -628,7 +646,20 @@ const firebaseConfig = {
 const app      = initializeApp(firebaseConfig);
 const auth     = getAuth(app);
 const db       = getFirestore(app);
+const fns       = getFunctions(app, "us-central1");
 const provider = new GoogleAuthProvider();
+
+// Stripe checkout via callables → redirect to hosted Checkout
+const createSubscriptionCheckout = httpsCallable(fns, "createSubscriptionCheckout");
+const buyCreditPack              = httpsCallable(fns, "buyCreditPack");
+window.startSubscription = async (plan) => {
+  const res = await createSubscriptionCheckout({ plan });
+  if(res.data?.url) window.location.href = res.data.url;
+};
+window.startPack = async (pack) => {
+  const res = await buyCreditPack({ pack });
+  if(res.data?.url) window.location.href = res.data.url;
+};
 
 // Flag to prevent onAuthStateChanged from redirecting during sign-up flow
 let suppressRedirect = false;
