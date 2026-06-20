@@ -276,10 +276,9 @@ exports.listReviewCampaigns = onCall({ region: REGION }, async (request) => {
   const snap = await db.collectionGroup("campaigns").get();
   const campaigns = await Promise.all(snap.docs.map(async (doc) => {
     const c    = doc.data();
-    const path = doc.ref.path;                       // users/{uid}/campaigns/{id}
+    const path = doc.ref.path;
     const uid  = path.split("/")[1];
 
-    // Signed URL per beat so staff can listen without loosening Storage rules
     const beats = await Promise.all((c.beats || []).map(async (b) => {
       let playUrl = null;
       if (b.storagePath) {
@@ -293,48 +292,105 @@ exports.listReviewCampaigns = onCall({ region: REGION }, async (request) => {
                collabs:b.collabs||[], playUrl };
     }));
 
+    // Fetch engagement events for pitched/failed campaigns so staff can see per-contact activity
+    let events = [];
+    if (["pitched", "send_failed", "approved"].includes(c.status)) {
+      try {
+        const evSnap = await db.collection(path + "/events").get();
+        events = evSnap.docs.map(e => {
+          const d = e.data();
+          return {
+            type:      d.type,
+            contact:   d.contact,
+            timestamp: d.timestamp?.toMillis ? d.timestamp.toMillis() : null
+          };
+        });
+      } catch (e) { console.warn("Could not fetch events for", path, e.message); }
+    }
+
     return {
       path,
       uid,
-      id:        doc.id,
-      status:    c.status || "pending_review",
-      package:   c.package || "",
-      pitches:   c.pitches || 0,
-      producer:  c.producer || {},
-      targets:   c.targets || [],
+      id:          doc.id,
+      status:      c.status || "pending_review",
+      package:     c.package || "",
+      pitches:     c.pitches || 0,
+      producer:    c.producer || {},
+      targets:     c.targets || [],
       beats,
-      createdAt: c.createdAt?.toMillis ? c.createdAt.toMillis() : null
+      pitchedTo:   c.pitchedTo || [],
+      opens:       c.opens || 0,
+      downloads:   c.downloads || 0,
+      events,
+      createdAt:   c.createdAt?.toMillis   ? c.createdAt.toMillis()   : null,
+      moderatedAt: c.moderatedAt?.toMillis ? c.moderatedAt.toMillis() : null
     };
   }));
 
-  // Newest first
   campaigns.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
   return { campaigns };
 });
 
 // ====================================================================
-// moderateCampaign — staff-only: approve (→ triggers pitch) or reject
+// moderateCampaign — staff-only: approve (→ triggers pitch) or reject.
+// On rejection, emails the producer with the reason if their email is set.
 // ====================================================================
-exports.moderateCampaign = onCall({ region: REGION }, async (request) => {
-  const staffEmail = assertStaff(request.auth);
-  const { path, decision } = request.data || {};
-  if (!path || !["approved", "rejected"].includes(decision)) {
-    throw new HttpsError("invalid-argument", "path and a valid decision are required.");
-  }
-  // Guard: only operate on a campaign document path
-  if (!/^users\/[^/]+\/campaigns\/[^/]+$/.test(path)) {
-    throw new HttpsError("invalid-argument", "Invalid campaign path.");
-  }
+exports.moderateCampaign = onCall(
+  { region: REGION, secrets: [RESEND_API_KEY] },
+  async (request) => {
+    const staffEmail = assertStaff(request.auth);
+    const { path, decision, reason, note } = request.data || {};
+    if (!path || !["approved", "rejected"].includes(decision)) {
+      throw new HttpsError("invalid-argument", "path and a valid decision are required.");
+    }
+    if (!/^users\/[^/]+\/campaigns\/[^/]+$/.test(path)) {
+      throw new HttpsError("invalid-argument", "Invalid campaign path.");
+    }
 
-  const ref  = admin.firestore().doc(path);
-  const snap = await ref.get();
-  if (!snap.exists) throw new HttpsError("not-found", "Campaign not found.");
+    const ref  = admin.firestore().doc(path);
+    const snap = await ref.get();
+    if (!snap.exists) throw new HttpsError("not-found", "Campaign not found.");
 
-  await ref.update({
-    status:       decision,
-    moderatedBy:  staffEmail,
-    moderatedAt:  admin.firestore.FieldValue.serverTimestamp()
-  });
-  console.log(`Campaign ${path} ${decision} by ${staffEmail}`);
-  return { ok: true, status: decision };
-});
+    const campaign = snap.data();
+    const update   = {
+      status:      decision,
+      moderatedBy: staffEmail,
+      moderatedAt: admin.firestore.FieldValue.serverTimestamp()
+    };
+    if (reason) update.rejectionReason = reason;
+    if (note)   update.rejectionNote   = note;
+    await ref.update(update);
+
+    // Email the producer their rejection reason
+    if (decision === "rejected" && campaign.producer?.email) {
+      try {
+        const resend = new Resend(RESEND_API_KEY.value());
+        await resend.emails.send({
+          from:    "PluggurBeats Team <team@pluggurbeat.com>",
+          to:      campaign.producer.email,
+          subject: "Update on your PluggurBeats campaign",
+          html: `
+            <div style="font-family:sans-serif;max-width:600px;margin:0 auto;color:#1a1a1a">
+              <h2 style="color:#C9A24B">Campaign update</h2>
+              <p>Hi ${campaign.producer.name || "there"},</p>
+              <p>Our team has reviewed your campaign and unfortunately we're unable to pitch it at this time.</p>
+              ${reason ? `<p><strong>Reason:</strong> ${reason}</p>` : ""}
+              ${note   ? `<p>${note}</p>` : ""}
+              <p>You're welcome to make revisions and submit a new campaign. If you have questions, reply to this email.</p>
+              <p>— The PluggurBeats Team</p>
+              <p style="color:#888;font-size:12px">
+                Powered by <a href="https://pluggurbeat.com" style="color:#C9A24B">PluggurBeats</a>
+              </p>
+            </div>`
+        });
+        console.log(`Rejection email sent to ${campaign.producer.email}`);
+      } catch (e) {
+        console.error("Failed to send rejection email:", e.message);
+        // Don't throw — the rejection was still recorded
+      }
+    }
+
+    console.log(`Campaign ${path} ${decision} by ${staffEmail}`);
+    return { ok: true, status: decision };
+  }
+);
