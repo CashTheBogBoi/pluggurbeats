@@ -394,3 +394,38 @@ exports.moderateCampaign = onCall(
     return { ok: true, status: decision };
   }
 );
+
+// ====================================================================
+// listUsers — staff-only: all user profiles with signed avatar URLs
+// ====================================================================
+exports.listUsers = onCall({ region: REGION }, async (request) => {
+  assertStaff(request.auth);
+  const db      = admin.firestore();
+  const storage = admin.storage().bucket();
+
+  const snap = await db.collection("users").get();
+  const users = await Promise.all(snap.docs.map(async (doc) => {
+    const u = doc.data();
+    let avatarUrl = null;
+    if (u.avatarPath) {
+      try {
+        const [url] = await storage.file(u.avatarPath)
+          .getSignedUrl({ action: "read", expires: Date.now() + 2 * 60 * 60 * 1000 });
+        avatarUrl = url;
+      } catch (e) { /* avatar missing — ignore */ }
+    }
+    return {
+      uid:         doc.id,
+      displayName: u.displayName || "",
+      email:       u.email || "",
+      phone:       u.phone || "",
+      location:    u.location || "",
+      bio:         u.bio || "",
+      avatarUrl,
+      createdAt:   u.createdAt?.toMillis ? u.createdAt.toMillis() : null
+    };
+  }));
+
+  users.sort((a, b) => (a.displayName || "").localeCompare(b.displayName || ""));
+  return { users };
+});

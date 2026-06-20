@@ -132,6 +132,23 @@
     font-size:14px;z-index:100;transition:.25s;pointer-events:none}
   #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
   .hide{display:none !important}
+
+  /* users list */
+  .urow{display:flex;align-items:center;gap:14px;background:var(--ink-2);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:10px;cursor:pointer;transition:.15s}
+  .urow:hover{border-color:var(--line-strong);background:var(--ink-3)}
+  .uavatar{width:46px;height:46px;border-radius:50%;flex:none;background:linear-gradient(135deg,var(--gold),var(--violet));display:grid;place-items:center;font-family:"Bricolage Grotesque";font-weight:800;color:#1a1405;background-size:cover;background-position:center}
+  .urow .un{font-weight:600;font-size:15px}
+  .urow .ue{font-size:12px;color:var(--bone-dim)}
+  .urow .uloc{margin-left:auto;font-size:12px;color:var(--bone-dim);text-align:right;white-space:nowrap}
+
+  /* user modal */
+  .umodal{width:100%;max-width:460px;background:var(--ink-3);border:1px solid var(--line-strong);border-radius:20px;padding:28px;position:relative}
+  .umodal .x{position:absolute;top:16px;right:16px;background:none;border:0;color:var(--bone-dim);font-size:20px;cursor:pointer}
+  .udetail-head{display:flex;align-items:center;gap:16px;margin-bottom:18px}
+  .udetail-head .big{width:80px;height:80px;border-radius:50%;flex:none;background:linear-gradient(135deg,var(--gold),var(--violet));display:grid;place-items:center;font-family:"Bricolage Grotesque";font-weight:800;font-size:32px;color:#1a1405;background-size:cover;background-position:center}
+  .ufield{margin-top:14px}
+  .ufield .lab{font-family:"Space Mono",monospace;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--bone-dim);margin-bottom:4px}
+  .ufield .val{font-size:14px;white-space:pre-wrap}
 </style>
 
 <main id="app" class="hide">
@@ -146,33 +163,53 @@
     </div>
   </div>
 
-  <!-- stats bar -->
-  <div class="stats-bar">
-    <div class="stat-chip"><div class="v" id="scPending">—</div><div class="l">Pending review</div></div>
-    <div class="stat-chip"><div class="v" id="scWeek">—</div><div class="l">Approved this week</div></div>
-    <div class="stat-chip"><div class="v" id="scPitched">—</div><div class="l">Successfully pitched</div></div>
+  <!-- primary view switch -->
+  <div class="seg" style="margin-bottom:18px">
+    <button id="view-campaigns" class="active" onclick="switchView('campaigns')">Campaigns</button>
+    <button id="view-users" onclick="switchView('users')">Users <span class="count" id="ct-users"></span></button>
   </div>
 
-  <!-- search + filter -->
-  <div class="filters">
-    <input class="search-inp" id="searchInput" placeholder="Search by producer name or Instagram…" oninput="filterAndRender()">
-    <select class="filter-sel" id="filterPackage" onchange="filterAndRender()">
-      <option value="">All packages</option>
-      <option value="starter">Starter</option>
-      <option value="pro">Pro</option>
-      <option value="label">Label</option>
-    </select>
+  <!-- ============ CAMPAIGNS VIEW ============ -->
+  <div id="campaignsView">
+    <div class="stats-bar">
+      <div class="stat-chip"><div class="v" id="scPending">—</div><div class="l">Pending review</div></div>
+      <div class="stat-chip"><div class="v" id="scWeek">—</div><div class="l">Approved this week</div></div>
+      <div class="stat-chip"><div class="v" id="scPitched">—</div><div class="l">Successfully pitched</div></div>
+    </div>
+
+    <div class="filters">
+      <input class="search-inp" id="searchInput" placeholder="Search by producer name or Instagram…" oninput="filterAndRender()">
+      <select class="filter-sel" id="filterPackage" onchange="filterAndRender()">
+        <option value="">All packages</option>
+        <option value="starter">Starter</option>
+        <option value="pro">Pro</option>
+        <option value="label">Label</option>
+      </select>
+    </div>
+
+    <div class="seg">
+      <button id="seg-pending"  class="active" onclick="setTab('pending')">Pending <span class="count" id="ct-pending"></span></button>
+      <button id="seg-approved" onclick="setTab('approved')">Approved <span class="count" id="ct-approved"></span></button>
+      <button id="seg-rejected" onclick="setTab('rejected')">Rejected <span class="count" id="ct-rejected"></span></button>
+    </div>
+
+    <div id="list"><div class="state">Loading campaigns…</div></div>
   </div>
 
-  <!-- tab bar -->
-  <div class="seg">
-    <button id="seg-pending"  class="active" onclick="setTab('pending')">Pending <span class="count" id="ct-pending"></span></button>
-    <button id="seg-approved" onclick="setTab('approved')">Approved <span class="count" id="ct-approved"></span></button>
-    <button id="seg-rejected" onclick="setTab('rejected')">Rejected <span class="count" id="ct-rejected"></span></button>
+  <!-- ============ USERS VIEW ============ -->
+  <div id="usersView" class="hide">
+    <input class="search-inp" id="userSearch" placeholder="Search users by name, email or location…" oninput="renderUsers()" style="margin-bottom:16px;width:100%">
+    <div id="userList"><div class="state">Loading users…</div></div>
   </div>
-
-  <div id="list"><div class="state">Loading campaigns…</div></div>
 </main>
+
+<!-- ============ USER PROFILE MODAL ============ -->
+<div class="overlay" id="userOverlay" onclick="if(event.target===this)closeUser()">
+  <div class="umodal" role="dialog" aria-modal="true">
+    <button class="x" onclick="closeUser()" aria-label="Close">✕</button>
+    <div id="userDetail"></div>
+  </div>
+</div>
 
 <div id="gate" class="state" style="padding-top:120px">Checking access…</div>
 
@@ -221,8 +258,11 @@ const auth = getAuth(app);
 const fns  = getFunctions(app, "us-central1");
 const listReviewCampaigns = httpsCallable(fns, "listReviewCampaigns");
 const moderateCampaign    = httpsCallable(fns, "moderateCampaign");
+const listUsers           = httpsCallable(fns, "listUsers");
 
 let allCampaigns = [];
+let allUsers = [];
+let usersLoaded = false;
 let tab = "pending";
 let rejectPath = null;
 
@@ -244,6 +284,74 @@ window.setTab = (t) => {
 };
 
 window.filterAndRender = () => renderList();
+
+// ---------- View switch (Campaigns / Users) ----------
+window.switchView = async (view) => {
+  document.getElementById("view-campaigns").classList.toggle("active", view==="campaigns");
+  document.getElementById("view-users").classList.toggle("active", view==="users");
+  document.getElementById("campaignsView").classList.toggle("hide", view!=="campaigns");
+  document.getElementById("usersView").classList.toggle("hide", view!=="users");
+  if(view==="users" && !usersLoaded) await loadUsers();
+};
+
+async function loadUsers(){
+  try{
+    const res = await listUsers();
+    allUsers = res.data.users || [];
+    usersLoaded = true;
+    document.getElementById("ct-users").textContent = allUsers.length;
+    renderUsers();
+  }catch(e){
+    document.getElementById("userList").innerHTML =
+      `<div class="state">Could not load users: ${esc(e.message||e)}</div>`;
+  }
+}
+
+window.renderUsers = () => {
+  const q = (document.getElementById("userSearch").value || "").toLowerCase();
+  const items = allUsers.filter(u =>
+    !q || (u.displayName||"").toLowerCase().includes(q)
+       || (u.email||"").toLowerCase().includes(q)
+       || (u.location||"").toLowerCase().includes(q));
+  const el = document.getElementById("userList");
+  if(items.length===0){ el.innerHTML = `<div class="state">No users found.</div>`; return; }
+  el.innerHTML = items.map((u,i) => {
+    const initial = (u.displayName||u.email||"?")[0].toUpperCase();
+    const av = u.avatarUrl
+      ? `style="background-image:url('${esc(u.avatarUrl)}')"`
+      : "";
+    return `<div class="urow" onclick="openUser(${allUsers.indexOf(u)})">
+      <div class="uavatar" ${av}>${u.avatarUrl?"":esc(initial)}</div>
+      <div>
+        <div class="un">${esc(u.displayName||"—")}</div>
+        <div class="ue">${esc(u.email||"")}</div>
+      </div>
+      <div class="uloc">${esc(u.location||"")}</div>
+    </div>`;
+  }).join("");
+};
+
+window.openUser = (idx) => {
+  const u = allUsers[idx]; if(!u) return;
+  const initial = (u.displayName||u.email||"?")[0].toUpperCase();
+  const av = u.avatarUrl ? `style="background-image:url('${esc(u.avatarUrl)}')"` : "";
+  const field = (lab,val) => val ? `<div class="ufield"><div class="lab">${lab}</div><div class="val">${esc(val)}</div></div>` : "";
+  document.getElementById("userDetail").innerHTML = `
+    <div class="udetail-head">
+      <div class="big" ${av}>${u.avatarUrl?"":esc(initial)}</div>
+      <div>
+        <h2 style="font-size:22px">${esc(u.displayName||"—")}</h2>
+        <div class="ue" style="color:var(--bone-dim);font-size:13px">${esc(u.email||"")}</div>
+      </div>
+    </div>
+    ${field("Location", u.location)}
+    ${field("Phone", u.phone)}
+    ${field("Bio", u.bio)}
+    ${field("Joined", u.createdAt ? new Date(u.createdAt).toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"}) : "")}
+  `;
+  document.getElementById("userOverlay").classList.add("show");
+};
+window.closeUser = () => document.getElementById("userOverlay").classList.remove("show");
 
 const STATUS_BY_TAB = {
   pending:  ["pending_review"],

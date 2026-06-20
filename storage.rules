@@ -8,6 +8,12 @@ service firebase.storage {
                          && request.auth.uid == userId;
     }
 
+    // Profile avatars — owner read/write; staff read via signed URLs from functions
+    match /avatars/{userId}/{allPaths=**} {
+      allow read, write: if request.auth != null
+                         && request.auth.uid == userId;
+    }
+
     // Pitch ZIPs are generated and served by Cloud Functions only
     match /pitches/{allPaths=**} {
       allow read, write: if false;

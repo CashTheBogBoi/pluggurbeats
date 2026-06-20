@@ -270,9 +270,9 @@
         <div style="font-size:13px;font-weight:600" id="menuName">—</div>
         <div style="font-size:11px;color:var(--bone-dim)" id="menuEmail"></div>
       </div>
-      <button onclick="toast('Account settings coming soon.')" style="width:100%;text-align:left;padding:12px 16px;background:none;border:0;color:var(--bone);font-size:14px;cursor:pointer;display:flex;align-items:center;gap:10px">
+      <button onclick="openProfile()" style="width:100%;text-align:left;padding:12px 16px;background:none;border:0;color:var(--bone);font-size:14px;cursor:pointer;display:flex;align-items:center;gap:10px">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-        Account settings
+        Profile &amp; settings
       </button>
       <button onclick="toast('Billing coming soon.')" style="width:100%;text-align:left;padding:12px 16px;background:none;border:0;color:var(--bone);font-size:14px;cursor:pointer;display:flex;align-items:center;gap:10px">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
@@ -473,6 +473,32 @@
       </div>
     </section>
   </main>
+</div>
+
+<!-- ================= PROFILE MODAL ================= -->
+<div class="overlay" id="profileOverlay" onclick="if(event.target===this)closeProfile()">
+  <div class="modal" role="dialog" aria-modal="true">
+    <button class="x" onclick="closeProfile()" aria-label="Close">✕</button>
+    <h3 style="font-size:22px;margin-bottom:18px">Profile &amp; settings</h3>
+
+    <div style="display:flex;align-items:center;gap:16px;margin-bottom:18px">
+      <div id="pfAvatar" style="width:72px;height:72px;border-radius:50%;flex:none;background:linear-gradient(135deg,var(--gold),var(--violet));
+        display:grid;place-items:center;font-family:'Bricolage Grotesque';font-weight:800;font-size:28px;color:#1a1405;background-size:cover;background-position:center">?</div>
+      <div>
+        <input type="file" id="pfFile" accept="image/png,image/jpeg,image/webp" style="display:none" onchange="pfPickAvatar(this)">
+        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('pfFile').click()">Upload photo</button>
+        <p class="hint" style="margin:6px 0 0">PNG, JPG or WEBP · square works best</p>
+      </div>
+    </div>
+
+    <div class="field"><label>Display name</label><input id="pfName" class="inp" placeholder="Your name"></div>
+    <div class="field"><label>Location</label><input id="pfLocation" class="inp" placeholder="City, Country"></div>
+    <div class="field"><label>Bio</label>
+      <textarea id="pfBio" class="inp" rows="4" placeholder="Tell us about your sound…" style="resize:vertical"></textarea>
+    </div>
+    <div class="msg" id="pfMsg"></div>
+    <button class="btn btn-gold" style="width:100%" id="pfSave" onclick="saveProfile()">Save profile</button>
+  </div>
 </div>
 
 <!-- ================= CHECKOUT MODAL ================= -->
@@ -1150,10 +1176,17 @@ onAuthStateChanged(auth, async user => {
   Auth.current = user;
   setUser(user);
 
-  // Load user profile doc (displayName, email, phone)
+  // Load user profile doc (displayName, email, phone, location, bio, avatarPath)
   const snap = await getDoc(doc(db, "users", user.uid));
   if (snap.exists()) {
     Auth.profile = snap.data();
+    if (Auth.profile.avatarPath) {
+      try {
+        const url = await getDownloadURL(ref(storage, Auth.profile.avatarPath));
+        Auth.profile.avatarUrl = url;
+        applyAvatar(url);
+      } catch (e) { /* avatar missing — ignore */ }
+    }
   }
 
   // Load all campaigns — drives overview stats, analytics table, and paperwork dropdown
@@ -1172,6 +1205,79 @@ onAuthStateChanged(auth, async user => {
   refreshBeatDropdown();
   renderOverviewStats();
 });
+
+// Sets the sidebar avatar (and menu) to a photo if available
+function applyAvatar(url){
+  const el = document.getElementById("meAvatar");
+  if(url){ el.style.backgroundImage = `url("${url}")`; el.style.backgroundSize="cover";
+           el.style.backgroundPosition="center"; el.textContent=""; }
+}
+
+// ---------- Profile editor ----------
+let pendingAvatar = null;
+
+window.openProfile = () => {
+  const p = Auth.profile || {};
+  document.getElementById("pfName").value     = p.displayName || Auth.current?.displayName || "";
+  document.getElementById("pfLocation").value = p.location || "";
+  document.getElementById("pfBio").value      = p.bio || "";
+  const av = document.getElementById("pfAvatar");
+  if(p.avatarUrl){ av.style.backgroundImage=`url("${p.avatarUrl}")`; av.textContent=""; }
+  else { av.style.backgroundImage="none"; av.textContent=(p.displayName||Auth.current?.email||"?")[0].toUpperCase(); }
+  pendingAvatar = null;
+  document.getElementById("pfMsg").textContent = "";
+  document.getElementById("profileMenu").style.display = "none";
+  document.getElementById("profileOverlay").classList.add("show");
+};
+window.closeProfile = () => document.getElementById("profileOverlay").classList.remove("show");
+
+window.pfPickAvatar = (input) => {
+  const file = input.files[0];
+  if(!file) return;
+  pendingAvatar = file;
+  const av = document.getElementById("pfAvatar");
+  av.style.backgroundImage = `url("${URL.createObjectURL(file)}")`;
+  av.textContent = "";
+};
+
+window.saveProfile = async () => {
+  const user = Auth.current; if(!user) return;
+  const btn = document.getElementById("pfSave"); btn.disabled=true; btn.textContent="Saving…";
+  try{
+    let avatarPath = Auth.profile?.avatarPath || null;
+    if(pendingAvatar){
+      const ext = (pendingAvatar.name.split(".").pop() || "jpg").toLowerCase();
+      avatarPath = `avatars/${user.uid}/avatar.${ext}`;
+      await uploadBytesResumable(ref(storage, avatarPath), pendingAvatar);
+    }
+    const data = {
+      displayName: document.getElementById("pfName").value.trim(),
+      location:    document.getElementById("pfLocation").value.trim(),
+      bio:         document.getElementById("pfBio").value.trim(),
+      ...(avatarPath ? { avatarPath } : {})
+    };
+    await setDoc(doc(db, "users", user.uid), data, { merge: true });
+
+    Auth.profile = { ...(Auth.profile||{}), ...data };
+    if(pendingAvatar){
+      const url = await getDownloadURL(ref(storage, avatarPath));
+      Auth.profile.avatarUrl = url; applyAvatar(url);
+      document.getElementById("pfAvatar").style.backgroundImage = `url("${url}")`;
+    }
+    // Reflect name in the sidebar
+    document.getElementById("meName").textContent  = data.displayName || "—";
+    document.getElementById("menuName").textContent= data.displayName || "—";
+
+    document.getElementById("pfMsg").className = "msg ok";
+    document.getElementById("pfMsg").textContent = "Saved.";
+    setTimeout(closeProfile, 700);
+  }catch(e){
+    document.getElementById("pfMsg").className = "msg err";
+    document.getElementById("pfMsg").textContent = e.message || "Could not save.";
+  }finally{
+    btn.disabled=false; btn.textContent="Save profile";
+  }
+};
 
 // Expose sign-out to the sidebar button
 window.signOutUser = () => signOut(auth);
