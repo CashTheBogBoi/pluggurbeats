@@ -639,12 +639,18 @@ Auth.signUp = async (email, pass, name, phone) => {
   try {
     const cred = await createUserWithEmailAndPassword(auth, email, pass);
     if (name) await updateProfile(cred.user, { displayName: name });
-    // Write user document to Firestore — only readable/writable by this uid
+    // Write user document to Firestore — only readable/writable by this uid.
+    // Credit/subscription fields start at their default values; after creation
+    // they can ONLY be changed by Cloud Functions (enforced in firestore.rules).
     await setDoc(doc(db, "users", cred.user.uid), {
       displayName: name || "",
       email:       email,
       phone:       phone || "",
-      createdAt:   serverTimestamp()
+      createdAt:   serverTimestamp(),
+      subscription:  { tier:"free", status:"active", stripeCustomerId:null, stripeSubId:null, renewsAt:null },
+      pitchCredits:  { balance:0, monthlyGrant:0, lastGrantAt:null },
+      loopCredits:   { balance:5, monthlyGrant:5, lastGrantAt:serverTimestamp() },
+      verifiedPuller: false
     });
     await sendEmailVerification(cred.user);
     await signOut(auth);

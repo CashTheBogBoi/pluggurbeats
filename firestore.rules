@@ -2,10 +2,36 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // Protected fields — only Cloud Functions (admin SDK) may change these
+    function protectedKeys() {
+      return ['subscription','pitchCredits','loopCredits','verifiedPuller'];
+    }
+
     // A user's own profile + everything under their campaigns (incl. events)
     match /users/{userId} {
-      allow read, write: if request.auth != null
-                         && request.auth.uid == userId;
+      allow read: if request.auth != null && request.auth.uid == userId;
+
+      // On create, the credit/subscription fields must start at their defaults
+      // so a user cannot self-grant credits or verification at signup.
+      allow create: if request.auth != null && request.auth.uid == userId
+        && request.resource.data.verifiedPuller == false
+        && request.resource.data.subscription.tier == "free"
+        && request.resource.data.pitchCredits.balance == 0
+        && request.resource.data.pitchCredits.monthlyGrant == 0
+        && request.resource.data.loopCredits.balance == 5
+        && request.resource.data.loopCredits.monthlyGrant == 5;
+
+      // On update, the client may touch profile fields but NOT protected ones
+      allow update: if request.auth != null && request.auth.uid == userId
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(protectedKeys());
+
+      allow delete: if request.auth != null && request.auth.uid == userId;
+
+      // Credit audit trail — client may read its own, writes are Functions-only
+      match /creditLedger/{entryId} {
+        allow read:  if request.auth != null && request.auth.uid == userId;
+        allow write: if false;
+      }
 
       match /campaigns/{campaignId}/{document=**} {
         allow read, write: if request.auth != null

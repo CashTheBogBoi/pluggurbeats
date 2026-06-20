@@ -24,6 +24,58 @@ function assertStaff(auth) {
 const RESEND_API_KEY        = defineSecret("RESEND_API_KEY");
 const RESEND_WEBHOOK_SECRET = defineSecret("RESEND_WEBHOOK_SECRET");
 
+// ====================================================================
+// Credit plumbing — the ONLY way credit balances change. Both helpers
+// run in a transaction and append an immutable creditLedger entry so
+// every balance change is auditable. kind is "pitch" or "loop".
+// ====================================================================
+function creditField(kind) {
+  if (kind !== "pitch" && kind !== "loop") throw new Error(`Unknown credit kind: ${kind}`);
+  return kind === "pitch" ? "pitchCredits" : "loopCredits";
+}
+
+async function grantCredits(uid, kind, amount, reason, refId = null) {
+  const db    = admin.firestore();
+  const field = creditField(kind);
+  const userRef   = db.doc(`users/${uid}`);
+  const ledgerRef = userRef.collection("creditLedger").doc();
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(userRef);
+    if (!snap.exists) throw new Error(`User ${uid} not found`);
+    const current = snap.get(`${field}.balance`) || 0;
+    const balanceAfter = current + amount;
+    tx.update(userRef, { [`${field}.balance`]: balanceAfter });
+    tx.set(ledgerRef, {
+      kind, delta: amount, reason, refId, balanceAfter,
+      at: admin.firestore.FieldValue.serverTimestamp()
+    });
+    return balanceAfter;
+  });
+}
+
+async function debitCredits(uid, kind, amount, reason, refId = null) {
+  const db    = admin.firestore();
+  const field = creditField(kind);
+  const userRef   = db.doc(`users/${uid}`);
+  const ledgerRef = userRef.collection("creditLedger").doc();
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(userRef);
+    if (!snap.exists) throw new Error(`User ${uid} not found`);
+    const current = snap.get(`${field}.balance`) || 0;
+    if (current < amount) {
+      throw new HttpsError("failed-precondition",
+        `Insufficient ${kind} credits: have ${current}, need ${amount}.`);
+    }
+    const balanceAfter = current - amount;
+    tx.update(userRef, { [`${field}.balance`]: balanceAfter });
+    tx.set(ledgerRef, {
+      kind, delta: -amount, reason, refId, balanceAfter,
+      at: admin.firestore.FieldValue.serverTimestamp()
+    });
+    return balanceAfter;
+  });
+}
+
 // Region kept explicit so the email links below are deterministic
 const REGION  = "us-central1";
 const PROJECT = "pluggurbeats";
@@ -428,4 +480,20 @@ exports.listUsers = onCall({ region: REGION }, async (request) => {
 
   users.sort((a, b) => (a.displayName || "").localeCompare(b.displayName || ""));
   return { users };
+});
+
+// ====================================================================
+// setVerifiedPuller — staff-only: toggle a user's loop-pull verification
+// ====================================================================
+exports.setVerifiedPuller = onCall({ region: REGION }, async (request) => {
+  const staffEmail = assertStaff(request.auth);
+  const { uid, value } = request.data || {};
+  if (!uid || typeof value !== "boolean") {
+    throw new HttpsError("invalid-argument", "uid and a boolean value are required.");
+  }
+  const ref = admin.firestore().doc(`users/${uid}`);
+  if (!(await ref.get()).exists) throw new HttpsError("not-found", "User not found.");
+  await ref.update({ verifiedPuller: value });
+  console.log(`verifiedPuller=${value} for ${uid} by ${staffEmail}`);
+  return { ok: true, uid, verifiedPuller: value };
 });
