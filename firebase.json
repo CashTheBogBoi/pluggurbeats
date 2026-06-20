@@ -3,23 +3,22 @@
     "source": "functions"
   },
   "firestore": {
-    "rules": "firestore.rules"
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
   },
   "storage": {
     "rules": "storage.rules"
   },
   "hosting": {
     "site": "pluggurbeats",
-    "public": ".",
+    "public": "dist",
     "ignore": [
       "firebase.json",
       "**/.*",
-      "**/node_modules/**",
-      "BUISINESS FILES/**",
-      "functions/**",
-      "*.rules",
-      "*.md",
-      "skills-lock.json"
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      { "source": "**", "destination": "/index.html" }
     ],
     "headers": [
       {

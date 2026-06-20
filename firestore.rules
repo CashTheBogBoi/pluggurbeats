@@ -4,7 +4,7 @@ service cloud.firestore {
 
     // Protected fields — only Cloud Functions (admin SDK) may change these
     function protectedKeys() {
-      return ['subscription','pitchCredits','loopCredits','verifiedPuller'];
+      return ['subscription','pitchCredits','loopCredits','verifiedPuller','verifiedListener'];
     }
 
     // A user's own profile + everything under their campaigns (incl. events)
@@ -46,6 +46,22 @@ service cloud.firestore {
 
     // Stripe customer→uid mapping — Cloud Functions only
     match /stripeCustomers/{customerId} {
+      allow read, write: if false;
+    }
+
+    // Loops — makers can read/create their own; verifiedPullers can read all.
+    // Updates and deletes are Cloud Functions only (admin SDK).
+    match /loops/{loopId} {
+      allow read: if request.auth != null
+        && (resource.data.makerUid == request.auth.uid
+            || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.verifiedPuller == true);
+      allow create: if request.auth != null
+        && request.resource.data.makerUid == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    // Loop claims — Cloud Functions only (admin SDK bypasses rules)
+    match /loopClaims/{claimId} {
       allow read, write: if false;
     }
 

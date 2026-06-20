@@ -18,6 +18,9 @@ firebase-debug.log
 node_modules/
 functions/node_modules/
 
+# Vite build output
+dist/
+
 # local skills/agents tooling
 .agents/
 .claude/
