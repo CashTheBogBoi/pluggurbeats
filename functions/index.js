@@ -274,6 +274,48 @@ exports.pitchCampaign = onDocumentUpdated(
 );
 
 // ====================================================================
+// mirrorLibraryBeats — fires when a campaign transitions INTO "pitched".
+// Denormalizes each uploaded beat into a top-level /libraryBeats doc so
+// verified listeners (who can't read other users' campaigns) get a live
+// onSnapshot signal for the Verified library. Audio stays private — the
+// client fetches signed URLs through listApprovedBeats. Idempotent: one
+// deterministic doc id per beat (campaignId_index).
+// ====================================================================
+exports.mirrorLibraryBeats = onDocumentUpdated(
+  { document: "users/{uid}/campaigns/{campaignId}", region: REGION },
+  async (event) => {
+    const before = event.data.before.data();
+    const after  = event.data.after.data();
+    if (before.status === "pitched" || after.status !== "pitched") return;
+
+    const { uid, campaignId } = event.params;
+    const db       = admin.firestore();
+    const producer = after.producer || {};
+    const beats    = (after.beats || []).filter(b => b.storagePath);
+    if (beats.length === 0) return;
+
+    const batch = db.batch();
+    beats.forEach((b, i) => {
+      const ref = db.doc(`libraryBeats/${campaignId}_${i}`);
+      batch.set(ref, {
+        ownerUid:   uid,
+        campaignId,
+        beatIndex:  i,
+        title:      b.title || "Untitled",
+        genre:      b.genre || "",
+        key:        b.key   || "",
+        bpm:        b.bpm   || "",
+        producer:   { name: producer.name || "", instagram: producer.instagram || "" },
+        storagePath: b.storagePath,
+        pitchedAt:  admin.firestore.FieldValue.serverTimestamp()
+      });
+    });
+    await batch.commit();
+    console.log(`libraryBeats: mirrored ${beats.length} beats for campaign ${campaignId}`);
+  }
+);
+
+// ====================================================================
 // downloadBeats — logs who downloaded, then redirects to the ZIP
 //   email link: /downloadBeats?e={emailId}
 // ====================================================================
@@ -1181,6 +1223,78 @@ exports.listLoopClaims = onCall({ region: REGION }, async (request) => {
   });
   claims.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
   return { claims };
+});
+
+// ====================================================================
+// initStaffClaim — stamps isStaff:true on the caller's Auth token so
+// Firestore rules can allow cross-user reads without exposing emails.
+// assertStaff guards the gate — non-staff get permission-denied.
+// ====================================================================
+exports.initStaffClaim = onCall({ region: REGION }, async (request) => {
+  assertStaff(request.auth);
+  await admin.auth().setCustomUserClaims(request.auth.uid, { isStaff: true });
+  console.log(`isStaff claim stamped for ${request.auth.uid}`);
+  return { ok: true };
+});
+
+// ====================================================================
+// getPlayUrls — staff-only: generate 2-hour signed playback URLs for
+// a single campaign's beats. Called lazily when a new campaign arrives
+// via onSnapshot and isn't yet in the client's play-URL cache.
+// ====================================================================
+exports.getPlayUrls = onCall({ region: REGION }, async (request) => {
+  assertStaff(request.auth);
+  const { path } = request.data || {};
+  if (!path || !/^users\/[^/]+\/campaigns\/[^/]+$/.test(path))
+    throw new HttpsError("invalid-argument", "Invalid campaign path.");
+  const snap = await admin.firestore().doc(path).get();
+  if (!snap.exists) throw new HttpsError("not-found", "Campaign not found.");
+  const storage = admin.storage().bucket();
+  const beats = await Promise.all((snap.data().beats || []).map(async (b) => {
+    let playUrl = null;
+    if (b.storagePath) {
+      try {
+        const [url] = await storage.file(b.storagePath)
+          .getSignedUrl({ action: "read", expires: Date.now() + 2 * 60 * 60 * 1000 });
+        playUrl = url;
+      } catch { /* file missing — ignore */ }
+    }
+    return { ...b, playUrl };
+  }));
+  return { beats };
+});
+
+// ====================================================================
+// getLoopPlayUrls — verifiedPuller-only: 2-hour signed playback URLs for
+// a batch of live loops. Called lazily by the Verified loop pool when
+// loops arrive via onSnapshot and aren't yet in the client's URL cache.
+// ====================================================================
+exports.getLoopPlayUrls = onCall({ region: REGION }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
+  const uid = request.auth.uid;
+  const db      = admin.firestore();
+  const storage = admin.storage().bucket();
+
+  const pullerSnap = await db.doc(`users/${uid}`).get();
+  if (!pullerSnap.get("verifiedPuller"))
+    throw new HttpsError("permission-denied", "Only verified pullers can preview loops.");
+
+  const { loopIds } = request.data || {};
+  if (!Array.isArray(loopIds) || loopIds.length === 0) return { urls: {} };
+
+  const urls = {};
+  await Promise.all(loopIds.slice(0, 100).map(async (id) => {
+    if (typeof id !== "string") return;
+    try {
+      const snap = await db.doc(`loops/${id}`).get();
+      const path = snap.exists ? snap.get("storagePath") : null;
+      if (!path) return;
+      const [url] = await storage.file(path)
+        .getSignedUrl({ action: "read", expires: Date.now() + 2 * 60 * 60 * 1000 });
+      urls[id] = url;
+    } catch (e) { console.warn("Signed URL failed for loop", id, e.message); }
+  }));
+  return { urls };
 });
 
 // stripeWebhook — verifies signature, applies subscription/pack effects

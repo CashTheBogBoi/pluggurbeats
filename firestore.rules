@@ -2,14 +2,40 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // Staff check via custom Auth claim (stamped by initStaffClaim callable)
+    function isStaff() {
+      return request.auth != null && request.auth.token.isStaff == true;
+    }
+
+    // Verified-library access — A&R / artists / verified producers. Checks the
+    // caller's own user doc (which they're always allowed to read) for a grant.
+    function isVerified() {
+      return request.auth != null && (
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.verifiedListener == true
+        || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.verifiedPuller == true
+      );
+    }
+
     // Protected fields — only Cloud Functions (admin SDK) may change these
     function protectedKeys() {
       return ['subscription','pitchCredits','loopCredits','verifiedPuller','verifiedListener'];
     }
 
+    // ----------------------------------------------------------------
+    // Collection-group rule — lets staff run onSnapshot(collectionGroup
+    // ("campaigns")) for live cross-user campaign monitoring.
+    // Individual users still access their own campaigns via the nested
+    // rule below; this only adds staff read on top.
+    // ----------------------------------------------------------------
+    match /{path=**}/campaigns/{campaignId} {
+      allow read: if isStaff();
+    }
+
     // A user's own profile + everything under their campaigns (incl. events)
     match /users/{userId} {
-      allow read: if request.auth != null && request.auth.uid == userId;
+      // Staff can read any user doc for the live Users view
+      allow read: if request.auth != null
+        && (request.auth.uid == userId || isStaff());
 
       // On create, the credit/subscription fields must start at their defaults
       // so a user cannot self-grant credits or verification at signup.
@@ -49,20 +75,30 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
-    // Loops — makers can read/create their own; verifiedPullers can read all.
-    // Updates and deletes are Cloud Functions only (admin SDK).
+    // Loops — makers can read/create their own; verifiedPullers can read all;
+    // staff can read all for moderation. Updates/deletes are Functions-only.
     match /loops/{loopId} {
       allow read: if request.auth != null
         && (resource.data.makerUid == request.auth.uid
-            || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.verifiedPuller == true);
+            || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.verifiedPuller == true
+            || isStaff());
       allow create: if request.auth != null
         && request.resource.data.makerUid == request.auth.uid;
       allow update, delete: if false;
     }
 
-    // Loop claims — Cloud Functions only (admin SDK bypasses rules)
+    // Loop claims — staff can read live via onSnapshot; writes are Functions-only
     match /loopClaims/{claimId} {
-      allow read, write: if false;
+      allow read:  if isStaff();
+      allow write: if false;
+    }
+
+    // libraryBeats — denormalized index of pitched beats (no audio, no PII
+    // beyond producer handle). Verified listeners/pullers snapshot this for a
+    // live Verified library; staff can read too. Writes are Functions-only.
+    match /libraryBeats/{beatId} {
+      allow read:  if isStaff() || isVerified();
+      allow write: if false;
     }
 
     // Deny everything else

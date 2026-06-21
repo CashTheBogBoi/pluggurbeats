@@ -1,15 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { onAuthStateChanged, signOut } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, collection, query, where, onSnapshot } from "firebase/firestore";
 import { ref, getDownloadURL } from "firebase/storage";
 import { httpsCallable } from "firebase/functions";
 import { auth, db, fns, storage } from "../firebase.js";
 import "./Verified.css";
 
 const listApprovedBeatsFn = httpsCallable(fns, "listApprovedBeats");
-const listLiveLoopsFn = httpsCallable(fns, "listLiveLoops");
-const pullLoopFn = httpsCallable(fns, "pullLoop");
+const getLoopPlayUrlsFn   = httpsCallable(fns, "getLoopPlayUrls");
+const pullLoopFn          = httpsCallable(fns, "pullLoop");
 
 const ACCENT = {
   "Trap": "linear-gradient(140deg,#7C5CFF 0%,#3A1F9E 100%)",
@@ -44,13 +44,20 @@ export default function Verified() {
   const [beats, setBeats] = useState([]);
   const [loops, setLoops] = useState([]);
   const [beatsState, setBeatsState] = useState("loading"); // loading | error | ready
-  const [loopsState, setLoopsState] = useState("idle");
+  const [loopsState, setLoopsState] = useState("loading");
   const [errMsg, setErrMsg] = useState("");
   const [search, setSearch] = useState("");
   const [genre, setGenre] = useState("");
   const [toast, setToast] = useState("");
-  const toastTimer = useRef(null);
-  const loopsLoaded = useRef(false);
+  const [liveAt, setLiveAt] = useState(null);
+
+  const toastTimer    = useRef(null);
+  const beatsTimer    = useRef(null);
+  const loopUrlCache  = useRef({});      // loopId -> signed playUrl
+  const fetchingUrls  = useRef(false);
+  const lastAvatar    = useRef(null);
+  const beatsListener = useRef(null);    // unsub for the libraryBeats snapshot
+  const loopsListener = useRef(null);    // unsub for the loops snapshot
 
   const showToast = (t) => {
     setToast(t);
@@ -58,57 +65,109 @@ export default function Verified() {
     toastTimer.current = setTimeout(() => setToast(""), 3000);
   };
 
-  useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (user) => {
-      if (!user || !user.emailVerified) { navigate("/"); return; }
-      const snap = await getDoc(doc(db, "users", user.uid));
-      const data = snap.exists() ? snap.data() : {};
-      setProfile({ ...data, email: user.email });
-      const listener = data.verifiedListener === true;
-      const puller = data.verifiedPuller === true;
-      setIsPuller(puller);
-      if (!listener && !puller) { setGate("denied"); return; }
-      if (data.avatarPath) {
-        try { setAvatarUrl(await getDownloadURL(ref(storage, data.avatarPath))); } catch { /* ignore */ }
+  // Refresh the approved-beats library (callable returns signed playback URLs).
+  // Debounced so a burst of libraryBeats writes coalesces into one fetch.
+  function refreshBeats() {
+    clearTimeout(beatsTimer.current);
+    beatsTimer.current = setTimeout(async () => {
+      try {
+        const res = await listApprovedBeatsFn();
+        setBeats(res.data.beats || []);
+        setBeatsState("ready");
+        setLiveAt(Date.now());
+      } catch (e) {
+        setErrMsg(e.message);
+        setBeatsState("error");
       }
-      setGate("ok");
-      loadBeats();
+    }, 350);
+  }
+
+  // Fetch signed playback URLs for any live loops we don't have cached yet.
+  async function hydrateLoopUrls(list) {
+    const missing = list.filter((l) => !loopUrlCache.current[l.id]).map((l) => l.id);
+    if (missing.length === 0 || fetchingUrls.current) return;
+    fetchingUrls.current = true;
+    try {
+      const res = await getLoopPlayUrlsFn({ loopIds: missing });
+      Object.assign(loopUrlCache.current, res.data.urls || {});
+      setLoops((prev) => prev.map((l) => ({ ...l, playUrl: loopUrlCache.current[l.id] || l.playUrl })));
+    } catch { /* preview is best-effort */ }
+    finally { fetchingUrls.current = false; }
+  }
+
+  useEffect(() => {
+    const unsubs = [];
+
+    const authUnsub = onAuthStateChanged(auth, (user) => {
+      if (!user || !user.emailVerified) { navigate("/"); return; }
+
+      // ── Live access gate: the user doc drives verified flags in real time.
+      // Library/pool listeners are attached lazily here, AFTER access is
+      // confirmed, because their rules require a verified grant. ──
+      unsubs.push(onSnapshot(doc(db, "users", user.uid), (snap) => {
+        const data = snap.exists() ? snap.data() : {};
+        setProfile({ ...data, email: user.email });
+
+        const listener = data.verifiedListener === true;
+        const puller   = data.verifiedPuller   === true;
+        setIsPuller(puller);
+
+        if (data.avatarPath && data.avatarPath !== lastAvatar.current) {
+          lastAvatar.current = data.avatarPath;
+          getDownloadURL(ref(storage, data.avatarPath)).then(setAvatarUrl).catch(() => {});
+        }
+
+        if (!listener && !puller) { setGate("denied"); return; }
+        setGate((g) => (g === "ok" ? g : "ok"));
+
+        // Beats library — any verified user (listener or puller)
+        if ((listener || puller) && !beatsListener.current) {
+          beatsListener.current = onSnapshot(
+            collection(db, "libraryBeats"),
+            () => refreshBeats(),
+            (err) => { setErrMsg(err.message); setBeatsState("error"); }
+          );
+          refreshBeats(); // first paint, even if libraryBeats is empty
+        }
+
+        // Loop pool — pullers only
+        if (puller && !loopsListener.current) {
+          loopsListener.current = onSnapshot(
+            query(collection(db, "loops"), where("status", "==", "live")),
+            (s) => {
+              const list = s.docs
+                .map((d) => {
+                  const l = d.data();
+                  return {
+                    id: d.id, makerName: l.makerName || "Unknown", title: l.title,
+                    bpm: l.bpm || null, key: l.key || null, genre: l.genre || null,
+                    tags: l.tags || [], playUrl: loopUrlCache.current[d.id] || null,
+                    createdAt: l.createdAt?.toMillis ? l.createdAt.toMillis() : 0
+                  };
+                })
+                .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+              setLoops(list);
+              setLoopsState("ready");
+              hydrateLoopUrls(list);
+            },
+            (err) => { setErrMsg(err.message); setLoopsState("error"); }
+          );
+        }
+      }, () => setGate("denied")));
     });
-    return () => unsub();
+
+    return () => {
+      authUnsub();
+      unsubs.forEach((fn) => { try { fn(); } catch { /* ignore */ } });
+      if (beatsListener.current) beatsListener.current();
+      if (loopsListener.current) loopsListener.current();
+      clearTimeout(beatsTimer.current);
+      clearTimeout(toastTimer.current);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function loadBeats() {
-    setBeatsState("loading");
-    try {
-      const res = await listApprovedBeatsFn();
-      setBeats(res.data.beats || []);
-      setBeatsState("ready");
-    } catch (e) {
-      setErrMsg(e.message);
-      setBeatsState("error");
-    }
-  }
-
-  async function loadLoops() {
-    setLoopsState("loading");
-    try {
-      const res = await listLiveLoopsFn();
-      setLoops(res.data.loops || []);
-      loopsLoaded.current = true;
-      setLoopsState("ready");
-    } catch (e) {
-      setErrMsg(e.message);
-      setLoopsState("error");
-    }
-  }
-
-  const switchTab = (t) => {
-    setTab(t);
-    setSearch("");
-    setGenre("");
-    if (t === "loops" && !loopsLoaded.current) loadLoops();
-  };
+  const switchTab = (t) => { setTab(t); setSearch(""); setGenre(""); };
 
   async function doPull(loopId, btn) {
     btn.disabled = true; btn.textContent = "Pulling…";
@@ -118,7 +177,7 @@ export default function Verified() {
       a.href = res.data.url; a.download = ""; a.target = "_blank";
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
       showToast("Loop pulled — a split-claim has been created with the maker.");
-      setLoops((prev) => prev.filter((l) => l.id !== loopId));
+      setLoops((prev) => prev.filter((l) => l.id !== loopId)); // snapshot will also drop it
     } catch (e) {
       showToast(e.message || "Could not pull loop.");
       btn.disabled = false; btn.textContent = "Use this loop";
@@ -185,7 +244,10 @@ export default function Verified() {
 
       <main>
         <div className="hero">
-          <div className="eyebrow">Curated · Exclusive · Verified</div>
+          <div className="eyebrow">
+            Curated · Exclusive · Verified
+            {liveAt && <span style={{ color: "var(--ok)", marginLeft: "10px" }}>● Live</span>}
+          </div>
           <h1>The library</h1>
           <p>{isPuller
             ? "Browse approved beats and pull live loops from the producer pool."
@@ -262,7 +324,7 @@ export default function Verified() {
                     <div className="chip-row">{chips.map((c, i) => <span className="chip" key={i}>{c}</span>)}</div>
                     {l.playUrl
                       ? <div className="card-audio"><audio controls preload="none" src={l.playUrl} /></div>
-                      : <div style={{ fontSize: "12px", color: "var(--bone-dim)" }}>No preview</div>}
+                      : <div style={{ fontSize: "12px", color: "var(--bone-dim)" }}>Loading preview…</div>}
                     <button className="btn-pull" onClick={(e) => doPull(l.id, e.currentTarget)}>Use this loop</button>
                   </div>
                 </div>
