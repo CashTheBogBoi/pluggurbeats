@@ -43,7 +43,9 @@ export default function Staff() {
 
   const [reject, setReject] = useState(null); // { path, reason, note, busy }
   const [toast, setToast] = useState("");
+  const [lastUpdated, setLastUpdated] = useState(null);
   const toastTimer = useRef(null);
+  const viewRef = useRef("campaigns");
 
   const showToast = (t) => {
     setToast(t);
@@ -58,6 +60,7 @@ export default function Staff() {
       try {
         const res = await listReviewCampaigns();
         setCampaigns(res.data.campaigns || []);
+        setLastUpdated(Date.now());
         setGate("ok");
       } catch (e) {
         if (e.code === "functions/permission-denied") { navigate("/dashboard"); return; }
@@ -68,6 +71,43 @@ export default function Staff() {
     return () => unsub();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Keep viewRef current so focus handler never reads stale view
+  useEffect(() => { viewRef.current = view; }, [view]);
+
+  async function refreshCampaigns() {
+    try {
+      const res = await listReviewCampaigns();
+      setCampaigns(res.data.campaigns || []);
+      setLastUpdated(Date.now());
+    } catch { /* silent — don't disrupt UI */ }
+  }
+
+  // Auto-refresh campaigns every 2 minutes
+  useEffect(() => {
+    if (gate !== "ok") return;
+    const id = setInterval(refreshCampaigns, 120_000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gate]);
+
+  // Refresh active view when window regains focus (tab switch / screen wake)
+  useEffect(() => {
+    if (gate !== "ok") return;
+    const onFocus = async () => {
+      const v = viewRef.current;
+      if (v === "campaigns") {
+        refreshCampaigns();
+      } else if (v === "users" && usersLoaded) {
+        try { const r = await listUsers(); setUsers(r.data.users || []); } catch { /* silent */ }
+      } else if (v === "loops" && claimsLoaded) {
+        try { const r = await listLoopClaimsFn(); setClaims(r.data.claims || []); } catch { /* silent */ }
+      }
+    };
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gate, usersLoaded, claimsLoaded]);
 
   async function switchView(v) {
     setView(v);
@@ -242,6 +282,10 @@ export default function Staff() {
                 <option value="pro">Pro</option>
                 <option value="label">Label</option>
               </select>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginLeft: "auto", flexShrink: 0 }}>
+                {lastUpdated && <span style={{ fontFamily: "'Space Mono',monospace", fontSize: "10px", color: "var(--bone-dim)" }}>Updated {new Date(lastUpdated).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}</span>}
+                <button className="btn" style={{ fontSize: "12px", padding: "7px 12px", background: "var(--ink-2)", borderColor: "var(--line-strong)", color: "var(--bone-dim)" }} onClick={refreshCampaigns}>↺ Refresh</button>
+              </div>
             </div>
 
             <div className="seg">

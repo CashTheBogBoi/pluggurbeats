@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { onAuthStateChanged, signOut } from "firebase/auth";
-import { doc, getDocs, setDoc, collection, query, where, orderBy, serverTimestamp, onSnapshot } from "firebase/firestore";
+import { doc, setDoc, collection, query, where, orderBy, serverTimestamp, onSnapshot } from "firebase/firestore";
 import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { httpsCallable } from "firebase/functions";
 import { auth, db, storage, fns } from "../firebase.js";
@@ -698,14 +698,15 @@ function LoopDrops({ user, loopBalance, showToast }) {
   const [progress, setProgress] = useState(0);
   const [myLoops, setMyLoops] = useState(null);
 
-  const loadLoops = async () => {
-    if (!user) return;
-    try {
-      const snap = await getDocs(query(collection(db, "loops"), where("makerUid", "==", user.uid), orderBy("createdAt", "desc")));
-      setMyLoops(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
-    } catch { setMyLoops([]); }
-  };
-  useEffect(() => { loadLoops(); /* eslint-disable-next-line */ }, [user]);
+  useEffect(() => {
+    if (!user?.uid) return;
+    const q = query(collection(db, "loops"), where("makerUid", "==", user.uid), orderBy("createdAt", "desc"));
+    const unsub = onSnapshot(q,
+      (snap) => setMyLoops(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+      () => setMyLoops([])
+    );
+    return () => unsub();
+  }, [user?.uid]);
 
   async function submit() {
     if (!title.trim()) { setMsg({ text: "Add a title.", kind: "err" }); return; }
@@ -720,7 +721,6 @@ function LoopDrops({ user, loopBalance, showToast }) {
       await submitLoopFn({ title: title.trim(), bpm: bpm || null, key, genre, tags: tags.split(",").map((t) => t.trim()).filter(Boolean), storagePath });
       setMsg({ text: "Loop submitted!", kind: "ok" });
       setTitle(""); setBpm(""); setTags(""); setFile(null); setProgress(0);
-      loadLoops();
       setTimeout(() => setMsg(null), 3000);
     } catch (e) { setMsg({ text: e.message || "Submission failed.", kind: "err" }); }
     finally { setBusy(false); }
