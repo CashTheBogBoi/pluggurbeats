@@ -166,9 +166,18 @@ export default function Dashboard() {
   const go = (v) => { setView(v); setNavOpen(false); window.scrollTo(0, 0); };
 
   async function startSubscription(plan, btn) {
-    const orig = btn.textContent; btn.disabled = true; btn.textContent = "Redirecting…";
-    try { const { data } = await createSubscriptionCheckoutFn({ plan }); if (data?.url) location.href = data.url; else throw new Error("No checkout URL returned."); }
-    catch (e) { showToast(e.message || "Could not start checkout."); btn.disabled = false; btn.textContent = orig; }
+    const orig = btn.textContent; btn.disabled = true; btn.textContent = "Please wait…";
+    try {
+      const { data } = await createSubscriptionCheckoutFn({ plan });
+      if (data?.upgraded) {
+        showToast(`Upgraded to ${cap(plan)} — your new credits are now active.`);
+        btn.disabled = false; btn.textContent = orig;
+      } else if (data?.url) {
+        location.href = data.url;
+      } else {
+        throw new Error("No checkout URL returned.");
+      }
+    } catch (e) { showToast(e.message || "Could not start checkout."); btn.disabled = false; btn.textContent = orig; }
   }
   async function buyPack(pack, btn) {
     const orig = btn.textContent; btn.disabled = true; btn.textContent = "Redirecting…";
@@ -789,7 +798,8 @@ function Billing({ tier, profile, pitchBalance, loopBalance, startSubscription, 
   const renewMs = renews?.toMillis ? renews.toMillis() : (typeof renews === "number" ? renews : null);
   const planBtn = (plan) => {
     if (tier === plan) return { label: "Current plan", disabled: true, cls: "btn-ghost", outline: "2px solid var(--gold)" };
-    return { label: TIER_RANK[plan] > TIER_RANK[tier] ? "Upgrade" : "Switch to " + cap(plan), disabled: false, cls: "btn-gold", outline: "none" };
+    if (TIER_RANK[plan] < TIER_RANK[tier]) return { label: "Contact support to downgrade", disabled: true, cls: "btn-ghost", outline: "none" };
+    return { label: "Upgrade", disabled: false, cls: "btn-gold", outline: "none" };
   };
   const pb = planBtn("plugg"), pr = planBtn("pro");
 

@@ -582,7 +582,7 @@ async function getOrCreateCustomer(stripe, uid) {
   return customer.id;
 }
 
-// createSubscriptionCheckout({ plan }) -> { url }
+// createSubscriptionCheckout({ plan }) -> { url } or { upgraded: true }
 exports.createSubscriptionCheckout = onCall(
   { region: REGION, secrets: [STRIPE_SECRET] },
   async (request) => {
@@ -593,7 +593,43 @@ exports.createSubscriptionCheckout = onCall(
     const priceId = stripePrices[plan];
     if (!priceId) throw new HttpsError("failed-precondition", "Plan price not configured.");
 
-    const stripe   = Stripe(STRIPE_SECRET.value());
+    const db      = admin.firestore();
+    const snap    = await db.doc(`users/${uid}`).get();
+    const curTier = snap.get("subscription.tier") || "free";
+    const subId   = snap.get("subscription.stripeSubId");
+
+    const stripe = Stripe(STRIPE_SECRET.value());
+
+    // Already on this plan — block re-subscribe
+    if (curTier === plan && subId) {
+      throw new HttpsError("already-exists", `You already have the ${plan} plan.`);
+    }
+
+    // Plugg → Pro upgrade: swap price on existing subscription (no new checkout)
+    if (curTier === "plugg" && plan === "pro" && subId) {
+      const sub    = await stripe.subscriptions.retrieve(subId);
+      const itemId = sub.items.data[0]?.id;
+      if (!itemId) throw new HttpsError("failed-precondition", "Could not find subscription item.");
+      await stripe.subscriptions.update(subId, {
+        items: [{ id: itemId, price: priceId }],
+        proration_behavior: "create_prorations"
+      });
+      await db.doc(`users/${uid}`).update({
+        "subscription.tier":   "pro",
+        "subscription.status": "active"
+      });
+      await applyMonthlyGrants(uid, "pro", null);
+      console.log(`Subscription upgraded plugg -> pro for ${uid}`);
+      return { upgraded: true };
+    }
+
+    // Pro trying to downgrade to Plugg — not allowed self-serve
+    if (curTier === "pro" && plan === "plugg") {
+      throw new HttpsError("failed-precondition",
+        "To downgrade from Pro, please contact support.");
+    }
+
+    // New subscription (free → plugg or free → pro)
     const customer = await getOrCreateCustomer(stripe, uid);
     const session  = await stripe.checkout.sessions.create({
       mode: "subscription",
@@ -1184,26 +1220,50 @@ exports.stripeWebhook = onRequest(
       }
 
       else if (event.type === "invoice.paid") {
-        const inv  = event.data.object;
-        const line = inv.lines?.data?.[0];
+        const inv = event.data.object;
+        // Scan ALL line items — proration invoices put credits first,
+        // so lines.data[0] may not be the actual subscription price line.
         // Stripe moved the price id from line.price.id (old) to
         // line.pricing.price_details.price (2025+ API). Support both.
-        const priceId = line?.pricing?.price_details?.price
-                     || line?.price?.id
-                     || null;
-        const tier = tierForPriceId(priceId);
-        console.log(`invoice.paid: priceId=${priceId} tier=${tier}`);
+        const allLines = inv.lines?.data || [];
+        let tier = null, periodEnd = null;
+        for (const line of allLines) {
+          const pid = line?.pricing?.price_details?.price || line?.price?.id || null;
+          const t   = tierForPriceId(pid);
+          if (t) { tier = t; periodEnd = line?.period?.end || null; break; }
+        }
+        console.log(`invoice.paid: tier=${tier} periodEnd=${periodEnd}`);
         if (tier) {
           const uid = await uidForCustomer(stripe, inv.customer);
           if (uid) {
             await db.doc(`users/${uid}`).update({
               "subscription.tier":     tier,
               "subscription.status":   "active",
-              "subscription.renewsAt": line?.period?.end
-                ? admin.firestore.Timestamp.fromMillis(line.period.end * 1000) : null
+              "subscription.renewsAt": periodEnd
+                ? admin.firestore.Timestamp.fromMillis(periodEnd * 1000) : null
             });
-            await applyMonthlyGrants(uid, tier, line?.period?.end || null);
+            await applyMonthlyGrants(uid, tier, periodEnd || null);
             console.log(`invoice.paid: granted ${tier} credits to ${uid}`);
+          }
+        }
+      }
+
+      else if (event.type === "customer.subscription.updated") {
+        // Handles external changes (Stripe dashboard, billing portal, etc.)
+        const sub = event.data.object;
+        if (sub.status === "active" || sub.status === "trialing") {
+          const uid = await uidForCustomer(stripe, sub.customer);
+          if (uid) {
+            const priceId = sub.items?.data?.[0]?.price?.id;
+            const tier    = tierForPriceId(priceId);
+            if (tier) {
+              await db.doc(`users/${uid}`).update({
+                "subscription.tier":      tier,
+                "subscription.status":    "active",
+                "subscription.stripeSubId": sub.id
+              });
+              console.log(`subscription.updated: ${uid} tier=${tier}`);
+            }
           }
         }
       }
