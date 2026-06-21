@@ -110,7 +110,7 @@ export default function Dashboard() {
           reconcileTried.current = true;
           try { const res = await reconcileCreditsFn(); if (res.data?.granted) showToast(`Your ${cap(t)} credits are now active.`); } catch { /* ignore */ }
         }
-      });
+      }, (err) => { console.error("[live] user listener failed:", err.code, err.message); showToast("Live sync error (" + err.code + ") — try reloading."); });
 
       const unsubCamps = onSnapshot(collection(db, "users", u.uid, "campaigns"), (snap) => {
         const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
@@ -124,9 +124,9 @@ export default function Dashboard() {
           eventUnsubs.current[c.id] = onSnapshot(collection(db, "users", u.uid, "campaigns", c.id, "events"), (evSnap) => {
             const evs = evSnap.docs.map((d) => { const e = d.data(); return { type: e.type, contact: e.contact, timestamp: e.timestamp?.toMillis ? e.timestamp.toMillis() : null }; });
             setEvents((p) => ({ ...p, [c.id]: evs }));
-          });
+          }, (err) => console.error("[live] events listener failed for", c.id, err.code));
         });
-      });
+      }, (err) => { console.error("[live] campaigns listener failed:", err.code, err.message); showToast("Live sync error (" + err.code + ") — try reloading."); });
 
       // store cleanups
       eventUnsubs.current.__user = unsubUser;
