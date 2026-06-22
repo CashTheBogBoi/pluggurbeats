@@ -50,10 +50,10 @@ function uploadFile(file, path, onProgress) {
 
 const NAV = [
   { v: "overview", label: "Overview", Icon: LayoutDashboard },
+  { v: "loops", label: "Loop Drops", Icon: Disc3 },
   { v: "submit", label: "Start a campaign", Icon: Rocket },
   { v: "analytics", label: "Pitch analytics", Icon: BarChart3 },
   { v: "paperwork", label: "Paperwork", Icon: FileText },
-  { v: "loops", label: "Loop Drops", Icon: Disc3 },
   { v: "billing", label: "Billing & credits", Icon: CreditCard }
 ];
 

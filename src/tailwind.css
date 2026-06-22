@@ -2,6 +2,13 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Preflight is disabled (to protect the other pages' CSS), so restore just the
+   button reset — without it, bare <button>s render with the OS's light default
+   background, which showed up as white blocks behind the dashboard nav/menu. */
+@layer base {
+  button { background-color: transparent; background-image: none; }
+}
+
 /* Thin, on-brand scrollbars for the dashboard surfaces. */
 @layer utilities {
   .scrollbar-slim::-webkit-scrollbar { width: 8px; height: 8px; }
