@@ -1,8 +1,9 @@
-// Front-end Firebase init — AUTH ONLY. The backend (Firestore, Cloud
-// Functions, Storage) was torn down for a full rebuild; this file
-// intentionally exposes nothing but Authentication + the Google provider.
+// Shared Firebase init for the React app.
 import { initializeApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
+import { initializeFirestore } from "firebase/firestore";
+import { getFunctions } from "firebase/functions";
+import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
   apiKey:            "AIzaSyATP9LnN8pYEeXUd2TmDUZAPrAx9KNbudM",
@@ -14,6 +15,12 @@ const firebaseConfig = {
   measurementId:     "G-J1M418YLQL"
 };
 
-export const app      = initializeApp(firebaseConfig);
-export const auth     = getAuth(app);
+export const app  = initializeApp(firebaseConfig);
+export const auth = getAuth(app);
+// Auto-detect long polling: some networks, browsers, proxies, and ad-block
+// extensions kill Firestore's WebChannel stream, which would stop onSnapshot
+// listeners from firing. Auto-detect falls back to long-polling when needed.
+export const db       = initializeFirestore(app, { experimentalAutoDetectLongPolling: true });
+export const fns      = getFunctions(app, "us-central1");
+export const storage  = getStorage(app);
 export const provider = new GoogleAuthProvider();
