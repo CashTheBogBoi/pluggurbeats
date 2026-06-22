@@ -9,7 +9,7 @@ import {
   LayoutDashboard, Rocket, BarChart3, FileText, Disc3, CreditCard, ArrowLeft,
   LogOut, Menu, X, Plus, Trash2, Upload, Check, ChevronDown, Music2, Mail, Phone,
   Settings, Sparkles, TrendingUp, Clock, CheckCircle2, XCircle, ArrowRight, Wallet,
-  ShieldCheck, Eye, Download
+  ShieldCheck, Eye, Download, RefreshCw, Send, PenLine
 } from "lucide-react";
 
 /* ============================ domain constants ============================ */
@@ -262,7 +262,7 @@ export default function Dashboard() {
             {view === "overview" && <Overview name={name} campaigns={campaigns} tier={tier} pitch={pitchBalance} go={go} />}
             {view === "submit" && <CampaignBuilder tier={tier} caps={caps} pitchBalance={pitchBalance} user={user} profile={profile} campaignCount={campaigns.length} showToast={showToast} onSubmitted={() => go("analytics")} />}
             {view === "analytics" && <Analytics campaigns={campaigns} uid={uid} tier={tier} />}
-            {view === "paperwork" && <Paperwork campaigns={campaigns} showToast={showToast} />}
+            {view === "paperwork" && <Paperwork campaigns={campaigns} uid={uid} profile={profile} showToast={showToast} />}
             {view === "loops" && <LoopDrops user={user} loopBalance={loopBalance} showToast={showToast} />}
             {view === "billing" && <Billing tier={tier} profile={profile} pitchBalance={pitchBalance} loopBalance={loopBalance} startSubscription={startSubscription} buyPack={buyPack} />}
           </div>
@@ -852,56 +852,164 @@ function CampaignActivity({ campaign, uid }) {
 const Tag = ({ c, children }) => <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${c}`}>{children}</span>;
 
 /* ============================ paperwork ============================ */
-function Paperwork({ campaigns, showToast }) {
-  const beatTitles = useMemo(() => { const s = new Set(); campaigns.forEach((c) => (c.beats || []).forEach((b) => b.title && s.add(b.title))); return [...s]; }, [campaigns]);
-  const [title, setTitle] = useState("");
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
-  const [writers, setWriters] = useState([{ name: "", role: "Producer", pct: "", ig: "" }]);
+const PRO_OPTS = ["", "ASCAP", "BMI", "SESAC", "GMR", "SOCAN", "PRS", "Other"];
+const newWriter = (o = {}) => ({ legalName: "", role: "Producer", email: "", phone: "", address: "", pro: "", publisher: "", ipi: "", pct: "", ...o });
+const sheetStatus = (s) => {
+  const m = {
+    sent: { t: "Awaiting signatures", c: "bg-info/12 text-info", I: Clock },
+    delivered: { t: "Opened by signers", c: "bg-info/12 text-info", I: Clock },
+    completed: { t: "Fully signed", c: "bg-ok/12 text-ok", I: CheckCircle2 },
+    declined: { t: "Declined", c: "bg-bad/12 text-bad", I: XCircle },
+    voided: { t: "Voided", c: "bg-white/8 text-bone-dim", I: XCircle }
+  };
+  return m[s] || { t: s || "—", c: "bg-white/8 text-bone-dim", I: Clock };
+};
+
+function Paperwork({ campaigns, uid, profile, showToast }) {
+  // Every beat across the producer's campaigns, with its collaborators.
+  const beatOpts = useMemo(() => {
+    const out = [];
+    campaigns.forEach((c) => (c.beats || []).forEach((b, i) => out.push({
+      key: `${c.id}__${i}`, campaignId: c.id, beatIndex: i,
+      title: b.title || "Untitled beat", collabs: b.collabs || []
+    })));
+    return out;
+  }, [campaigns]);
+
+  const [selKey, setSelKey] = useState("");
+  const [song, setSong] = useState({ title: "", artist: "", dateCreated: new Date().toISOString().slice(0, 10) });
+  const [writers, setWriters] = useState([newWriter({ role: "Producer" })]);
+  const [busy, setBusy] = useState(false);
+
+  const sel = beatOpts.find((o) => o.key === selKey) || null;
   const total = writers.reduce((t, w) => t + (parseFloat(w.pct) || 0), 0);
-  const ok = Math.abs(total - 100) < 0.01;
+  const pctOk = Math.round(total) === 100;
   const patch = (i, p) => setWriters((prev) => prev.map((w, j) => (j === i ? { ...w, ...p } : w)));
+
+  // Live list of split sheets this producer has generated.
+  const { data: sheets } = useLiveCollection(["splitSheets", uid], () => collection(db, "users", uid, "splitSheets"), { enabled: !!uid });
+
+  function chooseBeat(key) {
+    setSelKey(key);
+    const o = beatOpts.find((x) => x.key === key);
+    if (!o) return;
+    setSong((s) => ({ ...s, title: o.title }));
+    // Prefill: producer first, then each listed collaborator.
+    const rows = [newWriter({ legalName: profile?.displayName || "", email: profile?.email || "", phone: profile?.phone || "", role: "Producer" })];
+    o.collabs.forEach((c) => rows.push(newWriter({ legalName: c.name || "", role: c.role || "Writer", phone: c.phone || "" })));
+    setWriters(rows.length ? rows : [newWriter()]);
+  }
+
+  async function generate() {
+    if (!sel) { showToast("Pick a beat first."); return; }
+    if (!song.title.trim()) { showToast("Song title is required."); return; }
+    for (const w of writers) {
+      if (!w.legalName.trim()) { showToast("Every contributor needs a legal name."); return; }
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(w.email.trim())) { showToast(`A valid email is required for ${w.legalName || "each contributor"} (to sign).`); return; }
+    }
+    if (!pctOk) { showToast(`Splits must total exactly 100% (currently ${total}%).`); return; }
+    setBusy(true);
+    try {
+      await call("generateSplitSheet", {
+        campaignId: sel.campaignId, beatIndex: sel.beatIndex,
+        song: { title: song.title.trim(), artist: song.artist.trim(), dateCreated: song.dateCreated },
+        writers: writers.map((w) => ({ ...w, pct: Number(w.pct) || 0 }))
+      });
+      showToast("Split sheet sent — every contributor gets a DocuSign email to sign.");
+      setSelKey(""); setWriters([newWriter()]); setSong({ title: "", artist: "", dateCreated: new Date().toISOString().slice(0, 10) });
+    } catch (e) { showToast(e.message || "Could not send split sheet."); }
+    finally { setBusy(false); }
+  }
+
+  async function refresh(sheetId, btn) {
+    btn.disabled = true;
+    try { await call("refreshSplitSheetStatus", { sheetId }); }
+    catch (e) { showToast(e.message || "Could not refresh."); }
+    finally { btn.disabled = false; }
+  }
 
   return (
     <section>
-      <SectionHead eyebrow="Documents" title="Paperwork" sub="Build a split sheet, log collaborators, and upload executed agreements." />
-      <Card className="mb-4 p-5">
-        <h3 className="mb-4 font-display text-lg">Split sheet</h3>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div><Label>Song / beat title *</Label>
-            <select className={inputCls} value={title} onChange={(e) => setTitle(e.target.value)}>
-              {beatTitles.length ? <><option value="">Select a beat…</option>{beatTitles.map((t) => <option key={t}>{t}</option>)}</> : <option value="">No beats yet — start a campaign first</option>}
-            </select>
-          </div>
-          <div><Label>Date</Label><input className={inputCls} type="date" value={date} onChange={(e) => setDate(e.target.value)} /></div>
-        </div>
-        <div className="mt-4 flex flex-col gap-2">
-          {writers.map((w, i) => (
-            <div key={i} className="grid grid-cols-2 gap-2 sm:grid-cols-[1.4fr_1fr_.7fr_1fr_auto]">
-              <input className={inputCls} placeholder="Name" value={w.name} onChange={(e) => patch(i, { name: e.target.value })} />
-              <select className={inputCls} value={w.role} onChange={(e) => patch(i, { role: e.target.value })}><option>Producer</option><option>Writer</option><option>Vocalist</option><option>Co-producer</option></select>
-              <input className={inputCls} type="number" min="0" max="100" placeholder="0" value={w.pct} onChange={(e) => patch(i, { pct: e.target.value })} />
-              <input className={inputCls} placeholder="@ig / PRO" value={w.ig} onChange={(e) => patch(i, { ig: e.target.value })} />
-              <button className="grid place-items-center rounded-lg border border-line text-bone-dim transition hover:border-bad hover:text-bad" onClick={() => setWriters((p) => p.filter((_, j) => j !== i))}><X size={14} /></button>
+      <SectionHead eyebrow="Documents" title="Split sheets" sub="Generate a legally-binding publishing split sheet and route it to every collaborator for e-signature via DocuSign." />
+
+      <Card className="mb-6 p-5">
+        <div className="mb-4 flex items-center gap-2"><PenLine size={18} className="text-gold" /><h3 className="font-display text-lg">New split sheet</h3></div>
+
+        {beatOpts.length === 0 ? (
+          <p className="py-4 text-sm text-bone-dim">No beats yet — start a campaign first, then come back to split it.</p>
+        ) : (
+          <>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div><Label>Beat *</Label>
+                <select className={inputCls} value={selKey} onChange={(e) => chooseBeat(e.target.value)}>
+                  <option value="">Select a beat…</option>
+                  {beatOpts.map((o) => <option key={o.key} value={o.key}>{o.title}</option>)}
+                </select>
+              </div>
+              <div><Label>Recording artist</Label><input className={inputCls} placeholder="Artist this was made for (optional)" value={song.artist} onChange={(e) => setSong((s) => ({ ...s, artist: e.target.value }))} /></div>
+              <div><Label>Song title *</Label><input className={inputCls} value={song.title} onChange={(e) => setSong((s) => ({ ...s, title: e.target.value }))} /></div>
+              <div><Label>Date created</Label><input className={inputCls} type="date" value={song.dateCreated} onChange={(e) => setSong((s) => ({ ...s, dateCreated: e.target.value }))} /></div>
             </div>
-          ))}
-        </div>
-        <button className="mt-3 flex items-center gap-1.5 text-sm text-gold hover:underline" onClick={() => setWriters((p) => [...p, { name: "", role: "Producer", pct: "", ig: "" }])}><Plus size={14} /> Add writer</button>
-        <div className="mt-4 flex items-center gap-3">
-          <span className={`font-display text-2xl ${ok ? "text-ok" : "text-bad"}`}>{total}%</span>
-          <span className="text-[13px] text-bone-dim">splits must total exactly 100% to submit</span>
-        </div>
-        <div className="mt-5 flex flex-wrap gap-3">
-          <GoldBtn disabled={!ok} onClick={() => { if (!title) { showToast("Add the song title first."); return; } showToast("Split sheet saved to this campaign."); }}>Submit split sheet</GoldBtn>
-          <GhostBtn onClick={() => showToast("PDF export coming soon.")}>Download PDF</GhostBtn>
-        </div>
+
+            {sel && (
+              <>
+                <div className="mt-5 mb-2 flex items-center justify-between">
+                  <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-bone-dim">Contributors · publishing splits</div>
+                  <span className={`font-display text-lg ${pctOk ? "text-ok" : "text-bad"}`}>{total}%</span>
+                </div>
+                <div className="flex flex-col gap-3">
+                  {writers.map((w, i) => (
+                    <div key={i} className="rounded-xl border border-line bg-ink p-4">
+                      <div className="mb-3 flex items-center justify-between">
+                        <span className="font-mono text-[11px] text-bone-dim">Contributor {i + 1}{i === 0 ? " (you)" : ""}</span>
+                        {writers.length > 1 && <button className="flex items-center gap-1 text-[12px] text-bad hover:underline" onClick={() => setWriters((p) => p.filter((_, j) => j !== i))}><Trash2 size={13} /> Remove</button>}
+                      </div>
+                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        <div><Label>Legal name *</Label><input className={inputCls} value={w.legalName} onChange={(e) => patch(i, { legalName: e.target.value })} /></div>
+                        <div><Label>Email * (to sign)</Label><input className={inputCls} type="email" value={w.email} onChange={(e) => patch(i, { email: e.target.value })} /></div>
+                        <div><Label>Role</Label><select className={inputCls} value={w.role} onChange={(e) => patch(i, { role: e.target.value })}>{["Producer", "Co-producer", "Songwriter", "Composer", "Topliner", "Lyricist", "Vocalist", "Mix engineer", "Other"].map((r) => <option key={r}>{r}</option>)}</select></div>
+                        <div><Label>Ownership %</Label><input className={inputCls} type="number" min="0" max="100" value={w.pct} onChange={(e) => patch(i, { pct: e.target.value })} /></div>
+                        <div><Label>PRO</Label><select className={inputCls} value={w.pro} onChange={(e) => patch(i, { pro: e.target.value })}>{PRO_OPTS.map((p) => <option key={p} value={p}>{p || "None / N/A"}</option>)}</select></div>
+                        <div><Label>CAE / IPI #</Label><input className={inputCls} value={w.ipi} onChange={(e) => patch(i, { ipi: e.target.value })} /></div>
+                        <div><Label>Publisher</Label><input className={inputCls} value={w.publisher} onChange={(e) => patch(i, { publisher: e.target.value })} /></div>
+                        <div><Label>Phone</Label><input className={inputCls} type="tel" value={w.phone} onChange={(e) => patch(i, { phone: e.target.value })} /></div>
+                        <div><Label>Address</Label><input className={inputCls} value={w.address} onChange={(e) => patch(i, { address: e.target.value })} /></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <button className="mt-3 flex items-center gap-1.5 text-sm text-gold hover:underline" onClick={() => setWriters((p) => [...p, newWriter({ role: "Writer" })])}><Plus size={14} /> Add contributor</button>
+
+                <div className="mt-5 flex flex-wrap items-center gap-3">
+                  <GoldBtn disabled={busy || !pctOk} onClick={generate}>{busy ? "Sending…" : <><Send size={15} /> Send for signature</>}</GoldBtn>
+                  {!pctOk && <span className="text-[13px] text-bad">Splits must total exactly 100%.</span>}
+                </div>
+                <p className="mt-3 text-[12px] text-bone-dim">Covers publishing (composition) only — master ownership is a separate agreement. Each contributor receives a DocuSign email and signs electronically.</p>
+              </>
+            )}
+          </>
+        )}
       </Card>
+
       <Card className="p-5">
-        <h3 className="mb-3 font-display text-lg">Upload signed documents</h3>
-        <button onClick={() => showToast("Document uploads coming soon.")} className="grid w-full place-items-center gap-1 rounded-xl border border-dashed border-strong py-10 text-center transition hover:border-gold/50">
-          <Upload size={22} className="text-bone-dim" />
-          <strong className="text-sm">Drop split sheets, work-for-hire, or licenses</strong>
-          <span className="text-[12px] text-bone-dim">PDF · DOCX · PNG — stored against this campaign</span>
-        </button>
+        <h3 className="mb-4 font-display text-lg">Your split sheets</h3>
+        {sheets === undefined ? <div className="flex flex-col gap-2">{[0, 1].map((i) => <Skeleton key={i} className="h-16" />)}</div>
+          : sheets.length === 0 ? <p className="py-6 text-center text-sm text-bone-dim">None yet. Generate one above and it'll track here as collaborators sign.</p>
+            : <div className="flex flex-col gap-2.5">{[...sheets].sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0)).map((s) => {
+              const st = sheetStatus(s.status); const I = st.I;
+              return (
+                <div key={s.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-ink p-4">
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold">{s.song?.title || s.beatTitle}</div>
+                    <div className="text-[12px] text-bone-dim">{(s.writers || []).length} contributor{(s.writers || []).length !== 1 ? "s" : ""} · sent {s.createdAt?.toMillis ? new Date(s.createdAt.toMillis()).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—"}</div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ${st.c}`}><I size={12} /> {st.t}</span>
+                    <button onClick={(e) => refresh(s.id, e.currentTarget)} className="grid h-8 w-8 place-items-center rounded-lg border border-line text-bone-dim transition hover:border-strong hover:text-bone disabled:opacity-50" title="Refresh status"><RefreshCw size={14} /></button>
+                  </div>
+                </div>
+              );
+            })}</div>}
       </Card>
     </section>
   );

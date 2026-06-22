@@ -40,6 +40,13 @@ service cloud.firestore {
         allow write: if false;
       }
 
+      // Split sheets the producer generated. Owner reads its own; writes +
+      // status updates are Cloud Functions only (DocuSign envelopes).
+      match /splitSheets/{sheetId} {
+        allow read:  if request.auth != null && request.auth.uid == userId;
+        allow write: if false;
+      }
+
       match /campaigns/{campaignId}/{document=**} {
         allow read, write: if request.auth != null
                            && request.auth.uid == userId;
@@ -53,6 +60,11 @@ service cloud.firestore {
 
     // Stripe customer→uid mapping — Cloud Functions only
     match /stripeCustomers/{customerId} {
+      allow read, write: if false;
+    }
+
+    // DocuSign envelopeId → {uid, sheetId} lookup — Cloud Functions only
+    match /dsEnvelopes/{envelopeId} {
       allow read, write: if false;
     }
 

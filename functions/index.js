@@ -6,6 +6,8 @@ const JSZip                    = require("jszip");
 const { Resend }               = require("resend");
 const { Webhook }              = require("svix");
 const Stripe                   = require("stripe");
+const docusign                 = require("docusign-esign");
+const { PDFDocument, StandardFonts, rgb } = require("pdf-lib");
 const contacts                 = require("./contacts.json");
 const staffConfig              = require("./staff.json");
 const stripePrices             = require("./stripe-prices.json");
@@ -27,6 +29,23 @@ const RESEND_API_KEY          = defineSecret("RESEND_API_KEY");
 const RESEND_WEBHOOK_SECRET   = defineSecret("RESEND_WEBHOOK_SECRET");
 const STRIPE_SECRET           = defineSecret("STRIPE_SECRET");
 const STRIPE_WEBHOOK_SECRET   = defineSecret("STRIPE_WEBHOOK_SECRET");
+
+// DocuSign (eSignature API, JWT grant). Set via `firebase functions:secrets:set`.
+//   DOCUSIGN_INTEGRATION_KEY  integration (client) key / GUID
+//   DOCUSIGN_USER_ID          API user GUID being impersonated
+//   DOCUSIGN_ACCOUNT_ID       API account GUID
+//   DOCUSIGN_PRIVATE_KEY      RSA private key (full PEM, including header/footer)
+//   DOCUSIGN_OAUTH_HOST       account-d.docusign.com (demo) | account.docusign.com (prod)
+//   DOCUSIGN_BASE_PATH        https://demo.docusign.net/restapi (demo) | https://NAx.docusign.net/restapi (prod)
+//   DOCUSIGN_CONNECT_SECRET   shared token appended to the Connect webhook URL
+const DOCUSIGN_INTEGRATION_KEY = defineSecret("DOCUSIGN_INTEGRATION_KEY");
+const DOCUSIGN_USER_ID         = defineSecret("DOCUSIGN_USER_ID");
+const DOCUSIGN_ACCOUNT_ID      = defineSecret("DOCUSIGN_ACCOUNT_ID");
+const DOCUSIGN_PRIVATE_KEY     = defineSecret("DOCUSIGN_PRIVATE_KEY");
+const DOCUSIGN_OAUTH_HOST      = defineSecret("DOCUSIGN_OAUTH_HOST");
+const DOCUSIGN_BASE_PATH       = defineSecret("DOCUSIGN_BASE_PATH");
+const DOCUSIGN_CONNECT_SECRET  = defineSecret("DOCUSIGN_CONNECT_SECRET");
+const DS_SECRETS = [DOCUSIGN_INTEGRATION_KEY, DOCUSIGN_USER_ID, DOCUSIGN_ACCOUNT_ID, DOCUSIGN_PRIVATE_KEY, DOCUSIGN_OAUTH_HOST, DOCUSIGN_BASE_PATH];
 
 // Monthly credit grants by tier. Roll over = ADD on each paid invoice,
 // capped at ROLLOVER_CAP_MULT × the monthly grant so balances don't grow forever.
@@ -1319,3 +1338,199 @@ exports.stripeWebhook = onRequest(
     res.status(200).send("ok");
   }
 );
+
+/* ====================================================================
+   SPLIT SHEETS — build a publishing split-sheet PDF and route it for
+   e-signature via DocuSign (JWT grant). Producer (owner) only.
+   ==================================================================== */
+async function dsApiClient() {
+  const api = new docusign.ApiClient();
+  api.setOAuthBasePath(DOCUSIGN_OAUTH_HOST.value());
+  const res = await api.requestJWTUserToken(
+    DOCUSIGN_INTEGRATION_KEY.value(),
+    DOCUSIGN_USER_ID.value(),
+    ["signature", "impersonation"],
+    Buffer.from(DOCUSIGN_PRIVATE_KEY.value()),
+    3600
+  );
+  api.setBasePath(DOCUSIGN_BASE_PATH.value());
+  api.addDefaultHeader("Authorization", "Bearer " + res.body.access_token);
+  return api;
+}
+
+async function buildSplitSheetPdf({ songTitle, artist, dateCreated, writers }) {
+  const pdf  = await PDFDocument.create();
+  const font = await pdf.embedFont(StandardFonts.Helvetica);
+  const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+  const ink  = rgb(0.07, 0.07, 0.09);
+  const dim  = rgb(0.42, 0.42, 0.48);
+  const gold = rgb(0.79, 0.64, 0.29);
+  const M = 54, W = 612;
+  let page = pdf.addPage([612, 792]);
+  let y = 748;
+  const ensure = (need) => { if (y - need < 56) { page = pdf.addPage([612, 792]); y = 748; } };
+  const text = (s, x, size, f = font, c = ink) => page.drawText(String(s == null ? "" : s), { x, y, size, font: f, color: c });
+
+  text("SONG SPLIT SHEET", M, 20, bold);
+  text("PluggurBeats", W - M - font.widthOfTextAtSize("PluggurBeats", 10), 10, font, dim);
+  y -= 18;
+  page.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: 0.6, color: rgb(0.85, 0.85, 0.88) });
+  y -= 22;
+
+  text("SONG TITLE", M, 8, bold, dim); text("RECORDING ARTIST", M + 280, 8, bold, dim);
+  y -= 14; text(songTitle || "-", M, 12, bold); text(artist || "-", M + 280, 12, bold);
+  y -= 24; text("DATE CREATED", M, 8, bold, dim); text("COVERS", M + 280, 8, bold, dim);
+  y -= 14; text(dateCreated || "-", M, 11); text("Publishing rights (composition) only", M + 280, 11);
+  y -= 26;
+  page.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: 0.6, color: rgb(0.85, 0.85, 0.88) });
+  y -= 18;
+  text("CONTRIBUTORS", M, 9, bold, gold);
+  y -= 13;
+  text("Master (sound recording) ownership is a separate agreement, NOT covered by this split sheet.", M, 8, font, dim);
+  y -= 20;
+
+  writers.forEach((w, i) => {
+    ensure(146);
+    const boxTop = y, boxH = 138;
+    page.drawRectangle({ x: M, y: boxTop - boxH, width: W - 2 * M, height: boxH, borderColor: rgb(0.85, 0.85, 0.88), borderWidth: 0.6, color: rgb(0.985, 0.985, 0.99) });
+    const pad = 14;
+    let yy = boxTop - 22;
+    const cell = (label, val, x, w2) => {
+      page.drawText(label, { x, y: yy, size: 7, font: bold, color: dim });
+      page.drawText(String(val == null || val === "" ? "-" : val), { x, y: yy - 12, size: 9.5, font: font, color: ink });
+    };
+    page.drawText(`${i + 1}.  ${w.legalName || "-"}`, { x: M + pad, y: yy, size: 12, font: bold, color: ink });
+    page.drawText(`${w.pct || 0}%`, { x: W - M - pad - 44, y: yy, size: 13, font: bold, color: gold });
+    yy -= 28;
+    cell("ROLE", w.role, M + pad); cell("PRO", w.pro, M + pad + 150); cell("PUBLISHER", w.publisher, M + pad + 250); cell("CAE / IPI", w.ipi, M + pad + 400);
+    yy -= 32;
+    cell("EMAIL", w.email, M + pad); cell("PHONE", w.phone, M + pad + 250);
+    yy -= 32;
+    cell("ADDRESS", w.address, M + pad);
+    yy -= 26;
+    page.drawText("Signature:", { x: M + pad, y: yy, size: 9, font: bold, color: dim });
+    page.drawText(`/s${i + 1}/`, { x: M + pad + 58, y: yy, size: 9, font: font, color: rgb(0.92, 0.92, 0.94) });
+    page.drawText("Date:", { x: M + pad + 330, y: yy, size: 9, font: bold, color: dim });
+    page.drawText(`/d${i + 1}/`, { x: M + pad + 366, y: yy, size: 9, font: font, color: rgb(0.92, 0.92, 0.94) });
+    y = boxTop - boxH - 14;
+  });
+
+  ensure(26);
+  const total = writers.reduce((s, w) => s + (Number(w.pct) || 0), 0);
+  text(`TOTAL: ${total}%`, M, 11, bold, total === 100 ? rgb(0.1, 0.5, 0.3) : rgb(0.7, 0.1, 0.1));
+  y -= 24; ensure(20);
+  text("Generated via PluggurBeats. Each contributor signs electronically through DocuSign.", M, 8, font, dim);
+
+  const bytes = await pdf.save();
+  return Buffer.from(bytes).toString("base64");
+}
+
+exports.generateSplitSheet = onCall({ region: REGION, secrets: DS_SECRETS }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
+  const uid = request.auth.uid;
+  const db  = admin.firestore();
+  const { campaignId, beatIndex, song, writers } = request.data || {};
+
+  if (!campaignId || beatIndex == null) throw new HttpsError("invalid-argument", "campaignId and beatIndex are required.");
+  if (!song || !song.title) throw new HttpsError("invalid-argument", "Song title is required.");
+  if (!Array.isArray(writers) || writers.length === 0) throw new HttpsError("invalid-argument", "Add at least one contributor.");
+  for (const w of writers) {
+    if (!w.legalName || !w.legalName.trim()) throw new HttpsError("invalid-argument", "Every contributor needs a legal name.");
+    if (!w.email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(w.email)) throw new HttpsError("invalid-argument", `A valid email is required for ${w.legalName || "each contributor"} (needed to sign).`);
+  }
+  const total = writers.reduce((s, w) => s + (Number(w.pct) || 0), 0);
+  if (Math.round(total) !== 100) throw new HttpsError("failed-precondition", `Ownership percentages must total exactly 100% (currently ${total}%).`);
+
+  const campSnap = await db.doc(`users/${uid}/campaigns/${campaignId}`).get();
+  if (!campSnap.exists) throw new HttpsError("not-found", "Campaign not found.");
+  const beat = (campSnap.get("beats") || [])[beatIndex];
+  const beatTitle = beat?.title || song.title;
+
+  const clean = writers.map((w) => ({
+    legalName: (w.legalName || "").trim(), role: (w.role || "").trim(), email: (w.email || "").trim(),
+    phone: (w.phone || "").trim(), address: (w.address || "").trim(), pro: (w.pro || "").trim(),
+    publisher: (w.publisher || "").trim(), ipi: (w.ipi || "").trim(), pct: Number(w.pct) || 0
+  }));
+
+  const pdfBase64 = await buildSplitSheetPdf({ songTitle: song.title, artist: song.artist || "", dateCreated: song.dateCreated || "", writers: clean });
+
+  const env = new docusign.EnvelopeDefinition();
+  env.emailSubject = `Sign the split sheet - ${song.title}`;
+  const doc = new docusign.Document();
+  doc.documentBase64 = pdfBase64; doc.name = `Split Sheet - ${beatTitle}`; doc.fileExtension = "pdf"; doc.documentId = "1";
+  env.documents = [doc];
+  const signers = clean.map((w, i) => {
+    const signer = docusign.Signer.constructFromObject({ email: w.email, name: w.legalName, recipientId: String(i + 1), routingOrder: "1" });
+    const signHere = docusign.SignHere.constructFromObject({ anchorString: `/s${i + 1}/`, anchorUnits: "pixels", anchorXOffset: "2", anchorYOffset: "-6" });
+    const dateTab  = docusign.DateSigned.constructFromObject({ anchorString: `/d${i + 1}/`, anchorUnits: "pixels", anchorXOffset: "2", anchorYOffset: "-6" });
+    signer.tabs = docusign.Tabs.constructFromObject({ signHereTabs: [signHere], dateSignedTabs: [dateTab] });
+    return signer;
+  });
+  env.recipients = docusign.Recipients.constructFromObject({ signers });
+  env.status = "sent";
+
+  let envelopeId;
+  try {
+    const api = await dsApiClient();
+    const envApi = new docusign.EnvelopesApi(api);
+    const result = await envApi.createEnvelope(DOCUSIGN_ACCOUNT_ID.value(), { envelopeDefinition: env });
+    envelopeId = result.envelopeId;
+  } catch (e) {
+    const msg = e?.response?.body?.message || e.message || String(e);
+    console.error("DocuSign createEnvelope failed:", msg);
+    throw new HttpsError("internal", "Could not send for signature: " + msg);
+  }
+
+  const sheetRef = db.collection(`users/${uid}/splitSheets`).doc();
+  await sheetRef.set({
+    campaignId, beatIndex, beatTitle,
+    song: { title: song.title, artist: song.artist || "", dateCreated: song.dateCreated || "" },
+    writers: clean, envelopeId, status: "sent",
+    createdAt: admin.firestore.FieldValue.serverTimestamp()
+  });
+  await db.doc(`dsEnvelopes/${envelopeId}`).set({ uid, sheetId: sheetRef.id });
+  console.log(`Split sheet ${sheetRef.id} sent (envelope ${envelopeId}) by ${uid}`);
+  return { ok: true, sheetId: sheetRef.id, envelopeId };
+});
+
+exports.refreshSplitSheetStatus = onCall({ region: REGION, secrets: DS_SECRETS }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
+  const uid = request.auth.uid;
+  const db  = admin.firestore();
+  const { sheetId } = request.data || {};
+  if (!sheetId) throw new HttpsError("invalid-argument", "sheetId required.");
+  const ref  = db.doc(`users/${uid}/splitSheets/${sheetId}`);
+  const snap = await ref.get();
+  if (!snap.exists) throw new HttpsError("not-found", "Split sheet not found.");
+  try {
+    const api = await dsApiClient();
+    const envApi = new docusign.EnvelopesApi(api);
+    const env = await envApi.getEnvelope(DOCUSIGN_ACCOUNT_ID.value(), snap.get("envelopeId"));
+    await ref.update({ status: (env.status || "sent").toLowerCase(), updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+    return { ok: true, status: env.status };
+  } catch (e) {
+    const msg = e?.response?.body?.message || e.message || String(e);
+    throw new HttpsError("internal", "Could not refresh status: " + msg);
+  }
+});
+
+exports.docusignConnect = onRequest({ region: REGION, secrets: [DOCUSIGN_CONNECT_SECRET] }, async (req, res) => {
+  if (req.query.token !== DOCUSIGN_CONNECT_SECRET.value()) { res.status(401).send("bad token"); return; }
+  try {
+    const body = req.body || {};
+    const envelopeId = body?.data?.envelopeId || body?.envelopeId || body?.data?.envelopeSummary?.envelopeId;
+    const status = body?.data?.envelopeSummary?.status || body?.status || body?.event;
+    if (envelopeId) {
+      const db = admin.firestore();
+      const map = await db.doc(`dsEnvelopes/${envelopeId}`).get();
+      if (map.exists) {
+        const { uid, sheetId } = map.data();
+        await db.doc(`users/${uid}/splitSheets/${sheetId}`).update({
+          status: (status || "sent").toString().toLowerCase(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+      }
+    }
+    res.status(200).send("ok");
+  } catch (e) { console.error("docusignConnect error:", e.message); res.status(200).send("ok"); }
+});
