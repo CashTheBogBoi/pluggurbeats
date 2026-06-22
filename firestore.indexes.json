@@ -1,38 +1,4 @@
 {
-  "indexes": [
-    {
-      "collectionGroup": "campaigns",
-      "queryScope": "COLLECTION_GROUP",
-      "fields": [
-        { "fieldPath": "status",    "order": "ASCENDING"  },
-        { "fieldPath": "pitchedAt", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "loops",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "makerUid",  "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "loops",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "status",    "order": "ASCENDING" },
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
-      ]
-    }
-  ],
-  "fieldOverrides": [
-    {
-      "collectionGroup": "campaigns",
-      "fieldPath": "status",
-      "indexes": [
-        { "order": "ASCENDING",  "queryScope": "COLLECTION_GROUP" },
-        { "order": "DESCENDING", "queryScope": "COLLECTION_GROUP" }
-      ]
-    }
-  ]
+  "indexes": [],
+  "fieldOverrides": []
 }

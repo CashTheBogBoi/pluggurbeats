@@ -7,27 +7,17 @@ import {
   updateProfile,
   sendEmailVerification
 } from "firebase/auth";
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
-import { auth, db, provider } from "../firebase.js";
+import { auth, provider } from "../firebase.js";
 
-// Create the account, write the user doc (credit/subscription fields start at
-// defaults and can only change via Cloud Functions per firestore.rules), send
-// the verification email, then sign back out so the user must verify first.
-async function signUp(email, pass, name, phone) {
+// Create the account, set the display name, send the verification email, then
+// sign back out so the user must verify before signing in. No backend doc is
+// written here — the data layer is being rebuilt. (phone is collected for the
+// future profile but not persisted yet.)
+async function signUp(email, pass, name /* , phone */) {
   if (!email || !pass) throw new Error("Email and password required.");
   if (pass.length < 6) throw new Error("Password must be at least 6 characters.");
   const cred = await createUserWithEmailAndPassword(auth, email, pass);
   if (name) await updateProfile(cred.user, { displayName: name });
-  await setDoc(doc(db, "users", cred.user.uid), {
-    displayName: name || "",
-    email,
-    phone: phone || "",
-    createdAt: serverTimestamp(),
-    subscription: { tier: "free", status: "active", stripeCustomerId: null, stripeSubId: null, renewsAt: null },
-    pitchCredits: { balance: 0, monthlyGrant: 0, lastGrantAt: null },
-    loopCredits: { balance: 5, monthlyGrant: 5, lastGrantAt: serverTimestamp() },
-    verifiedPuller: false
-  });
   await sendEmailVerification(cred.user);
   await signOut(auth);
 }
