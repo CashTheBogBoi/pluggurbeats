@@ -42,6 +42,7 @@ export default function Verified() {
   const [toast, setToast] = useState("");
   const toastTimer = useRef(null);
   const lastAvatar = useRef(null);
+  const viewed = useRef(new Set()); // guard: log each view once per page load
 
   const showToast = (t) => {
     setToast(t);
@@ -109,6 +110,27 @@ export default function Verified() {
       showToast(e.message || "Could not pull loop.");
       btn.disabled = false; btn.textContent = "Use this loop";
     }
+  }
+
+  function markBeatView(b) {
+    if (!b?.ownerUid || viewed.current.has("b" + b.id)) return;
+    viewed.current.add("b" + b.id);
+    call("recordLibraryView", { kind: "beat", ownerUid: b.ownerUid, campaignId: b.campaignId, beatIndex: b.beatIndex, title: b.title }).catch(() => {});
+  }
+  function markLoopView(l) {
+    if (!l?.id || viewed.current.has("l" + l.id)) return;
+    viewed.current.add("l" + l.id);
+    call("recordLibraryView", { kind: "loop", loopId: l.id }).catch(() => {});
+  }
+  async function doDownloadBeat(b, btn) {
+    btn.disabled = true; const orig = btn.textContent; btn.textContent = "…";
+    try {
+      const res = await call("downloadLibraryBeat", { ownerUid: b.ownerUid, campaignId: b.campaignId, beatIndex: b.beatIndex });
+      const a = document.createElement("a"); a.href = res.url; a.download = ""; a.target = "_blank";
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      showToast("Downloading — the producer can see this in their analytics.");
+    } catch (e) { showToast(e.message || "Could not download."); }
+    finally { btn.disabled = false; btn.textContent = orig; }
   }
 
   const match = (q, fields) => !q || fields.some((f) => (f || "").toLowerCase().includes(q));
@@ -223,8 +245,9 @@ export default function Verified() {
                     <div className="card-handle">{handle}</div>
                     <div className="chip-row">{chips.map((c, i) => <span className="chip" key={i}>{c}</span>)}</div>
                     {b.playUrl
-                      ? <div className="card-audio"><audio controls preload="none" src={b.playUrl} /></div>
+                      ? <div className="card-audio"><audio controls preload="none" src={b.playUrl} onPlay={() => markBeatView(b)} /></div>
                       : <div style={{ fontSize: "12px", color: "var(--bone-dim)" }}>No audio file</div>}
+                    <button className="btn-pull" onClick={(e) => doDownloadBeat(b, e.currentTarget)}>Download beat</button>
                   </div>
                 </div>
               );
@@ -249,7 +272,7 @@ export default function Verified() {
                     <div className="card-handle">by {l.makerName || "Unknown"}</div>
                     <div className="chip-row">{chips.map((c, i) => <span className="chip" key={i}>{c}</span>)}</div>
                     {l.playUrl
-                      ? <div className="card-audio"><audio controls preload="none" src={l.playUrl} /></div>
+                      ? <div className="card-audio"><audio controls preload="none" src={l.playUrl} onPlay={() => markLoopView(l)} /></div>
                       : <div style={{ fontSize: "12px", color: "var(--bone-dim)" }}>No preview</div>}
                     <button className="btn-pull" onClick={(e) => doPull(l.id, e.currentTarget)}>Use this loop</button>
                   </div>

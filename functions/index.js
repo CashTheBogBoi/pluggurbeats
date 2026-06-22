@@ -912,6 +912,17 @@ exports.pullLoop = onCall(
       status:    "used",
       downloads: admin.firestore.FieldValue.increment(1)
     });
+    // Log a download to the maker's verified-library activity feed
+    batch.set(
+      db.doc(`users/${loop.makerUid}/libraryActivity/download_loop_${loopId}_${uid}`),
+      {
+        kind: "loop", resourceId: `loop_${loopId}`, title: loop.title || "Loop",
+        actorUid: uid, actorName: pullerSnap.get("displayName") || "A verified user",
+        type: "download", count: admin.firestore.FieldValue.increment(1),
+        lastAt: admin.firestore.FieldValue.serverTimestamp()
+      },
+      { merge: true }
+    );
     await batch.commit();
 
     // Notify the maker by email
@@ -1023,6 +1034,7 @@ exports.listApprovedBeats = onCall({ region: REGION }, async (request) => {
   await Promise.all(snap.docs.map(async (d) => {
     const c        = d.data();
     const producer = c.producer || {};
+    const ownerUid = d.ref.path.split("/")[1];
     const pitchedAt = c.pitchedAt?.toMillis ? c.pitchedAt.toMillis() : null;
 
     await Promise.all((c.beats || []).map(async (b, i) => {
@@ -1035,6 +1047,8 @@ exports.listApprovedBeats = onCall({ region: REGION }, async (request) => {
       beats.push({
         id:         `${d.id}_${i}`,
         campaignId: d.id,
+        ownerUid,
+        beatIndex:  i,
         title:      b.title  || "Untitled",
         genre:      b.genre  || "",
         key:        b.key    || "",
@@ -1048,6 +1062,87 @@ exports.listApprovedBeats = onCall({ region: REGION }, async (request) => {
 
   beats.sort((a, b) => (b.pitchedAt || 0) - (a.pitchedAt || 0));
   return { beats };
+});
+
+// ====================================================================
+// recordLibraryView — a verified user viewed (played) a beat or loop in the
+// Verified library. Logs to the resource owner's libraryActivity feed so the
+// producer can see who's checking out their work. One row per (actor,
+// resource, type); repeated views bump count + lastAt.
+// ====================================================================
+exports.recordLibraryView = onCall({ region: REGION }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
+  const uid = request.auth.uid;
+  const db  = admin.firestore();
+  const me  = await db.doc(`users/${uid}`).get();
+  if (!(me.get("verifiedListener") === true || me.get("verifiedPuller") === true))
+    throw new HttpsError("permission-denied", "Verified access required.");
+  const actorName = me.get("displayName") || "A verified user";
+  const { kind } = request.data || {};
+
+  if (kind === "beat") {
+    const { ownerUid, campaignId, beatIndex, title } = request.data || {};
+    if (!ownerUid || !campaignId || beatIndex == null) throw new HttpsError("invalid-argument", "Beat reference required.");
+    const camp = await db.doc(`users/${ownerUid}/campaigns/${campaignId}`).get();
+    if (!camp.exists || camp.get("status") !== "pitched") throw new HttpsError("not-found", "Beat not in library.");
+    if (ownerUid === uid) return { ok: true, self: true };
+    const resourceId = `${campaignId}_${beatIndex}`;
+    await db.doc(`users/${ownerUid}/libraryActivity/view_beat_${resourceId}_${uid}`).set({
+      kind: "beat", resourceId, title: title || (camp.get("beats") || [])[beatIndex]?.title || "Beat",
+      actorUid: uid, actorName, type: "view",
+      count: admin.firestore.FieldValue.increment(1),
+      lastAt: admin.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+    return { ok: true };
+  }
+
+  if (kind === "loop") {
+    const { loopId } = request.data || {};
+    if (!loopId) throw new HttpsError("invalid-argument", "loopId required.");
+    const loop = await db.doc(`loops/${loopId}`).get();
+    if (!loop.exists) throw new HttpsError("not-found", "Loop not found.");
+    const ownerUid = loop.get("makerUid");
+    if (ownerUid === uid) return { ok: true, self: true };
+    await db.doc(`users/${ownerUid}/libraryActivity/view_loop_${loopId}_${uid}`).set({
+      kind: "loop", resourceId: `loop_${loopId}`, title: loop.get("title") || "Loop",
+      actorUid: uid, actorName, type: "view",
+      count: admin.firestore.FieldValue.increment(1),
+      lastAt: admin.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+    return { ok: true };
+  }
+  throw new HttpsError("invalid-argument", "Unknown kind.");
+});
+
+// ====================================================================
+// downloadLibraryBeat — verified user downloads a library beat. Returns a
+// short-lived signed URL and logs a download to the owner's activity feed.
+// ====================================================================
+exports.downloadLibraryBeat = onCall({ region: REGION }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
+  const uid = request.auth.uid;
+  const db  = admin.firestore();
+  const storage = admin.storage().bucket();
+  const me  = await db.doc(`users/${uid}`).get();
+  if (!(me.get("verifiedListener") === true || me.get("verifiedPuller") === true))
+    throw new HttpsError("permission-denied", "Verified access required.");
+  const { ownerUid, campaignId, beatIndex } = request.data || {};
+  if (!ownerUid || !campaignId || beatIndex == null) throw new HttpsError("invalid-argument", "Beat reference required.");
+  const camp = await db.doc(`users/${ownerUid}/campaigns/${campaignId}`).get();
+  if (!camp.exists || camp.get("status") !== "pitched") throw new HttpsError("not-found", "Beat not in library.");
+  const beat = (camp.get("beats") || [])[beatIndex];
+  if (!beat?.storagePath) throw new HttpsError("not-found", "Beat file missing.");
+  const [url] = await storage.file(beat.storagePath).getSignedUrl({ action: "read", expires: Date.now() + 60 * 60 * 1000 });
+  if (ownerUid !== uid) {
+    const resourceId = `${campaignId}_${beatIndex}`;
+    await db.doc(`users/${ownerUid}/libraryActivity/download_beat_${resourceId}_${uid}`).set({
+      kind: "beat", resourceId, title: beat.title || "Beat",
+      actorUid: uid, actorName: me.get("displayName") || "A verified user", type: "download",
+      count: admin.firestore.FieldValue.increment(1),
+      lastAt: admin.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+  }
+  return { ok: true, url };
 });
 
 // ====================================================================

@@ -8,7 +8,8 @@ import { useLiveDoc, useLiveCollection, call } from "../lib/live.js";
 import {
   LayoutDashboard, Rocket, BarChart3, FileText, Disc3, CreditCard, ArrowLeft,
   LogOut, Menu, X, Plus, Trash2, Upload, Check, ChevronDown, Music2, Mail, Phone,
-  Settings, Sparkles, TrendingUp, Clock, CheckCircle2, XCircle, ArrowRight, Wallet
+  Settings, Sparkles, TrendingUp, Clock, CheckCircle2, XCircle, ArrowRight, Wallet,
+  ShieldCheck, Eye, Download
 } from "lucide-react";
 
 /* ============================ domain constants ============================ */
@@ -260,7 +261,7 @@ export default function Dashboard() {
           <div key={view} className="animate-fade-up">
             {view === "overview" && <Overview name={name} campaigns={campaigns} tier={tier} pitch={pitchBalance} go={go} />}
             {view === "submit" && <CampaignBuilder tier={tier} caps={caps} pitchBalance={pitchBalance} user={user} profile={profile} campaignCount={campaigns.length} showToast={showToast} onSubmitted={() => go("analytics")} />}
-            {view === "analytics" && <Analytics campaigns={campaigns} uid={uid} />}
+            {view === "analytics" && <Analytics campaigns={campaigns} uid={uid} tier={tier} />}
             {view === "paperwork" && <Paperwork campaigns={campaigns} showToast={showToast} />}
             {view === "loops" && <LoopDrops user={user} loopBalance={loopBalance} showToast={showToast} />}
             {view === "billing" && <Billing tier={tier} profile={profile} pitchBalance={pitchBalance} loopBalance={loopBalance} startSubscription={startSubscription} buyPack={buyPack} />}
@@ -651,7 +652,7 @@ const Row = ({ k, v, bold, muted }) => (
 /* ============================ analytics ============================ */
 const fmtTime = (ms) => (ms ? new Date(ms).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "—");
 
-function Analytics({ campaigns, uid }) {
+function Analytics({ campaigns, uid, tier }) {
   const fmtDate = (ms) => (ms ? new Date(ms).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "");
   const cms = (c) => (c.createdAt?.toMillis ? c.createdAt.toMillis() : (typeof c.createdAt === "number" ? c.createdAt : null));
   const underReview = campaigns.filter((c) => c.status === "pending_review");
@@ -696,32 +697,114 @@ function Analytics({ campaigns, uid }) {
         </div>
       )}
 
-      <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-3">
-        <Stat value={sent} label="Emails sent" />
-        <Stat value={opens} label="Opened" accent="text-gold" hint={sent ? `${openRate}% open rate` : ""} />
-        <Stat value={downloads} label="Beats downloaded" accent="text-ok" />
-      </div>
-
+      {/* ---- Verified library activity (all paid tiers) ---- */}
       <Card className="mt-6 p-5">
-        <h3 className="mb-4 font-display text-lg">Conversion funnel</h3>
-        {sent ? (
-          <div className="flex flex-col gap-3">
-            {funnel.map(([k, val, pct]) => (
-              <div key={k}>
-                <div className="mb-1 flex items-center justify-between text-[13px]"><span>{k}</span><span className="font-mono text-bone-dim">{val} · {pct}%</span></div>
-                <div className="h-2 overflow-hidden rounded-full bg-white/8"><div className="h-full rounded-full bg-gradient-to-r from-gold-deep to-gold transition-all" style={{ width: pct + "%" }} /></div>
-              </div>
-            ))}
+        <div className="mb-1 flex items-center gap-2"><ShieldCheck size={18} className="text-gold" /><h3 className="font-display text-lg">Verified library activity</h3></div>
+        <p className="mb-4 text-[13px] text-bone-dim">Who viewed and downloaded your beats &amp; loops from the PluggUrBeat Verified page.</p>
+        <VerifiedActivity uid={uid} />
+      </Card>
+
+      {/* ---- Email pitch analytics (Pro only) ---- */}
+      {tier === "pro" ? (
+        <div className="mt-8">
+          <div className="mb-1 flex items-center gap-2"><Mail size={18} className="text-gold" /><h3 className="font-display text-lg">Email pitch analytics</h3></div>
+          <p className="mb-4 text-[13px] text-bone-dim">Inbox engagement from your Pro email blasts.</p>
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-3">
+            <Stat value={sent} label="Emails sent" />
+            <Stat value={opens} label="Opened" accent="text-gold" hint={sent ? `${openRate}% open rate` : ""} />
+            <Stat value={downloads} label="Beats downloaded" accent="text-ok" />
           </div>
-        ) : <p className="text-sm text-bone-dim">Engagement data will appear once pitches go out.</p>}
-      </Card>
-
-      <Card className="mt-6 p-5">
-        <h3 className="mb-4 font-display text-lg">Per-pitch activity</h3>
-        {pitched.length ? <div className="flex flex-col gap-5">{pitched.map((c) => <CampaignActivity key={c.id} campaign={c} uid={uid} />)}</div>
-          : <p className="text-sm text-bone-dim">No engagement yet — opens and downloads appear here once recipients interact.</p>}
-      </Card>
+          <Card className="mt-4 p-5">
+            <h3 className="mb-4 font-display text-base">Conversion funnel</h3>
+            {sent ? (
+              <div className="flex flex-col gap-3">
+                {funnel.map(([k, val, pct]) => (
+                  <div key={k}>
+                    <div className="mb-1 flex items-center justify-between text-[13px]"><span>{k}</span><span className="font-mono text-bone-dim">{val} · {pct}%</span></div>
+                    <div className="h-2 overflow-hidden rounded-full bg-white/8"><div className="h-full rounded-full bg-gradient-to-r from-gold-deep to-gold transition-all" style={{ width: pct + "%" }} /></div>
+                  </div>
+                ))}
+              </div>
+            ) : <p className="text-sm text-bone-dim">Engagement data will appear once pitches go out.</p>}
+          </Card>
+          <Card className="mt-4 p-5">
+            <h3 className="mb-4 font-display text-base">Per-pitch activity</h3>
+            {pitched.length ? <div className="flex flex-col gap-5">{pitched.map((c) => <CampaignActivity key={c.id} campaign={c} uid={uid} />)}</div>
+              : <p className="text-sm text-bone-dim">No engagement yet — opens and downloads appear here once recipients interact.</p>}
+          </Card>
+        </div>
+      ) : (
+        <Card className="mt-8 flex flex-wrap items-center justify-between gap-4 p-5">
+          <div className="flex items-center gap-3">
+            <span className="grid h-10 w-10 place-items-center rounded-xl bg-gold/12 text-gold"><Mail size={18} /></span>
+            <div>
+              <div className="font-display text-base">Email pitch analytics</div>
+              <div className="text-[13px] text-bone-dim">Track inbox opens &amp; downloads when your beats blast directly to A&amp;R / artist inboxes.</div>
+            </div>
+          </div>
+          <span className="rounded-full border border-gold/40 px-3 py-1 font-mono text-[10px] uppercase tracking-wider text-gold">Pro only</span>
+        </Card>
+      )}
     </section>
+  );
+}
+
+// Live "who engaged with my library" feed — groups libraryActivity by resource,
+// then by the verified user who viewed/downloaded it.
+function VerifiedActivity({ uid }) {
+  const { data } = useLiveCollection(["libActivity", uid], () => collection(db, "users", uid, "libraryActivity"), { enabled: !!uid });
+  if (data === undefined) return <div className="flex flex-col gap-2">{[0, 1].map((i) => <Skeleton key={i} className="h-14" />)}</div>;
+  if (data.length === 0) return <p className="text-sm text-bone-dim">No activity yet — once verified A&amp;Rs and artists play or download your work, they'll show up here.</p>;
+
+  const byRes = new Map();
+  data.forEach((r) => {
+    if (!byRes.has(r.resourceId)) byRes.set(r.resourceId, { title: r.title || "Untitled", kind: r.kind, actors: new Map(), last: 0 });
+    const g = byRes.get(r.resourceId);
+    if (r.title) g.title = r.title;
+    if (!g.actors.has(r.actorUid)) g.actors.set(r.actorUid, { name: r.actorName || "A verified user", viewed: false, downloaded: false, last: 0 });
+    const a = g.actors.get(r.actorUid);
+    if (r.actorName) a.name = r.actorName;
+    if (r.type === "view") a.viewed = true;
+    if (r.type === "download") a.downloaded = true;
+    const ms = r.lastAt?.toMillis ? r.lastAt.toMillis() : 0;
+    if (ms > a.last) a.last = ms;
+    if (ms > g.last) g.last = ms;
+  });
+  const groups = [...byRes.values()].sort((a, b) => b.last - a.last);
+
+  return (
+    <div className="flex flex-col gap-5">
+      {groups.map((g, gi) => {
+        const actors = [...g.actors.values()].sort((a, b) => b.last - a.last);
+        return (
+          <div key={gi} className="rounded-xl border border-line bg-ink p-4">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span className="grid h-7 w-7 place-items-center rounded-lg bg-white/5 text-bone-dim">{g.kind === "loop" ? <Disc3 size={14} /> : <Music2 size={14} />}</span>
+                <strong className="text-sm">{g.title}</strong>
+                <span className="rounded-full bg-white/8 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-bone-dim">{g.kind}</span>
+              </div>
+              <span className="font-mono text-[11px] text-bone-dim">{actors.filter((a) => a.viewed).length} viewed · {actors.filter((a) => a.downloaded).length} downloaded</span>
+            </div>
+            <div className="overflow-x-auto scrollbar-slim">
+              <table className="w-full text-left text-[13px]">
+                <thead><tr className="text-bone-dim">{["Verified user", "Viewed", "Downloaded", "Last activity"].map((h) => <th key={h} className="pb-2 font-mono text-[10px] uppercase tracking-wider font-normal">{h}</th>)}</tr></thead>
+                <tbody className="divide-y divide-line">
+                  {actors.map((a, i) => (
+                    <tr key={i}>
+                      <td className="py-2 pr-3 font-medium">{a.name}</td>
+                      <td className="py-2 pr-3">{a.viewed ? <Tag c="bg-info/12 text-info"><Eye size={11} className="inline -mt-0.5 mr-1" />viewed</Tag> : <span className="text-bone-dim">—</span>}</td>
+                      <td className="py-2 pr-3">{a.downloaded ? <Tag c="bg-ok/12 text-ok"><Download size={11} className="inline -mt-0.5 mr-1" />downloaded</Tag> : <span className="text-bone-dim">—</span>}</td>
+                      <td className="py-2 text-bone-dim">{fmtTime(a.last)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 

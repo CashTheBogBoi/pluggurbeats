@@ -33,6 +33,13 @@ service cloud.firestore {
         allow write: if false;
       }
 
+      // Verified-library activity (who viewed/downloaded this owner's beats &
+      // loops). Owner reads its own live; only Cloud Functions write.
+      match /libraryActivity/{actId} {
+        allow read:  if request.auth != null && request.auth.uid == userId;
+        allow write: if false;
+      }
+
       match /campaigns/{campaignId}/{document=**} {
         allow read, write: if request.auth != null
                            && request.auth.uid == userId;
