@@ -1,0 +1,10 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Thin, on-brand scrollbars for the dashboard surfaces. */
+@layer utilities {
+  .scrollbar-slim::-webkit-scrollbar { width: 8px; height: 8px; }
+  .scrollbar-slim::-webkit-scrollbar-thumb { background: rgba(255,255,255,.12); border-radius: 999px; }
+  .scrollbar-slim::-webkit-scrollbar-track { background: transparent; }
+}

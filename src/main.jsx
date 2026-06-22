@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import App from "./App.jsx";
 import "./styles/global.css";
+import "./tailwind.css";
 
 // Live data is pushed into the cache by Firestore onSnapshot listeners (see
 // src/lib/live.js), so queries never go stale and never refetch on their own.
