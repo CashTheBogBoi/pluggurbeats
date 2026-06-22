@@ -761,9 +761,9 @@ function VerifiedActivity({ uid }) {
     if (!byRes.has(r.resourceId)) byRes.set(r.resourceId, { title: r.title || "Untitled", kind: r.kind, actors: new Map(), last: 0 });
     const g = byRes.get(r.resourceId);
     if (r.title) g.title = r.title;
-    if (!g.actors.has(r.actorUid)) g.actors.set(r.actorUid, { name: r.actorName || "A verified user", viewed: false, downloaded: false, last: 0 });
+    if (!g.actors.has(r.actorUid)) g.actors.set(r.actorUid, { actorUid: r.actorUid, name: r.actorUid === uid ? "You" : (r.actorName || "A verified user"), viewed: false, downloaded: false, last: 0 });
     const a = g.actors.get(r.actorUid);
-    if (r.actorName) a.name = r.actorName;
+    if (r.actorName && r.actorUid !== uid) a.name = r.actorName;
     if (r.type === "view") a.viewed = true;
     if (r.type === "download") a.downloaded = true;
     const ms = r.lastAt?.toMillis ? r.lastAt.toMillis() : 0;

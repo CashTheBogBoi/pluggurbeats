@@ -1085,7 +1085,6 @@ exports.recordLibraryView = onCall({ region: REGION }, async (request) => {
     if (!ownerUid || !campaignId || beatIndex == null) throw new HttpsError("invalid-argument", "Beat reference required.");
     const camp = await db.doc(`users/${ownerUid}/campaigns/${campaignId}`).get();
     if (!camp.exists || camp.get("status") !== "pitched") throw new HttpsError("not-found", "Beat not in library.");
-    if (ownerUid === uid) return { ok: true, self: true };
     const resourceId = `${campaignId}_${beatIndex}`;
     await db.doc(`users/${ownerUid}/libraryActivity/view_beat_${resourceId}_${uid}`).set({
       kind: "beat", resourceId, title: title || (camp.get("beats") || [])[beatIndex]?.title || "Beat",
@@ -1102,7 +1101,6 @@ exports.recordLibraryView = onCall({ region: REGION }, async (request) => {
     const loop = await db.doc(`loops/${loopId}`).get();
     if (!loop.exists) throw new HttpsError("not-found", "Loop not found.");
     const ownerUid = loop.get("makerUid");
-    if (ownerUid === uid) return { ok: true, self: true };
     await db.doc(`users/${ownerUid}/libraryActivity/view_loop_${loopId}_${uid}`).set({
       kind: "loop", resourceId: `loop_${loopId}`, title: loop.get("title") || "Loop",
       actorUid: uid, actorName, type: "view",
@@ -1133,15 +1131,13 @@ exports.downloadLibraryBeat = onCall({ region: REGION }, async (request) => {
   const beat = (camp.get("beats") || [])[beatIndex];
   if (!beat?.storagePath) throw new HttpsError("not-found", "Beat file missing.");
   const [url] = await storage.file(beat.storagePath).getSignedUrl({ action: "read", expires: Date.now() + 60 * 60 * 1000 });
-  if (ownerUid !== uid) {
-    const resourceId = `${campaignId}_${beatIndex}`;
-    await db.doc(`users/${ownerUid}/libraryActivity/download_beat_${resourceId}_${uid}`).set({
-      kind: "beat", resourceId, title: beat.title || "Beat",
-      actorUid: uid, actorName: me.get("displayName") || "A verified user", type: "download",
-      count: admin.firestore.FieldValue.increment(1),
-      lastAt: admin.firestore.FieldValue.serverTimestamp()
-    }, { merge: true });
-  }
+  const resourceId = `${campaignId}_${beatIndex}`;
+  await db.doc(`users/${ownerUid}/libraryActivity/download_beat_${resourceId}_${uid}`).set({
+    kind: "beat", resourceId, title: beat.title || "Beat",
+    actorUid: uid, actorName: me.get("displayName") || "A verified user", type: "download",
+    count: admin.firestore.FieldValue.increment(1),
+    lastAt: admin.firestore.FieldValue.serverTimestamp()
+  }, { merge: true });
   return { ok: true, url };
 });
 
