@@ -8,17 +8,22 @@ export default function Pricing({ onChoosePlan, onBuyPack }) {
       style={{ background: "var(--ink-2)", borderTop: "1px solid var(--line)", borderBottom: "1px solid var(--line)" }}
     >
       <div className="wrap">
-        <div className="head" style={{ margin: "0 auto 48px", textAlign: "center" }}>
+        <div className="head" data-reveal style={{ margin: "0 auto 48px", textAlign: "center" }}>
           <span className="eyebrow" style={{ display: "inline-flex" }}>Membership</span>
           <h2>Subscribe. Earn credits. Pitch.</h2>
           <p style={{ marginLeft: "auto", marginRight: "auto" }}>
-            Campaigns are credit-based on every paid plan. Plugg lands your beats in the Verified
-            library; Pro also emails them straight to inboxes. Monthly credits roll over while you're
-            subscribed.
+            Campaigns cost one pitch credit per beat. Plugg lands your beats in the Verified
+            library; Pro can also add up to 5 desk lanes for direct inbox delivery. Credits roll
+            over every month while you're subscribed.
           </p>
+          <div className="trust-row">
+            <span className="trust-dot">Join free</span>
+            <span className="trust-dot">Upgrade any time</span>
+            <span className="trust-dot">Cancel any month</span>
+          </div>
         </div>
 
-        <div className="tiers">
+        <div className="tiers" data-reveal-group>
           {TIERS.map((p) => (
             <div className={`tier${p.feature ? " feature" : ""}`} key={p.id}>
               {p.feature && <span className="tag">Most picked</span>}
@@ -32,6 +37,9 @@ export default function Pricing({ onChoosePlan, onBuyPack }) {
               >
                 {p.cta}
               </button>
+              {p.id !== "free" && (
+                <p className="cancel-note">Cancel anytime · No contracts</p>
+              )}
             </div>
           ))}
         </div>
@@ -46,8 +54,8 @@ export default function Pricing({ onChoosePlan, onBuyPack }) {
             ))}
           </div>
           <p className="hint" style={{ marginTop: "12px", color: "var(--bone-dim)", fontSize: "13px" }}>
-            One-time top-ups — pitch credits power campaigns (Plugg / Pro), loop credits work on any
-            plan, including Free.
+            One-time top-ups — pitch credits submit beats to campaigns, loop credits work on any
+            plan including Free.
           </p>
         </div>
       </div>

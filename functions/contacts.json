@@ -1,21 +1,21 @@
 {
   "Trap": [
-    "n0cashengineering@gmail.com"
+    { "email": "n0cashengineering@gmail.com", "name": "N0 Cash Engineering" }
   ],
   "Drill": [
-    "anr@example-label.com"
+    { "email": "anr@example-label.com", "name": "Example Label A&R" }
   ],
   "R&B": [
-    "n0cashengineering@gmail.com"
+    { "email": "n0cashengineering@gmail.com", "name": "N0 Cash Engineering" }
   ],
   "Pop": [
-    "anr@example-label.com"
+    { "email": "anr@example-label.com", "name": "Example Label A&R" }
   ],
   "Afrobeats": [
-    "anr@example-label.com"
+    { "email": "anr@example-label.com", "name": "Example Label A&R" }
   ],
   "Reggaeton": [
-    "anr@example-label.com"
+    { "email": "anr@example-label.com", "name": "Example Label A&R" }
   ],
   "All": []
 }

@@ -26,7 +26,8 @@ export const TIERS = [
     feature: true, cta: "Subscribe",
     perks: [
       "15 pitch + 20 loop credits / mo (roll over)",
-      "Up to 15 beats, 3 lanes per campaign",
+      "1 pitch credit per beat submitted",
+      "Up to 15 beats per campaign",
       "Approved beats join the Verified library",
       "A&Rs + artists browse your catalog",
       "Pull loops once verified",
@@ -39,8 +40,9 @@ export const TIERS = [
     feature: false, cta: "Subscribe",
     perks: [
       "50 pitch + 60 loop credits / mo (roll over)",
-      "Up to 25 beats, unlimited lanes",
-      "Approved campaigns email straight to inboxes",
+      "1 pitch credit per beat submitted",
+      "Up to 25 beats, 5 Pro desk lanes",
+      "Approved campaigns can email straight to inboxes",
       "A&R / management lanes unlocked",
       "Priority queue (<48h) + written feedback",
       "Everything in Plugg"

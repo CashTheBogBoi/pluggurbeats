@@ -1,5 +1,11 @@
 :root{
   --ink:#0B0A0F;
+  /* safe area insets — populated by the browser/WebView on notched devices.
+     Use these vars anywhere a fixed element needs clearance from the notch or home bar. */
+  --safe-top:env(safe-area-inset-top,0px);
+  --safe-bot:env(safe-area-inset-bottom,0px);
+  --safe-left:env(safe-area-inset-left,0px);
+  --safe-right:env(safe-area-inset-right,0px);
   --ink-2:#131119;
   --ink-3:#1B1822;
   --line:rgba(255,255,255,.09);
@@ -42,7 +48,7 @@ h1,h2,h3{font-family:"Bricolage Grotesque",sans-serif;font-weight:800;line-heigh
 .btn{
   display:inline-flex;align-items:center;justify-content:center;gap:8px;
   padding:13px 22px;border-radius:999px;font-weight:600;font-size:15px;
-  border:1px solid transparent;transition:transform .12s ease, background .2s, border-color .2s;
+  border:1px solid transparent;transition:transform .12s ease-out, background .2s, border-color .2s;
 }
 .btn:active{transform:translateY(1px)}
 .btn-gold{background:var(--gold);color:#1a1405;border-color:var(--gold)}
@@ -75,8 +81,16 @@ header.nav{position:sticky;top:0;z-index:40;backdrop-filter:blur(14px);
 .hero{position:relative;padding:84px 0 92px;overflow:hidden}
 .hero h1{font-size:clamp(46px,8.5vw,96px)}
 .hero h1 .gold{color:var(--gold)}
-.hero p.lead{max-width:560px;color:var(--bone-dim);font-size:clamp(17px,2.4vw,20px);margin:26px 0 34px}
+.hero p.lead{max-width:520px;color:var(--bone-dim);font-size:clamp(17px,2.4vw,20px);margin:26px 0 34px}
 .hero-cta{display:flex;gap:14px;flex-wrap:wrap}
+
+/* hero 2-col */
+.hero-inner{display:grid;grid-template-columns:1fr 1fr;gap:72px;align-items:center}
+.hero-left{display:flex;flex-direction:column}
+@media(max-width:960px){
+  .hero-inner{grid-template-columns:1fr}
+  .hero-right{display:none}
+}
 
 /* equalizer signature */
 .eq{display:flex;align-items:flex-end;gap:4px;height:120px;margin:60px 0 30px;width:100%}
@@ -86,11 +100,48 @@ header.nav{position:sticky;top:0;z-index:40;backdrop-filter:blur(14px);
 @keyframes bounce{0%,100%{transform:scaleY(.18)}50%{transform:scaleY(1)}}
 @media(prefers-reduced-motion:reduce){.eq span{animation:none}}
 
-.readouts{display:flex;gap:14px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:26px}
-.readout{flex:1;min-width:150px}
+.readouts{display:flex;gap:14px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:26px;margin-top:44px}
+.readout{flex:1;min-width:130px}
 .readout .k{font-family:"Bricolage Grotesque";font-weight:800;font-size:30px}
 .readout .l{font-family:"Space Mono",monospace;font-size:11px;letter-spacing:.12em;
   text-transform:uppercase;color:var(--bone-dim);margin-top:4px}
+
+/* ---------- mock analytics card ---------- */
+.mock-card{
+  background:var(--ink-2);border:1px solid var(--line-strong);
+  border-radius:20px;padding:22px;
+  box-shadow:0 0 80px rgba(228,193,107,.05),0 24px 64px rgba(0,0,0,.5);
+  font-size:14px;
+}
+.mock-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+.mock-label{font-family:"Space Mono",monospace;font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--bone-dim)}
+.badge-live{
+  font-family:"Space Mono",monospace;font-size:9px;letter-spacing:.14em;padding:3px 9px;
+  border-radius:999px;text-transform:uppercase;
+  background:rgba(124,226,164,.12);color:var(--ok);border:1px solid rgba(124,226,164,.25);
+  display:flex;align-items:center;gap:5px
+}
+.badge-live::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--ok);
+  animation:pulse-dot 2s ease-in-out infinite}
+@keyframes pulse-dot{0%,100%{opacity:1}50%{opacity:.3}}
+@media(prefers-reduced-motion:reduce){.badge-live::before{animation:none}}
+.mock-beats{display:flex;flex-direction:column;gap:10px}
+.mock-beat{background:var(--ink-3);border:1px solid var(--line);border-radius:12px;padding:14px;transition:border-color .2s}
+.mock-beat:hover{border-color:var(--line-strong)}
+.mock-beat-top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:3px}
+.mock-beat-name{font-family:"Space Mono",monospace;font-size:11px;color:var(--bone);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.badge{font-family:"Space Mono",monospace;font-size:9px;letter-spacing:.1em;padding:3px 8px;border-radius:999px;text-transform:uppercase;flex:none}
+.badge-ok{background:rgba(124,226,164,.12);color:var(--ok);border:1px solid rgba(124,226,164,.2)}
+.badge-violet{background:rgba(124,92,255,.12);color:var(--violet);border:1px solid rgba(124,92,255,.2)}
+.badge-gold{background:rgba(228,193,107,.12);color:var(--gold);border:1px solid rgba(228,193,107,.2)}
+.mock-beat-lane{font-size:10px;color:var(--bone-dim);font-family:"Space Mono",monospace;letter-spacing:.05em;margin-bottom:10px}
+.mock-stats{display:flex;gap:18px}
+.mock-stat-n{font-family:"Bricolage Grotesque";font-weight:800;font-size:22px;color:var(--bone);line-height:1;display:block}
+.mock-stat-l{font-size:10px;color:var(--bone-dim);letter-spacing:.08em;text-transform:uppercase;font-family:"Space Mono",monospace;display:block;margin-top:2px}
+.mock-divider{border:none;border-top:1px solid var(--line);margin:16px 0 12px}
+.mock-activity-label{font-family:"Space Mono",monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--bone-dim);margin-bottom:8px}
+.mock-act-row{display:flex;align-items:center;gap:9px;font-size:12px;color:var(--bone-dim);padding:4px 0}
+.mock-dot{width:6px;height:6px;border-radius:50%;flex:none}
 
 /* ---------- section heads ---------- */
 .head{max-width:620px;margin-bottom:48px}
@@ -103,10 +154,78 @@ header.nav{position:sticky;top:0;z-index:40;backdrop-filter:blur(14px);
 @media(max-width:480px){.steps{grid-template-columns:1fr}}
 .step{background:var(--ink-2);border:1px solid var(--line);border-radius:var(--r);padding:24px;
   transition:border-color .2s, transform .2s}
-.step:hover{border-color:var(--line-strong);transform:translateY(-3px)}
+.step:hover{border-color:var(--line-strong)}
+@media(hover:hover) and (pointer:fine){.step:hover{transform:translateY(-3px)}}
 .step .n{font-family:"Space Mono",monospace;color:var(--gold);font-size:13px;letter-spacing:.1em}
 .step h3{font-size:19px;margin:16px 0 8px}
 .step p{font-size:14px;color:var(--bone-dim);margin:0}
+
+/* step number circle */
+.step-num{
+  width:38px;height:38px;border-radius:50%;
+  background:var(--ink-3);border:1px solid var(--line-strong);
+  display:grid;place-items:center;
+  font-family:"Space Mono",monospace;font-size:12px;color:var(--gold);
+  margin-bottom:18px;position:relative;z-index:1;
+  transition:background .2s,border-color .2s
+}
+.step:hover .step-num{background:rgba(228,193,107,.1);border-color:var(--gold-deep)}
+
+/* connected steps timeline line */
+.steps-connected{position:relative}
+.steps-connected::before{
+  content:"";position:absolute;top:19px;left:calc(12.5% + 19px);
+  right:calc(12.5% + 19px);height:1px;
+  background:linear-gradient(90deg,var(--gold-deep),var(--violet),var(--gold-deep));
+  opacity:.22;pointer-events:none
+}
+@media(max-width:860px){.steps-connected::before{display:none}}
+
+/* ---------- feature icons ---------- */
+.feat-icon{
+  width:46px;height:46px;border-radius:12px;
+  background:rgba(228,193,107,.08);border:1px solid rgba(228,193,107,.15);
+  display:grid;place-items:center;margin-bottom:18px;color:var(--gold);flex:none
+}
+.feat-icon svg{width:21px;height:21px}
+
+/* ---------- features primary row ---------- */
+.feat-primary{
+  display:grid;grid-template-columns:1fr 1fr;gap:48px;align-items:center;
+  background:var(--ink-2);border:1px solid var(--line);border-radius:20px;
+  padding:48px;margin-bottom:20px
+}
+@media(max-width:860px){.feat-primary{grid-template-columns:1fr;padding:32px}}
+.feat-primary-left{}
+.feat-primary-right{}
+.feat-perks{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:10px}
+.feat-perks li{font-size:14px;color:var(--bone-dim);display:flex;gap:10px;align-items:flex-start}
+.feat-perks li::before{
+  content:"";flex:none;width:16px;height:16px;margin-top:2px;border-radius:50%;
+  background:rgba(228,193,107,.12);
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%23E4C16B' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:center
+}
+
+/* mini analytics card inside features */
+.feat-mini-card{
+  background:var(--ink-3);border:1px solid var(--line-strong);
+  border-radius:16px;padding:22px;
+}
+.feat-mini-label{font-family:"Space Mono",monospace;font-size:10px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--bone-dim);margin-bottom:16px}
+.feat-mini-stats{display:flex;gap:24px;margin-bottom:20px;padding-bottom:18px;border-bottom:1px solid var(--line)}
+.feat-mini-stat{}
+.feat-mini-n{font-family:"Bricolage Grotesque";font-weight:800;font-size:28px;color:var(--bone);line-height:1;display:block}
+.feat-mini-l{font-size:10px;color:var(--bone-dim);letter-spacing:.08em;text-transform:uppercase;font-family:"Space Mono",monospace;display:block;margin-top:3px}
+.feat-mini-lanes{display:flex;flex-direction:column;gap:8px}
+.feat-mini-lane{display:flex;align-items:center;gap:9px;font-size:13px;color:var(--bone-dim);
+  background:var(--ink-2);border:1px solid var(--line);border-radius:8px;padding:9px 12px}
+.feat-mini-lane-dot{width:7px;height:7px;border-radius:50%;flex:none}
+
+/* features secondary 2-col */
+.feat-secondary{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media(max-width:680px){.feat-secondary{grid-template-columns:1fr}}
 
 /* ---------- genres ---------- */
 .genres{display:flex;flex-wrap:wrap;gap:10px}
@@ -171,6 +290,25 @@ footer{border-top:1px solid var(--line);padding:48px 0 60px;color:var(--bone-dim
 .msg{font-size:13px;margin-top:14px;min-height:18px}
 .msg.err{color:var(--bad)} .msg.ok{color:var(--ok)}
 
+/* ---------- full-screen auth page (native app + /login) ---------- */
+.auth-page{position:relative;min-height:100vh;min-height:100dvh;display:flex;align-items:center;justify-content:center;
+  padding:calc(var(--safe-top) + 24px) 20px calc(var(--safe-bot) + 24px);overflow:hidden}
+.auth-glow{position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(ellipse 80% 50% at 50% 0%,rgba(228,193,107,.10),transparent 70%)}
+.auth-card{position:relative;width:100%;max-width:400px}
+.auth-brand{display:inline-flex;align-items:center;gap:10px;font-family:"Bricolage Grotesque";font-weight:700;
+  font-size:20px;letter-spacing:-.01em;color:var(--bone);margin-bottom:28px}
+.auth-title{font-family:"Bricolage Grotesque";font-size:28px;line-height:1.15;letter-spacing:-.02em;margin:0}
+.auth-sub{color:var(--bone-dim);font-size:15px;margin:10px 0 0}
+.auth-forgot{background:none;border:0;color:var(--bone-dim);font-size:13px;padding:10px 0 0;cursor:pointer;text-align:left}
+.auth-forgot:hover{color:var(--bone)}
+.auth-back{background:none;border:0;color:var(--bone-dim);font-size:13px;padding:0;margin-bottom:14px;cursor:pointer;
+  display:flex;align-items:center;gap:6px}
+.auth-back:hover{color:var(--bone)}
+.auth-or{display:flex;align-items:center;gap:10px;margin:16px 0 6px}
+.auth-or span{flex:1;height:1px;background:var(--line-strong)}
+.auth-or small{font-size:12px;color:var(--bone-dim)}
+
 /* order summary in checkout */
 .summary{background:var(--ink);border:1px solid var(--line);border-radius:12px;padding:18px;margin:20px 0}
 .summary .line{display:flex;justify-content:space-between;font-size:14px;padding:6px 0}
@@ -183,3 +321,96 @@ footer{border-top:1px solid var(--line);padding:48px 0 60px;color:var(--bone-dim
 .mobile-menu{display:none;flex-direction:column;gap:4px;padding:12px 0 18px;border-bottom:1px solid var(--line)}
 .mobile-menu.show{display:flex}
 .mobile-menu a{padding:10px 0;color:var(--bone-dim)}
+
+/* ---------- pricing trust row ---------- */
+.trust-row{display:flex;gap:20px;justify-content:center;flex-wrap:wrap;margin-top:20px}
+.trust-dot{font-family:"Space Mono",monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--bone-dim);display:flex;align-items:center;gap:7px}
+.trust-dot::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--gold);flex:none}
+.cancel-note{text-align:center;font-family:"Space Mono",monospace;font-size:11px;
+  letter-spacing:.06em;color:var(--bone-dim);margin-top:10px;opacity:.65}
+
+/* ---------- social proof ---------- */
+.testimonials{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+@media(max-width:860px){.testimonials{grid-template-columns:1fr}}
+.testimonial{background:var(--ink-2);border:1px solid var(--line);border-radius:var(--r);padding:28px;
+  display:flex;flex-direction:column;gap:20px;transition:border-color .2s,transform .2s}
+.testimonial:hover{border-color:var(--line-strong)}
+@media(hover:hover) and (pointer:fine){.testimonial:hover{transform:translateY(-3px)}}
+.t-quote{font-size:15px;color:var(--bone);line-height:1.75;font-style:italic;flex:1}
+.t-source{display:flex;align-items:center;gap:12px;padding-top:18px;border-top:1px solid var(--line)}
+.t-avi{width:40px;height:40px;border-radius:50%;flex:none;
+  background:linear-gradient(135deg,rgba(228,193,107,.25),rgba(124,92,255,.25));
+  border:1px solid var(--line-strong);
+  display:grid;place-items:center;font-weight:700;font-size:15px;color:var(--bone-dim);
+  font-family:"Bricolage Grotesque"}
+.t-name{font-family:"Space Mono",monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--bone)}
+.t-handle{font-size:12px;color:var(--bone-dim);margin-top:3px}
+
+/* ---------- final cta ---------- */
+.final-cta{text-align:center;padding:120px 0;position:relative;overflow:hidden}
+.final-cta h2{font-size:clamp(36px,6vw,64px);max-width:700px;margin:0 auto}
+.final-cta p{color:var(--bone-dim);margin:22px auto 44px;max-width:420px;font-size:18px;line-height:1.65}
+.final-cta-bg{position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(ellipse 70% 70% at 50% 50%,rgba(228,193,107,.06) 0%,transparent 70%)}
+@media(max-width:680px){.final-cta{padding:80px 0}.final-cta p{font-size:16px}}
+
+/* ============================================================
+   Scroll-reveal + entrance motion (marketing page)
+   Strong custom ease-out; GPU-only (transform + opacity).
+   ============================================================ */
+:root{
+  --ease-out:cubic-bezier(.23,1,.32,1);
+  --ease-in-out:cubic-bezier(.77,0,.175,1);
+}
+
+/* Single-element reveal + staggered children of a group.
+   Elements start hidden in CSS (before JS) so there is no flash. */
+[data-reveal],
+[data-reveal-group] > *{
+  opacity:0;
+  transform:translateY(22px);
+  transition:opacity .6s var(--ease-out), transform .6s var(--ease-out);
+}
+/* will-change only while still hidden, so the hint is dropped once revealed
+   and elements don't sit on their own GPU layer for the life of the page. */
+[data-reveal]:not(.is-visible),
+[data-reveal-group]:not(.is-visible) > *{
+  will-change:transform, opacity;
+}
+[data-reveal].is-visible,
+[data-reveal-group].is-visible > *{
+  opacity:1;
+  transform:none;
+}
+
+/* Stagger: each child of a revealed group enters ~60ms after the previous. */
+[data-reveal-group].is-visible > *:nth-child(1){transition-delay:0ms}
+[data-reveal-group].is-visible > *:nth-child(2){transition-delay:60ms}
+[data-reveal-group].is-visible > *:nth-child(3){transition-delay:120ms}
+[data-reveal-group].is-visible > *:nth-child(4){transition-delay:180ms}
+[data-reveal-group].is-visible > *:nth-child(5){transition-delay:240ms}
+[data-reveal-group].is-visible > *:nth-child(6){transition-delay:300ms}
+[data-reveal-group].is-visible > *:nth-child(7){transition-delay:360ms}
+
+/* Reduced motion: keep the fade for comprehension, drop the movement. */
+@media(prefers-reduced-motion:reduce){
+  [data-reveal],
+  [data-reveal-group] > *{
+    transform:none;
+    transition:opacity .4s ease;
+  }
+}
+
+/* Stronger, more responsive press feedback (Emil: scale, not just nudge). */
+@media(hover:hover) and (pointer:fine){
+  .btn-gold:hover,.btn-ghost:hover{transform:translateY(-1px)}
+}
+.btn-gold:active,.btn-ghost:active{transform:scale(.97)}
+
+/* ============================================================
+   Hide scrollbars app-wide (scroll still works) — native feel.
+   Covers the document and every overflow container.
+   ============================================================ */
+*{scrollbar-width:none;-ms-overflow-style:none}
+*::-webkit-scrollbar{width:0;height:0;display:none}

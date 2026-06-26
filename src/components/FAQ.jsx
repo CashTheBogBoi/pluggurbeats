@@ -1,11 +1,15 @@
 const ITEMS = [
   {
+    q: "Can I cancel anytime?",
+    a: "Yes. Cancel your subscription any time from your dashboard — you keep access until the end of your billing period. Credits you've earned roll over if you resubscribe. No contracts, no commitments."
+  },
+  {
     q: "How do credits work?",
-    a: "Each paid plan grants monthly pitch and loop credits that roll over while you're subscribed. Campaigns spend pitch credits based on the lanes you choose; submitting a loop to the pool costs one loop credit. Run low? Buy a-la-carte packs any time."
+    a: "Each paid plan grants monthly pitch and loop credits that roll over while you're subscribed. Campaigns spend one pitch credit per beat submitted; submitting a loop to the pool costs one loop credit. Run low? Buy a-la-carte packs any time."
   },
   {
     q: "What's the difference between Plugg and Pro?",
-    a: "Both run credit-based campaigns. On Plugg, approved beats are added to the PluggUrBeat Verified library where A&Rs and artists browse them. Pro does that and also emails your campaign directly to vetted contacts, unlocks A&R / management lanes, and adds priority review with written feedback."
+    a: "Both run credit-based campaigns. On Plugg, approved beats are added to the PluggUrBeat Verified library where A&Rs and artists browse them. Pro does that and can also email your campaign directly to up to 5 vetted desk lanes, including A&R / management lanes, with priority review and written feedback."
   },
   {
     q: "Do you guarantee a placement?",
@@ -29,11 +33,11 @@ export default function FAQ() {
   return (
     <section className="section" id="faq">
       <div className="wrap">
-        <div className="head">
+        <div className="head" data-reveal>
           <span className="eyebrow">Straight answers</span>
           <h2>Before you buy</h2>
         </div>
-        <div className="faq">
+        <div className="faq" data-reveal-group>
           {ITEMS.map((it) => (
             <details key={it.q}>
               <summary>{it.q}</summary>

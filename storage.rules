@@ -2,16 +2,33 @@ rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
 
-    // Producers can only read/write their own beat uploads
-    match /beats/{userId}/{allPaths=**} {
-      allow read, write: if request.auth != null
-                         && request.auth.uid == userId;
+    function isMp3Upload() {
+      return request.resource != null
+        && request.resource.contentType == "audio/mpeg"
+        && request.resource.size < 200 * 1024 * 1024;
     }
 
-    // Profile avatars — owner read/write; staff read via signed URLs from functions
+    function isAvatarUpload() {
+      return request.resource != null
+        && request.resource.contentType.matches("image/(jpeg|png|webp)")
+        && request.resource.size < 5 * 1024 * 1024;
+    }
+
+    // Producers can only read/write their own beat uploads
+    match /beats/{userId}/{allPaths=**} {
+      allow read: if request.auth != null
+                  && request.auth.uid == userId;
+      allow write: if request.auth != null
+                   && request.auth.uid == userId
+                   && isMp3Upload();
+    }
+
+    // Profile avatars are public identity media. Writes stay owner-only.
     match /avatars/{userId}/{allPaths=**} {
-      allow read, write: if request.auth != null
-                         && request.auth.uid == userId;
+      allow read: if true;
+      allow write: if request.auth != null
+                   && request.auth.uid == userId
+                   && isAvatarUpload();
     }
 
     // Pitch ZIPs are generated and served by Cloud Functions only
@@ -23,8 +40,11 @@ service firebase.storage {
     // All other reads (verifiedPuller downloads) go through the pullLoop
     // Cloud Function which returns a short-lived signed URL.
     match /loops/{userId}/{allPaths=**} {
-      allow read, write: if request.auth != null
-                         && request.auth.uid == userId;
+      allow read: if request.auth != null
+                  && request.auth.uid == userId;
+      allow write: if request.auth != null
+                   && request.auth.uid == userId
+                   && isMp3Upload();
     }
   }
 }

@@ -16,7 +16,7 @@ import { useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { onSnapshot } from "firebase/firestore";
 import { httpsCallable } from "firebase/functions";
-import { fns } from "../firebase.js";
+import { fns } from "../firebase/functions.js";
 
 const ts = (v) => (v?.toMillis ? v.toMillis() : (typeof v === "number" ? v : null));
 export const millis = ts;

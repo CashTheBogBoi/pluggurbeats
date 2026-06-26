@@ -4,7 +4,7 @@ service cloud.firestore {
 
     // Protected fields — only Cloud Functions (admin SDK) may change these
     function protectedKeys() {
-      return ['subscription','pitchCredits','loopCredits','verifiedPuller','verifiedListener'];
+      return ['subscription','pitchCredits','loopCredits','verifiedPuller','verifiedListener','verifiedRole','labelName'];
     }
 
     // A user's own profile + everything under their campaigns (incl. events)
@@ -82,6 +82,25 @@ service cloud.firestore {
     // Loop claims — Cloud Functions only (admin SDK bypasses rules)
     match /loopClaims/{claimId} {
       allow read, write: if false;
+    }
+
+    // Campaign requests — verified users and subscribers may read the open
+    // feed live (the doc holds only denormalized public identity; requester
+    // contact info lives in users docs and never lands here). All writes and
+    // counter updates stay Cloud Functions only.
+    match /campaignRequests/{requestId} {
+      allow read: if request.auth != null
+        && (
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.verifiedListener == true
+          || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.verifiedPuller == true
+          || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.subscription.tier in ['plugg', 'pro']
+        );
+      allow write: if false;
+
+      // View dedupe markers stay Cloud Functions only.
+      match /viewers/{viewerId} {
+        allow read, write: if false;
+      }
     }
 
     // Deny everything else

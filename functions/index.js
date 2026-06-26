@@ -2,6 +2,7 @@ const { onDocumentUpdated }    = require("firebase-functions/v2/firestore");
 const { onRequest, onCall, HttpsError } = require("firebase-functions/v2/https");
 const { defineSecret }         = require("firebase-functions/params");
 const admin                    = require("firebase-admin");
+const crypto                   = require("crypto");
 const JSZip                    = require("jszip");
 const { Resend }               = require("resend");
 const { Webhook }              = require("svix");
@@ -16,13 +17,16 @@ admin.initializeApp();
 
 // Staff allowlist — emails permitted to access the moderation dashboard
 const STAFF_EMAILS = (staffConfig.emails || []).map(e => e.toLowerCase());
-function assertStaff(auth) {
+function hasStaffAccess(auth) {
   const email = auth?.token?.email?.toLowerCase();
   const verified = auth?.token?.email_verified;
-  if (!email || !verified || !STAFF_EMAILS.includes(email)) {
+  return Boolean(email && verified && (STAFF_EMAILS.includes(email) || auth?.token?.staff === true));
+}
+function assertStaff(auth) {
+  if (!hasStaffAccess(auth)) {
     throw new HttpsError("permission-denied", "Not authorized for staff access.");
   }
-  return email;
+  return auth.token.email.toLowerCase();
 }
 
 const RESEND_API_KEY          = defineSecret("RESEND_API_KEY");
@@ -68,6 +72,105 @@ function tierForPriceId(priceId) {
   if (priceId && priceId === stripePrices.plugg) return "plugg";
   if (priceId && priceId === stripePrices.pro)   return "pro";
   return null;
+}
+
+function normalizeContact(entry) {
+  if (typeof entry === "string") {
+    return { email: entry, name: entry.split("@")[0] || "Verified contact" };
+  }
+  const email = String(entry?.email || "").trim().toLowerCase();
+  if (!email) return null;
+  return {
+    email,
+    name: String(entry?.name || email.split("@")[0] || "Verified contact").trim()
+  };
+}
+
+function escapeHtml(value) {
+  return String(value || "").replace(/[&<>"']/g, (ch) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;"
+  }[ch]));
+}
+
+function normalizeBeatTags(tags) {
+  if (!Array.isArray(tags)) return [];
+  return [...new Set(tags
+    .map((tag) => String(tag || "").trim().toLowerCase().replace(/^#/, ""))
+    .filter(Boolean)
+    .map((tag) => tag.slice(0, 40))
+  )].slice(0, 8);
+}
+
+function contactIdForEmail(email) {
+  return crypto.createHash("sha256").update(String(email).toLowerCase()).digest("hex").slice(0, 16);
+}
+
+function contactNameForEmail(email) {
+  const target = String(email || "").trim().toLowerCase();
+  if (!target) return "";
+  for (const entries of Object.values(contacts)) {
+    for (const entry of entries || []) {
+      const contact = normalizeContact(entry);
+      if (contact?.email === target) return contact.name || "";
+    }
+  }
+  return "";
+}
+
+function publicContactIdentity(value) {
+  if (!value) return null;
+  if (typeof value === "string") {
+    return {
+      contactId: contactIdForEmail(value),
+      viewerName: contactNameForEmail(value) || "Verified contact",
+      viewerUsername: ""
+    };
+  }
+  const fallbackEmail = value.contactEmail || value.contact || value.email || "";
+  const contactId = value.contactId || (fallbackEmail ? contactIdForEmail(fallbackEmail) : "");
+  if (!contactId && !value.viewerName && !value.viewerUsername) return null;
+  return {
+    contactId: contactId || "",
+    viewerName: value.viewerName || value.contactName || contactNameForEmail(fallbackEmail) || "Verified contact",
+    viewerUsername: value.viewerUsername || ""
+  };
+}
+
+function publicEventIdentity(d) {
+  const fallbackEmail = d.contactEmail || d.contact || "";
+  return {
+    type:           d.type,
+    contactId:      d.contactId || (fallbackEmail ? contactIdForEmail(fallbackEmail) : ""),
+    viewerName:     d.viewerName || d.contactName || contactNameForEmail(fallbackEmail) || "Verified contact",
+    viewerUsername: d.viewerUsername || "",
+    timestamp:      d.timestamp?.toMillis ? d.timestamp.toMillis() : null
+  };
+}
+
+async function contactViewerIdentity(db, contact) {
+  const email = contact.email.toLowerCase();
+  let viewerName = contact.name || "Verified contact";
+  let viewerUsername = "";
+  try {
+    const snap = await db.collection("users").where("email", "==", email).limit(1).get();
+    if (!snap.empty) {
+      const u = snap.docs[0].data();
+      viewerName = u.displayName || contact.name || "Verified contact";
+      viewerUsername = u.instagram || u.username || "";
+      if (viewerUsername && !viewerUsername.startsWith("@")) viewerUsername = "@" + viewerUsername;
+    }
+  } catch (e) {
+    console.warn("Contact user lookup failed:", email, e.message);
+  }
+  return {
+    contactId: contactIdForEmail(email),
+    viewerName,
+    viewerUsername
+  };
 }
 
 // ====================================================================
@@ -127,6 +230,408 @@ const REGION  = "us-central1";
 const PROJECT = "pluggurbeats";
 const FN_BASE = `https://${REGION}-${PROJECT}.cloudfunctions.net`;
 
+const RATE_LIMITS = {
+  createSubscriptionCheckout: { limit: 10,  windowMs: 10 * 60 * 1000 },
+  buyCreditPack:              { limit: 20,  windowMs: 10 * 60 * 1000 },
+  submitCampaign:             { limit: 10,  windowMs: 60 * 60 * 1000 },
+  submitLoop:                 { limit: 30,  windowMs: 60 * 60 * 1000 },
+  pullLoop:                   { limit: 60,  windowMs: 60 * 60 * 1000 },
+  downloadLibraryBeat:        { limit: 60,  windowMs: 60 * 60 * 1000 },
+  getVerifiedPreviewUrl:      { limit: 180, windowMs: 60 * 1000 },
+  generateSplitSheet:         { limit: 10,  windowMs: 60 * 60 * 1000 },
+  refreshSplitSheetStatus:    { limit: 60,  windowMs: 10 * 60 * 1000 },
+  recordLibraryView:          { limit: 120, windowMs: 60 * 1000 },
+  listLiveLoops:              { limit: 120, windowMs: 60 * 1000 },
+  listApprovedBeats:          { limit: 120, windowMs: 60 * 1000 },
+  listCampaignRequests:       { limit: 120, windowMs: 60 * 1000 },
+  recordCampaignRequestView:  { limit: 200, windowMs: 60 * 1000 },
+  createCampaignRequest:      { limit: 20,  windowMs: 60 * 60 * 1000 },
+  backfillVerifiedBeats:      { limit: 20,  windowMs: 60 * 1000 },
+  listCampaignEmailEvents:    { limit: 120, windowMs: 60 * 1000 },
+  checkStaffAccess:           { limit: 120, windowMs: 60 * 1000 },
+  listReviewCampaigns:        { limit: 120, windowMs: 60 * 1000 },
+  listUsers:                  { limit: 120, windowMs: 60 * 1000 },
+  listLoopClaims:             { limit: 120, windowMs: 60 * 1000 },
+  moderateCampaign:           { limit: 60,  windowMs: 60 * 1000 },
+  setVerifiedPuller:          { limit: 60,  windowMs: 60 * 1000 },
+  setVerifiedListener:        { limit: 60,  windowMs: 60 * 1000 },
+  setVerifiedRole:            { limit: 60,  windowMs: 60 * 1000 },
+  setStaffRole:               { limit: 30,  windowMs: 60 * 1000 },
+  adjustCredits:              { limit: 60,  windowMs: 60 * 1000 },
+  banUser:                    { limit: 30,  windowMs: 60 * 1000 },
+  downloadBeats:              { limit: 120, windowMs: 60 * 60 * 1000 },
+  default:                    { limit: 60,  windowMs: 60 * 1000 }
+};
+
+const VERIFIED_ROLES = new Set([
+  "",
+  "producer", "producer_plus", "producer_plusplus",
+  "artist", "artist_plus", "artist_plusplus",
+  "ar", "ar_plus", "ar_plusplus"
+]);
+
+function isArVerifiedRole(role) {
+  return ["ar", "ar_plus", "ar_plusplus"].includes(role);
+}
+
+function verifiedRoleFamily(role) {
+  if (["producer", "producer_plus", "producer_plusplus"].includes(role)) return "producer";
+  if (["artist", "artist_plus", "artist_plusplus"].includes(role)) return "artist";
+  if (isArVerifiedRole(role)) return "ar";
+  return "";
+}
+
+function publicRoleLabel(role) {
+  return ({
+    producer: "Producer",
+    producer_plus: "Producer+",
+    producer_plusplus: "Producer++",
+    artist: "Artist",
+    artist_plus: "Artist+",
+    artist_plusplus: "Artist++",
+    ar: "A&R",
+    ar_plus: "A&R+",
+    ar_plusplus: "A&R++"
+  })[role] || "";
+}
+
+function canTierSubmitToRole(tier, role) {
+  const allowed = {
+    free: new Set(["producer"]),
+    plugg: new Set(["producer", "producer_plus", "artist", "artist_plus", "ar"]),
+    pro: new Set(["producer", "producer_plus", "producer_plusplus", "artist", "artist_plus", "artist_plusplus", "ar", "ar_plus", "ar_plusplus"])
+  };
+  return (allowed[tier] || allowed.free).has(role);
+}
+
+function cleanShortString(value, max = 80) {
+  return String(value || "").replace(/\s+/g, " ").trim().slice(0, max);
+}
+
+function cleanStringList(value, maxItems = 8, maxLen = 40) {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value
+    .map((item) => cleanShortString(item, maxLen))
+    .filter(Boolean)
+  )].slice(0, maxItems);
+}
+
+function publicCampaignRequest(docSnap, viewerUid = "") {
+  const r = docSnap.data();
+  return {
+    id: docSnap.id,
+    createdByUid: r.createdByUid || "",
+    createdByName: r.createdByName || "Verified user",
+    createdByPhotoURL: r.createdByPhotoURL || "",
+    createdByRole: r.createdByRole || "",
+    createdByRoleLabel: publicRoleLabel(r.createdByRole || ""),
+    labelName: r.labelName || "",
+    requestType: r.requestType || "loops",
+    title: r.title || "",
+    brief: r.brief || "",
+    genres: Array.isArray(r.genres) ? r.genres : [],
+    tags: Array.isArray(r.tags) ? r.tags : [],
+    references: Array.isArray(r.references) ? r.references : [],
+    deadline: r.deadline || "",
+    status: r.status || "open",
+    viewCount: r.viewCount || 0,
+    submissionCount: r.submissionCount || 0,
+    approvedSubmissionCount: r.approvedSubmissionCount || 0,
+    emailSentCount: r.emailSentCount || 0,
+    createdAt: r.createdAt?.toMillis ? r.createdAt.toMillis() : null,
+    updatedAt: r.updatedAt?.toMillis ? r.updatedAt.toMillis() : null,
+    isMine: viewerUid && r.createdByUid === viewerUid
+  };
+}
+
+function rateLimitDocId(parts) {
+  return crypto.createHash("sha256").update(parts.filter(Boolean).join(":")).digest("hex");
+}
+
+async function consumeRateLimit(name, identity, cfg = RATE_LIMITS[name] || RATE_LIMITS.default) {
+  const now = Date.now();
+  const windowStart = Math.floor(now / cfg.windowMs) * cfg.windowMs;
+  const docId = rateLimitDocId([name, identity, String(windowStart)]);
+  const ref = admin.firestore().doc(`rateLimits/${docId}`);
+
+  return admin.firestore().runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    const count = snap.exists ? (snap.get("count") || 0) : 0;
+    if (count >= cfg.limit) {
+      return {
+        allowed: false,
+        retryAfterMs: Math.max(1000, windowStart + cfg.windowMs - now)
+      };
+    }
+    tx.set(ref, {
+      name,
+      count: count + 1,
+      windowStart: admin.firestore.Timestamp.fromMillis(windowStart),
+      expiresAt: admin.firestore.Timestamp.fromMillis(windowStart + cfg.windowMs + 24 * 60 * 60 * 1000),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+    return { allowed: true, retryAfterMs: 0 };
+  });
+}
+
+async function assertCallableRateLimit(name, request, identity = null) {
+  const key = identity || request.auth?.uid || request.auth?.token?.email || request.rawRequest?.ip || "anonymous";
+  const result = await consumeRateLimit(name, key);
+  if (!result.allowed) {
+    throw new HttpsError(
+      "resource-exhausted",
+      "Too many requests. Please wait a bit and try again.",
+      { retryAfterMs: result.retryAfterMs }
+    );
+  }
+}
+
+async function allowHttpRequest(name, req, identityParts = []) {
+  const key = [...identityParts, req.ip || req.headers["x-forwarded-for"] || "unknown"].join(":");
+  return consumeRateLimit(name, key);
+}
+
+function verifiedBeatDocId(ownerUid, campaignId, beatIndex) {
+  return `${ownerUid}_${campaignId}_${beatIndex}`;
+}
+
+function publicBeatFromCampaignDoc(docSnap, campaign, beat, beatIndex, ownerUid = null) {
+  const producer = campaign.producer || {};
+  const resolvedOwnerUid = ownerUid || docSnap.ref.path.split("/")[1];
+  const pitchedAt = campaign.pitchedAt?.toMillis ? campaign.pitchedAt.toMillis() : null;
+  const addons = Array.isArray(campaign.addons) ? campaign.addons : [];
+  const tier = campaign.tier || "free";
+  return {
+    id:         verifiedBeatDocId(resolvedOwnerUid, docSnap.id, beatIndex),
+    campaignId: docSnap.id,
+    ownerUid:   resolvedOwnerUid,
+    beatIndex,
+    title:      beat.title  || "Untitled",
+    genre:      beat.genre  || "",
+    key:        beat.key    || "",
+    bpm:        beat.bpm    || "",
+    tags:       normalizeBeatTags(beat.tags),
+    producer:   { name: producer.name || "", instagram: producer.instagram || "" },
+    tier,
+    isPro:     tier === "pro",
+    rush:      addons.includes("rush"),
+    pitchedAt,
+    storagePath: beat.storagePath || ""
+  };
+}
+
+function campaignRush(addons = []) {
+  return Array.isArray(addons) && addons.includes("rush");
+}
+
+function reviewAgeHours(createdAt) {
+  if (!createdAt) return 0;
+  return Math.max(0, (Date.now() - Number(createdAt)) / (60 * 60 * 1000));
+}
+
+function reviewPriorityMeta(campaign) {
+  if (campaign.status !== "pending_review") {
+    return { ageHours: reviewAgeHours(campaign.createdAt), thresholdHours: 0, timeSensitive: false, label: "" };
+  }
+  const ageHours = reviewAgeHours(campaign.createdAt);
+  if (ageHours >= 48) {
+    return { ageHours, thresholdHours: 48, timeSensitive: true, label: "48h priority" };
+  }
+  if (campaign.rush && ageHours >= 24) {
+    return { ageHours, thresholdHours: 24, timeSensitive: true, label: "Rush 24h" };
+  }
+  return { ageHours, thresholdHours: 0, timeSensitive: false, label: "" };
+}
+
+function reviewPriority(campaign) {
+  if (campaign.status !== "pending_review") return 0;
+  const meta = reviewPriorityMeta(campaign);
+  if (meta.timeSensitive) {
+    return 10000 + Math.min(Math.max(0, meta.ageHours - meta.thresholdHours), 96);
+  }
+  let score = 1000;
+  if (campaign.rush) score += 200;
+  if (campaign.tier === "pro") score += 60;
+  score += Math.min(meta.ageHours, 72);
+  return score;
+}
+
+function beatSearchText(beat, producer = {}) {
+  return [
+    beat.title,
+    beat.genre,
+    beat.key,
+    beat.bpm,
+    ...(Array.isArray(beat.tags) ? beat.tags : []),
+    producer.name,
+    producer.instagram,
+    ...(Array.isArray(beat.collabs) ? beat.collabs.flatMap((c) => [c.name, c.instagram, c.role]) : [])
+  ].filter(Boolean).join(" ").toLowerCase().slice(0, 2000);
+}
+
+function stableScore(seed) {
+  const hex = crypto.createHash("sha256").update(String(seed)).digest("hex").slice(0, 12);
+  return parseInt(hex, 16) / 0xffffffffffff;
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function isOwnUuidBeatPath(uid, storagePath) {
+  const uuid = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}";
+  return new RegExp(`^beats/${escapeRegExp(uid)}/${uuid}/beats/${uuid}/[^/]+\\.mp3$`, "i").test(String(storagePath || ""));
+}
+
+function isOwnLoopPath(uid, storagePath) {
+  const value = String(storagePath || "");
+  return value.startsWith(`loops/${uid}/`) && !value.includes("..") && /\.mp3$/i.test(value);
+}
+
+async function assertMp3StorageObject(storage, storagePath) {
+  const file = storage.file(storagePath);
+  const [exists] = await file.exists();
+  if (!exists) throw new HttpsError("not-found", "Uploaded audio file was not found.");
+  const [meta] = await file.getMetadata();
+  const contentType = String(meta.contentType || "").toLowerCase();
+  if (contentType !== "audio/mpeg") {
+    throw new HttpsError("invalid-argument", "Only .mp3 audio files can be uploaded.");
+  }
+  return meta;
+}
+
+function publicVerifiedBeat(docSnap) {
+  const b = docSnap.data();
+  return {
+    id: docSnap.id,
+    campaignId: b.campaignId,
+    ownerUid: b.ownerUid,
+    beatIndex: b.beatIndex,
+    title: b.title || "Untitled",
+    genre: b.genre || "",
+    key: b.key || "",
+    bpm: b.bpm || "",
+    tags: normalizeBeatTags(b.tags),
+    producer: {
+      name: b.producer?.name || "",
+      instagram: b.producer?.instagram || ""
+    },
+    tier: b.tier || "free",
+    isPro: b.isPro === true,
+    rush: b.rush === true,
+    pitchedAt: b.pitchedAt?.toMillis ? b.pitchedAt.toMillis() : null,
+    storagePath: b.storagePath || ""
+  };
+}
+
+function weightedRecentBeats(pageDocs, limit) {
+  const today = new Date().toISOString().slice(0, 10);
+  const ranked = pageDocs
+    .map((d) => ({ doc: d, data: d.data(), score: stableScore(`${today}:${d.id}`) }))
+    .sort((a, b) => a.score - b.score);
+  const pro = ranked.filter((x) => x.data.isPro === true);
+  const other = ranked.filter((x) => x.data.isPro !== true);
+  const out = [];
+  let p = 0, o = 0;
+  while (out.length < limit && (p < pro.length || o < other.length)) {
+    const slot = out.length % 5;
+    const preferPro = slot < 3; // 3 of every 5 = 60% when inventory exists.
+    if (preferPro && p < pro.length) out.push(pro[p++].doc);
+    else if (!preferPro && o < other.length) out.push(other[o++].doc);
+    else if (p < pro.length) out.push(pro[p++].doc);
+    else if (o < other.length) out.push(other[o++].doc);
+  }
+  return out;
+}
+
+async function recentWeightedVerifiedDocs(db, { genreFilter, tagFilter, limit }) {
+  const cutoff = admin.firestore.Timestamp.fromMillis(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const poolLimit = Math.min(Math.max(limit * 8, 120), 300);
+  let q = db.collection("verifiedBeats").where("pitchedAt", ">=", cutoff);
+  if (genreFilter) q = q.where("genre", "==", genreFilter);
+  if (tagFilter) q = q.where("tags", "array-contains", tagFilter);
+  q = q.orderBy("pitchedAt", "desc").limit(poolLimit);
+  const snap = await q.get();
+  if (snap.empty) return null;
+  const orderedPage = snap.docs.slice(0, limit);
+  const weightedPage = weightedRecentBeats(orderedPage, limit);
+  const last = orderedPage[orderedPage.length - 1]?.data();
+  return {
+    docs: weightedPage,
+    hasMore: snap.docs.length > limit || Boolean(last),
+    nextCursor: last?.pitchedAt?.toMillis ? { pitchedAt: last.pitchedAt.toMillis() } : null
+  };
+}
+
+async function resolveVerifiedBeatFile(db, ownerUid, campaignId, beatIndex, requestedStoragePath = "") {
+  let title = "Beat";
+  let storagePath = "";
+  const indexed = await db.collection("verifiedBeats").doc(verifiedBeatDocId(ownerUid, campaignId, beatIndex)).get();
+  if (indexed.exists) {
+    storagePath = indexed.get("storagePath") || "";
+    title = indexed.get("title") || title;
+  }
+  if (!storagePath) {
+    const camp = await db.doc(`users/${ownerUid}/campaigns/${campaignId}`).get();
+    if (!camp.exists || camp.get("status") !== "pitched") throw new HttpsError("not-found", "Beat not in library.");
+    const beat = (camp.get("beats") || [])[beatIndex];
+    storagePath = beat?.storagePath || "";
+    title = beat?.title || title;
+    if (storagePath) indexVerifiedBeats(db, ownerUid, campaignId, camp.data(), camp.get("pitchedAt")).catch(() => {});
+  }
+  if (!storagePath) throw new HttpsError("not-found", "Beat file missing.");
+  if (requestedStoragePath && requestedStoragePath !== storagePath) {
+    throw new HttpsError("permission-denied", "Beat file mismatch.");
+  }
+  return { title, storagePath };
+}
+
+function setCors(req, res) {
+  const origin = req.headers.origin || "";
+  const allowed = new Set([
+    "https://pluggurbeat.com",
+    "https://www.pluggurbeat.com",
+    "https://pluggurbeats.web.app",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173"
+  ]);
+  if (allowed.has(origin)) res.set("Access-Control-Allow-Origin", origin);
+  res.set("Vary", "Origin");
+  res.set("Access-Control-Allow-Headers", "Authorization, Content-Type");
+  res.set("Access-Control-Allow-Methods", "GET, OPTIONS");
+  res.set("Access-Control-Expose-Headers", "Content-Disposition, Content-Length, Content-Type");
+}
+
+async function indexVerifiedBeats(db, ownerUid, campaignId, campaign, pitchedAtValue = null) {
+  const producer = campaign.producer || {};
+  const pitchedAt = pitchedAtValue || campaign.pitchedAt || admin.firestore.FieldValue.serverTimestamp();
+  const tier = campaign.tier || "free";
+  const rush = Array.isArray(campaign.addons) && campaign.addons.includes("rush");
+  const batch = db.batch();
+  (campaign.beats || []).forEach((beat, beatIndex) => {
+    if (!beat?.storagePath) return;
+    batch.set(db.collection("verifiedBeats").doc(verifiedBeatDocId(ownerUid, campaignId, beatIndex)), {
+      ownerUid,
+      campaignId,
+      beatIndex,
+      title: beat.title || "Untitled",
+      genre: beat.genre || "",
+      key: beat.key || "",
+      bpm: beat.bpm || "",
+      tags: normalizeBeatTags(beat.tags),
+      producer: { name: producer.name || "", instagram: producer.instagram || "" },
+      storagePath: beat.storagePath,
+      searchText: beatSearchText(beat, producer),
+      tier,
+      isPro: tier === "pro",
+      rush,
+      pitchedAt,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+  });
+  await batch.commit();
+}
+
 // Maps target IDs from the dashboard to genre lane names in contacts.json
 const TARGET_LANE_MAP = {
   "trap-a":          "Trap",
@@ -174,30 +679,35 @@ exports.pitchCampaign = onDocumentUpdated(
       return;
     }
 
-    // Plugg-tier campaigns go straight to the Verified library — no email blast.
+    // Plugg-tier campaigns, and Pro campaigns without selected desks, go
+    // straight to the Verified library — no email blast.
     const producerTier = campaign.tier ||
       (await db.doc(`users/${uid}`).get()).get("subscription.tier") || "free";
-    if (producerTier !== "pro") {
+    if (producerTier !== "pro" || targets.length === 0) {
+      const pitchedAt = admin.firestore.Timestamp.now();
       await snap.ref.update({
         status:    "pitched",
-        pitchedAt: admin.firestore.FieldValue.serverTimestamp(),
+        pitchedAt,
         pitchedTo: [],
         opens:     0,
         downloads: 0
       });
-      console.log(`Campaign ${campaignId}: Plugg tier — added to Verified library (no email)`);
+      await indexVerifiedBeats(db, uid, campaignId, campaign, pitchedAt);
+      console.log(`Campaign ${campaignId}: added to Verified library (no email)`);
       return;
     }
 
-    // Resolve unique lanes from selected targets, then collect emails
+    // Resolve unique lanes from selected targets, then collect contacts.
     const lanes = [...new Set(targets.map(t => TARGET_LANE_MAP[t]).filter(Boolean))];
-    const emailSet = new Set();
-    lanes.forEach(lane => (contacts[lane] || []).forEach(e => emailSet.add(e)));
-    (contacts["All"] || []).forEach(e => emailSet.add(e));
-    const emails = [...emailSet];
-    console.log("Pitching campaign", campaignId, "to", emails.length, "contacts");
+    const byEmail = new Map();
+    [...lanes, "All"].forEach(lane => (contacts[lane] || []).forEach(entry => {
+      const contact = normalizeContact(entry);
+      if (contact && !byEmail.has(contact.email)) byEmail.set(contact.email, contact);
+    }));
+    const recipients = [...byEmail.values()];
+    console.log("Pitching campaign", campaignId, "to", recipients.length, "contacts");
 
-    if (emails.length === 0) {
+    if (recipients.length === 0) {
       await snap.ref.update({ status: "no_contacts" });
       return;
     }
@@ -213,57 +723,63 @@ exports.pitchCampaign = onDocumentUpdated(
     await storage.file(zipPath).save(zipBuffer, { contentType: "application/zip" });
 
     const beatListHtml = beats
-      .map(b => `<li><strong>${b.title}</strong> — ${b.genre || ""}${b.bpm ? `, ${b.bpm} BPM` : ""}${b.key ? `, ${b.key}` : ""}</li>`)
+      .map((b) => {
+        const tags = normalizeBeatTags(b.tags);
+        const meta = [b.genre, b.bpm ? `${b.bpm} BPM` : "", b.key].filter(Boolean).map(escapeHtml).join(", ");
+        const tagHtml = tags.length
+          ? `<div style="margin-top:4px;color:#555;font-size:13px">${tags.map((t) => `#${escapeHtml(t)}`).join(" ")}</div>`
+          : "";
+        return `<li><strong>${escapeHtml(b.title)}</strong>${meta ? ` — ${meta}` : ""}${tagHtml}</li>`;
+      })
       .join("");
     const packageLabel = { starter: "Starter", pro: "Pro", label: "Label" }[campaign.package] || campaign.package;
 
     // Send one personalized email per contact. A token is generated up front so
     // the download link is unique per recipient ("by who"); after send we also
     // index the Resend email id so the webhook can attribute opens.
-    const results = await Promise.allSettled(emails.map(async (to) => {
+    const results = await Promise.allSettled(recipients.map(async (contact) => {
       const token   = db.collection("emailIndex").doc().id;   // unique per recipient
-      const recipient = { uid, campaignId, contact: to, sentAt: admin.firestore.FieldValue.serverTimestamp() };
+      const identity = await contactViewerIdentity(db, contact);
+      const recipient = {
+        uid,
+        campaignId,
+        contactEmail: contact.email,
+        contactName: contact.name,
+        ...identity,
+        sentAt: admin.firestore.FieldValue.serverTimestamp()
+      };
       await db.collection("emailIndex").doc(token).set(recipient);
 
       const downloadUrl = `${FN_BASE}/downloadBeats?e=${token}`;
       const sent = await resend.emails.send({
         from:    "PluggurBeats Pitching <pitching@pluggurbeat.com>",
-        to,
-        subject: `New beats from ${producer.name || "a producer"} — PluggurBeats`,
+        to:      contact.email,
+        subject: `New beats from ${producer.name || "a producer"}`,
         html: `
-          <div style="font-family:sans-serif;max-width:600px;margin:0 auto;color:#1a1a1a">
-            <h2 style="color:#C9A24B">New beats for your consideration</h2>
+          <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;color:#111;font-size:15px;line-height:1.6">
+            <p>Hi,</p>
             <p>
-              <strong>${producer.name || "A producer"}</strong>
-              ${producer.instagram ? `(${producer.instagram})` : ""}
-              has submitted <strong>${beats.length} beat${beats.length !== 1 ? "s" : ""}</strong>
-              via PluggurBeats (${packageLabel} package — ${campaign.pitches} guaranteed pitches).
+              <strong>${producer.name || "A producer"}</strong>${producer.instagram ? ` (${producer.instagram})` : ""}
+              submitted ${beats.length} beat${beats.length !== 1 ? "s" : ""} for your consideration.
             </p>
-            <p><strong>Beats included:</strong></p>
+            <p><strong>Included:</strong></p>
             <ul>${beatListHtml}</ul>
-            <a href="${downloadUrl}"
-               style="display:inline-block;margin:20px 0;padding:14px 28px;background:#E4C16B;
-                      color:#1a1405;border-radius:999px;text-decoration:none;font-weight:bold;font-size:16px">
-              Download Beats (ZIP)
-            </a>
-            <p style="color:#888;font-size:12px">
-              To opt out of future pitches reply with "unsubscribe".<br>
-              Powered by <a href="https://pluggurbeat.com" style="color:#C9A24B">PluggurBeats</a>
-            </p>
+            <p>Download: <a href="${downloadUrl}">${downloadUrl}</a></p>
+            <p>Reply to pass or to opt out of future submissions.</p>
           </div>`
       });
 
       // Resend returns { data, error } — it does NOT throw on API errors
       // (e.g. unverified domain), so surface those explicitly.
       if (sent?.error) {
-        console.error(`Resend rejected email to ${to}:`, JSON.stringify(sent.error));
-        return { to, error: sent.error };
+        console.error(`Resend rejected email to ${contact.email}:`, JSON.stringify(sent.error));
+        return { to: contact.email, error: sent.error };
       }
       // Index the Resend email id -> same recipient so webhook opens resolve
       const emailId = sent?.data?.id;
       if (emailId) await db.collection("emailIndex").doc(emailId).set(recipient);
-      console.log(`Email sent to ${to} (id ${emailId})`);
-      return { to, emailId };
+      console.log(`Email sent to ${contact.email} (id ${emailId})`);
+      return { to: contact.email, emailId, publicContact: identity };
     }));
 
     results.forEach(r => {
@@ -277,15 +793,19 @@ exports.pitchCampaign = onDocumentUpdated(
       return;
     }
 
+    const pitchedAt = admin.firestore.Timestamp.now();
     await snap.ref.update({
       status:    "pitched",
-      pitchedAt: admin.firestore.FieldValue.serverTimestamp(),
-      pitchedTo: emails,
+      pitchedAt,
+      pitchedTo: results
+        .filter(r => r.status === "fulfilled" && r.value.emailId)
+        .map(r => r.value.publicContact),
       opens:     0,
       downloads: 0
     });
+    await indexVerifiedBeats(db, uid, campaignId, campaign, pitchedAt);
 
-    console.log(`Campaign ${campaignId}: pitched ${beats.length} beats to ${emails.length} contacts`);
+    console.log(`Campaign ${campaignId}: pitched ${beats.length} beats to ${recipients.length} contacts`);
   }
 );
 
@@ -296,25 +816,33 @@ exports.pitchCampaign = onDocumentUpdated(
 exports.downloadBeats = onRequest({ region: REGION }, async (req, res) => {
   const emailId = req.query.e;
   if (!emailId) { res.status(400).send("Missing token"); return; }
+  const rate = await allowHttpRequest("downloadBeats", req, [String(emailId)]);
+  if (!rate.allowed) {
+    res.set("Retry-After", String(Math.ceil(rate.retryAfterMs / 1000)));
+    res.status(429).send("Too many requests. Please wait a bit and try again.");
+    return;
+  }
 
   const db  = admin.firestore();
   const idx = await db.collection("emailIndex").doc(String(emailId)).get();
   if (!idx.exists) { res.status(404).send("Invalid or expired link"); return; }
 
-  const { uid, campaignId, contact } = idx.data();
+  const { uid, campaignId, contactEmail, contact, contactId, viewerName, viewerUsername } = idx.data();
   const zipPath = `pitches/${uid}/${campaignId}/beats.zip`;
   const file    = admin.storage().bucket().file(zipPath);
 
   // Log the download event (attributed to the recipient this link was sent to)
   const campaignRef = db.doc(`users/${uid}/campaigns/${campaignId}`);
   await campaignRef.collection("events").add({
-    type:      "downloaded",
-    contact,
-    emailId:   String(emailId),
-    timestamp: admin.firestore.FieldValue.serverTimestamp()
+    type:           "downloaded",
+    contactId:      contactId || contactIdForEmail(contactEmail || contact || String(emailId)),
+    viewerName:     viewerName || "Verified contact",
+    viewerUsername: viewerUsername || "",
+    emailId:        String(emailId),
+    timestamp:      admin.firestore.FieldValue.serverTimestamp()
   });
   await campaignRef.update({ downloads: admin.firestore.FieldValue.increment(1) });
-  console.log(`Recorded download for campaign ${campaignId} (contact ${contact})`);
+  console.log(`Recorded download for campaign ${campaignId} (contact ${contactId || viewerName || "unknown"})`);
 
   // Fresh 1-hour signed URL each click
   const [url] = await file.getSignedUrl({ action: "read", expires: Date.now() + 60 * 60 * 1000 });
@@ -356,15 +884,17 @@ exports.resendWebhook = onRequest(
       return;
     }
 
-    const { uid, campaignId, contact } = idx.data();
+    const { uid, campaignId, contactEmail, contact, contactId, viewerName, viewerUsername } = idx.data();
     const campaignRef = db.doc(`users/${uid}/campaigns/${campaignId}`);
 
     const shortType = type.replace("email.", ""); // opened, clicked, delivered, bounced…
     await campaignRef.collection("events").add({
-      type:      shortType,
-      contact,
+      type:           shortType,
+      contactId:      contactId || contactIdForEmail(contactEmail || contact || emailId),
+      viewerName:     viewerName || "Verified contact",
+      viewerUsername: viewerUsername || "",
       emailId,
-      timestamp: admin.firestore.FieldValue.serverTimestamp()
+      timestamp:      admin.firestore.FieldValue.serverTimestamp()
     });
 
     // Bump the open counter on the campaign for quick stats
@@ -372,7 +902,7 @@ exports.resendWebhook = onRequest(
       await campaignRef.update({ opens: admin.firestore.FieldValue.increment(1) });
     }
 
-    console.log(`Recorded ${shortType} for campaign ${campaignId} (contact ${contact})`);
+    console.log(`Recorded ${shortType} for campaign ${campaignId} (contact ${contactId || viewerName || "unknown"})`);
     res.status(200).send("ok");
   }
 );
@@ -383,6 +913,7 @@ exports.resendWebhook = onRequest(
 // ====================================================================
 exports.listReviewCampaigns = onCall({ region: REGION }, async (request) => {
   assertStaff(request.auth);
+  await assertCallableRateLimit("listReviewCampaigns", request);
   const db      = admin.firestore();
   const storage = admin.storage().bucket();
 
@@ -412,36 +943,72 @@ exports.listReviewCampaigns = onCall({ region: REGION }, async (request) => {
         const evSnap = await db.collection(path + "/events").get();
         events = evSnap.docs.map(e => {
           const d = e.data();
-          return {
-            type:      d.type,
-            contact:   d.contact,
-            timestamp: d.timestamp?.toMillis ? d.timestamp.toMillis() : null
-          };
+          return publicEventIdentity(d);
         });
       } catch (e) { console.warn("Could not fetch events for", path, e.message); }
     }
+
+    const status = c.status || "pending_review";
+    const createdAt = c.createdAt?.toMillis ? c.createdAt.toMillis() : null;
+    const rush = campaignRush(c.addons);
+    const priorityMeta = reviewPriorityMeta({ status, createdAt, rush, tier: c.tier || "free" });
 
     return {
       path,
       uid,
       id:          doc.id,
-      status:      c.status || "pending_review",
+      status,
       package:     c.package || "",
+      tier:        c.tier || "free",
+      addons:      Array.isArray(c.addons) ? c.addons : [],
+      rush,
+      reviewAgeHours: Math.round(priorityMeta.ageHours * 10) / 10,
+      timeSensitive: priorityMeta.timeSensitive,
+      priorityLabel: priorityMeta.label,
       pitches:     c.pitches || 0,
       producer:    c.producer || {},
       targets:     c.targets || [],
       beats,
-      pitchedTo:   c.pitchedTo || [],
+      pitchedTo:   (c.pitchedTo || []).map(publicContactIdentity).filter(Boolean),
       opens:       c.opens || 0,
       downloads:   c.downloads || 0,
       events,
-      createdAt:   c.createdAt?.toMillis   ? c.createdAt.toMillis()   : null,
+      createdAt,
       moderatedAt: c.moderatedAt?.toMillis ? c.moderatedAt.toMillis() : null
     };
   }));
 
-  campaigns.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  campaigns.sort((a, b) => {
+    const priority = reviewPriority(b) - reviewPriority(a);
+    if (priority) return priority;
+    if (b.timeSensitive !== a.timeSensitive) return b.timeSensitive ? 1 : -1;
+    return (b.createdAt || 0) - (a.createdAt || 0);
+  });
   return { campaigns };
+});
+
+exports.listCampaignEmailEvents = onCall({ region: REGION }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
+  await assertCallableRateLimit("listCampaignEmailEvents", request);
+  const uid = request.auth.uid;
+  const { campaignId } = request.data || {};
+  if (!campaignId || String(campaignId).includes("/")) {
+    throw new HttpsError("invalid-argument", "campaignId is required.");
+  }
+
+  const db = admin.firestore();
+  const campaignRef = db.doc(`users/${uid}/campaigns/${campaignId}`);
+  const campaign = await campaignRef.get();
+  if (!campaign.exists) throw new HttpsError("not-found", "Campaign not found.");
+
+  const snap = await campaignRef.collection("events").get();
+  const events = snap.docs.map((d) => publicEventIdentity(d.data()));
+  return { events };
+});
+
+exports.checkStaffAccess = onCall({ region: REGION }, async (request) => {
+  await assertCallableRateLimit("checkStaffAccess", request);
+  return { staff: hasStaffAccess(request.auth) };
 });
 
 // ====================================================================
@@ -452,6 +1019,7 @@ exports.moderateCampaign = onCall(
   { region: REGION, secrets: [RESEND_API_KEY] },
   async (request) => {
     const staffEmail = assertStaff(request.auth);
+    await assertCallableRateLimit("moderateCampaign", request);
     const { path, decision, reason, note } = request.data || {};
     if (!path || !["approved", "rejected"].includes(decision)) {
       throw new HttpsError("invalid-argument", "path and a valid decision are required.");
@@ -495,20 +1063,16 @@ exports.moderateCampaign = onCall(
         await resend.emails.send({
           from:    "PluggurBeats Team <team@pluggurbeat.com>",
           to:      campaign.producer.email,
-          subject: "Update on your PluggurBeats campaign",
+          subject: "Your recent campaign submission",
           html: `
-            <div style="font-family:sans-serif;max-width:600px;margin:0 auto;color:#1a1a1a">
-              <h2 style="color:#C9A24B">Campaign update</h2>
+            <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;color:#111;font-size:15px;line-height:1.6">
               <p>Hi ${campaign.producer.name || "there"},</p>
-              <p>Our team has reviewed your campaign and unfortunately we're unable to pitch it at this time.</p>
+              <p>Our team reviewed your campaign and we're unable to pitch it at this time.</p>
               ${reason ? `<p><strong>Reason:</strong> ${reason}</p>` : ""}
               ${note   ? `<p>${note}</p>` : ""}
-              ${refunded ? `<p><strong>${refunded} pitch credit${refunded !== 1 ? "s" : ""}</strong> ${refunded !== 1 ? "have" : "has"} been refunded to your account.</p>` : ""}
-              <p>You're welcome to make revisions and submit a new campaign. If you have questions, reply to this email.</p>
+              ${refunded ? `<p>${refunded} pitch credit${refunded !== 1 ? "s have" : " has"} been refunded to your account.</p>` : ""}
+              <p>You're welcome to revise and resubmit. Reply to this email with any questions.</p>
               <p>— The PluggurBeats Team</p>
-              <p style="color:#888;font-size:12px">
-                Powered by <a href="https://pluggurbeat.com" style="color:#C9A24B">PluggurBeats</a>
-              </p>
             </div>`
         });
         console.log(`Rejection email sent to ${campaign.producer.email}`);
@@ -528,13 +1092,14 @@ exports.moderateCampaign = onCall(
 // ====================================================================
 exports.listUsers = onCall({ region: REGION }, async (request) => {
   assertStaff(request.auth);
+  await assertCallableRateLimit("listUsers", request);
   const db      = admin.firestore();
   const storage = admin.storage().bucket();
 
   const snap = await db.collection("users").get();
   const users = await Promise.all(snap.docs.map(async (doc) => {
     const u = doc.data();
-    let avatarUrl = null;
+    let avatarUrl = u.photoURL || null;
     if (u.avatarPath) {
       try {
         const [url] = await storage.file(u.avatarPath)
@@ -552,6 +1117,10 @@ exports.listUsers = onCall({ region: REGION }, async (request) => {
       avatarUrl,
       verifiedPuller:   u.verifiedPuller   === true,
       verifiedListener: u.verifiedListener === true,
+      verifiedRole:     u.verifiedRole || "",
+      labelName:        u.labelName || "",
+      staff:           u.staff === true || STAFF_EMAILS.includes(String(u.email || "").toLowerCase()),
+      staffLocked:     STAFF_EMAILS.includes(String(u.email || "").toLowerCase()),
       pitchBalance:    u.pitchCredits?.balance || 0,
       loopBalance:     u.loopCredits?.balance  || 0,
       tier:            u.subscription?.tier    || "free",
@@ -568,6 +1137,7 @@ exports.listUsers = onCall({ region: REGION }, async (request) => {
 // ====================================================================
 exports.setVerifiedPuller = onCall({ region: REGION }, async (request) => {
   const staffEmail = assertStaff(request.auth);
+  await assertCallableRateLimit("setVerifiedPuller", request);
   const { uid, value } = request.data || {};
   if (!uid || typeof value !== "boolean") {
     throw new HttpsError("invalid-argument", "uid and a boolean value are required.");
@@ -603,6 +1173,7 @@ exports.createSubscriptionCheckout = onCall(
   { region: REGION, secrets: [STRIPE_SECRET] },
   async (request) => {
     if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
+    await assertCallableRateLimit("createSubscriptionCheckout", request);
     const uid  = request.auth.uid;
     const plan = request.data?.plan;
     if (!["plugg", "pro"].includes(plan)) throw new HttpsError("invalid-argument", "Unknown plan.");
@@ -628,6 +1199,7 @@ exports.buyCreditPack = onCall(
   { region: REGION, secrets: [STRIPE_SECRET] },
   async (request) => {
     if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
+    await assertCallableRateLimit("buyCreditPack", request);
     const uid  = request.auth.uid;
     const pack = request.data?.pack;
     if (!PACK_CREDITS[pack]) throw new HttpsError("invalid-argument", "Unknown pack.");
@@ -700,35 +1272,48 @@ async function applyMonthlyGrants(uid, tier, periodEnd = null) {
 // Server recomputes cost, enforces tier caps + A&R gating,
 // then atomically debits pitchCredits and creates the campaign doc.
 // ====================================================================
-const PITCH_TARGET_COSTS = {
-  "trap-a":2,"trap-r":1,"rb-a":2,"rb-r":1,"pop-a":2,
-  "afro-r":1,"drill-r":1,"reg-r":1,
-  "anr-major-trap":3,"anr-major-pop":3,"anr-indie":3,"anr-sync":3,"anr-mgmt":3
-};
 const ANR_TARGET_IDS = new Set(["anr-major-trap","anr-major-pop","anr-indie","anr-sync","anr-mgmt"]);
 const TIER_CAPS_FN = {
-  free:  { beats:5,  lanes:1,        anr:false },
-  plugg: { beats:15, lanes:3,        anr:false },
-  pro:   { beats:25, lanes:Infinity, anr:true  }
+  free:  { beats:5,  lanes:0, anr:false },
+  plugg: { beats:15, lanes:0, anr:false },
+  pro:   { beats:25, lanes:5, anr:true  }
 };
 
 exports.submitCampaign = onCall({ region: REGION }, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
+  await assertCallableRateLimit("submitCampaign", request);
   const uid = request.auth.uid;
-  const { producer, beats, targets, addons } = request.data || {};
+  const { producer, beats, targets, addons, targetRequestId } = request.data || {};
 
-  if (!Array.isArray(targets) || targets.length === 0)
-    throw new HttpsError("invalid-argument", "Select at least one target.");
+  if (!Array.isArray(targets))
+    throw new HttpsError("invalid-argument", "Targets must be an array.");
   if (!Array.isArray(beats) || beats.length === 0)
     throw new HttpsError("invalid-argument", "Include at least one beat.");
 
   const db       = admin.firestore();
+  const storage  = admin.storage().bucket();
   const userSnap = await db.doc(`users/${uid}`).get();
   if (!userSnap.exists) throw new HttpsError("not-found", "User not found.");
 
   const tier = userSnap.get("subscription.tier") || "free";
+  const cleanTargetRequestId = cleanShortString(targetRequestId, 80);
+  let targetRequest = null;
+  let targetRequestRef = null;
+  if (cleanTargetRequestId) {
+    targetRequestRef = db.collection("campaignRequests").doc(cleanTargetRequestId);
+    const targetSnap = await targetRequestRef.get();
+    if (!targetSnap.exists) throw new HttpsError("not-found", "Request not found.");
+    targetRequest = targetSnap.data();
+    if (targetRequest.status !== "open") throw new HttpsError("failed-precondition", "This request is no longer open.");
+    if (!canTierSubmitToRole(tier, targetRequest.createdByRole || "")) {
+      throw new HttpsError("permission-denied", `Your ${tier} plan cannot submit to ${publicRoleLabel(targetRequest.createdByRole)} requests.`);
+    }
+    if (!["beats", "both"].includes(targetRequest.requestType)) {
+      throw new HttpsError("failed-precondition", "This request is for loops. Loop request submissions are coming next.");
+    }
+  }
 
-  if (tier === "free")
+  if (tier === "free" && !targetRequest)
     throw new HttpsError("permission-denied",
       "Campaigns require a Plugg or Pro subscription.");
 
@@ -738,7 +1323,7 @@ exports.submitCampaign = onCall({ region: REGION }, async (request) => {
     throw new HttpsError("invalid-argument",
       `Your ${tier} plan allows up to ${caps.beats} beats per campaign.`);
 
-  if (caps.lanes !== Infinity && targets.length > caps.lanes)
+  if (targets.length > caps.lanes)
     throw new HttpsError("invalid-argument",
       `Your ${tier} plan allows up to ${caps.lanes} lane${caps.lanes !== 1 ? "s" : ""} per campaign.`);
 
@@ -747,16 +1332,37 @@ exports.submitCampaign = onCall({ region: REGION }, async (request) => {
     throw new HttpsError("permission-denied",
       "A&R / management lanes require a Pro subscription.");
 
-  // Recompute cost server-side — never trust client total
-  let cost = 0;
   for (const t of targets) {
-    const c = PITCH_TARGET_COSTS[t];
-    if (c === undefined) throw new HttpsError("invalid-argument", `Unknown target: ${t}`);
-    cost += c;
+    if (!TARGET_LANE_MAP[t]) throw new HttpsError("invalid-argument", `Unknown target: ${t}`);
   }
-  const addonsArr = Array.isArray(addons) ? addons : [];
-  if (addonsArr.includes("rush"))     cost += 2;
-  if (addonsArr.includes("feedback")) cost += 1;
+  const addonsArr = [...new Set(Array.isArray(addons) ? addons : [])]
+    .filter((a) => ["rush", "feedback"].includes(a));
+  // Recompute cost server-side — never trust client total.
+  // 1 pitch credit per beat, plus 2 pitch credits for rush queue.
+  const cost = beats.length + (addonsArr.includes("rush") ? 2 : 0);
+  const cleanBeats = beats.map((b) => ({
+    title: String(b?.title || "").trim().slice(0, 120),
+    genre: String(b?.genre || "").trim().slice(0, 40),
+    key: String(b?.key || "").trim().slice(0, 40),
+    bpm: String(b?.bpm || "").trim().slice(0, 12),
+    tags: normalizeBeatTags(b?.tags),
+    storagePath: String(b?.storagePath || "").trim(),
+    collabs: Array.isArray(b?.collabs) ? b.collabs.slice(0, 10).map((c) => ({
+      name: String(c?.name || "").trim().slice(0, 120),
+      role: String(c?.role || "").trim().slice(0, 60),
+      instagram: String(c?.instagram || "").trim().slice(0, 80),
+      phone: String(c?.phone || "").trim().slice(0, 40)
+    })).filter((c) => c.name) : []
+  })).filter((b) => b.title && b.storagePath);
+
+  if (cleanBeats.length !== beats.length)
+    throw new HttpsError("invalid-argument", "Every beat needs a title and uploaded file.");
+
+  if (cleanBeats.some((b) => !isOwnUuidBeatPath(uid, b.storagePath))) {
+    throw new HttpsError("permission-denied", "Beat files must be uploaded to your UUID campaign folder.");
+  }
+
+  await Promise.all(cleanBeats.map((b) => assertMp3StorageObject(storage, b.storagePath)));
 
   // Atomic: debit pitchCredits + create campaign
   const userRef     = db.doc(`users/${uid}`);
@@ -778,14 +1384,25 @@ exports.submitCampaign = onCall({ region: REGION }, async (request) => {
     });
     tx.set(campaignRef, {
       producer:   producer || {},
-      beats:      beats,
+      beats:      cleanBeats,
       targets:    targets,
       addons:     addonsArr,
+      targetRequestId: targetRequestRef ? targetRequestRef.id : "",
+      targetRequesterUid: targetRequest?.createdByUid || "",
+      targetRequesterRole: targetRequest?.createdByRole || "",
+      targetRequestType: targetRequest?.requestType || "",
+      targetRequestTitle: targetRequest?.title || "",
       creditCost: cost,
       tier,
       status:     "pending_review",
       createdAt:  admin.firestore.FieldValue.serverTimestamp()
     });
+    if (targetRequestRef) {
+      tx.update(targetRequestRef, {
+        submissionCount: admin.firestore.FieldValue.increment(1),
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+    }
   });
 
   console.log(`Campaign ${campaignRef.id} submitted by ${uid} (${tier}) — cost ${cost} credits`);
@@ -803,6 +1420,7 @@ exports.reconcileCredits = onCall(
   { region: REGION, secrets: [STRIPE_SECRET] },
   async (request) => {
     if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
+    await assertCallableRateLimit("reconcileCredits", request);
     const uid  = request.auth.uid;
     const db   = admin.firestore();
     const ref  = db.doc(`users/${uid}`);
@@ -852,18 +1470,40 @@ exports.reconcileCredits = onCall(
 // ====================================================================
 exports.submitLoop = onCall({ region: REGION }, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
+  await assertCallableRateLimit("submitLoop", request);
   const uid = request.auth.uid;
-  const { title, bpm, key, genre, tags, storagePath } = request.data || {};
+  const { title, bpm, key, genre, tags, storagePath, targetRequestId } = request.data || {};
 
   if (!title || typeof title !== "string" || !title.trim())
     throw new HttpsError("invalid-argument", "title is required.");
   if (!storagePath || typeof storagePath !== "string")
     throw new HttpsError("invalid-argument", "storagePath is required.");
+  if (!isOwnLoopPath(uid, storagePath))
+    throw new HttpsError("permission-denied", "Loop files must be uploaded to your loop folder.");
 
   const db       = admin.firestore();
+  const storage  = admin.storage().bucket();
+  await assertMp3StorageObject(storage, storagePath);
   const userSnap = await db.doc(`users/${uid}`).get();
   if (!userSnap.exists) throw new HttpsError("not-found", "User not found.");
   const makerName = userSnap.get("displayName") || "Unknown";
+  const tier = userSnap.get("subscription.tier") || "free";
+  const cleanTargetRequestId = cleanShortString(targetRequestId, 80);
+  let targetRequest = null;
+  let targetRequestRef = null;
+  if (cleanTargetRequestId) {
+    targetRequestRef = db.collection("campaignRequests").doc(cleanTargetRequestId);
+    const targetSnap = await targetRequestRef.get();
+    if (!targetSnap.exists) throw new HttpsError("not-found", "Request not found.");
+    targetRequest = targetSnap.data();
+    if (targetRequest.status !== "open") throw new HttpsError("failed-precondition", "This request is no longer open.");
+    if (!canTierSubmitToRole(tier, targetRequest.createdByRole || "")) {
+      throw new HttpsError("permission-denied", `Your ${tier} plan cannot submit to ${publicRoleLabel(targetRequest.createdByRole)} requests.`);
+    }
+    if (!["loops", "both"].includes(targetRequest.requestType)) {
+      throw new HttpsError("failed-precondition", "This request is for beats. Start a beat campaign instead.");
+    }
+  }
 
   const loopRef = db.collection("loops").doc();
 
@@ -879,11 +1519,23 @@ exports.submitLoop = onCall({ region: REGION }, async (request) => {
     genre:     genre || null,
     tags:      Array.isArray(tags) ? tags.slice(0, 10) : [],
     storagePath,
+    targetRequestId: targetRequestRef ? targetRequestRef.id : "",
+    targetRequesterUid: targetRequest?.createdByUid || "",
+    targetRequesterRole: targetRequest?.createdByRole || "",
+    targetRequestType: targetRequest?.requestType || "",
+    targetRequestTitle: targetRequest?.title || "",
     status:    "live",
     plays:     0,
     downloads: 0,
     createdAt: admin.firestore.FieldValue.serverTimestamp()
   });
+
+  if (targetRequestRef) {
+    await targetRequestRef.update({
+      submissionCount: admin.firestore.FieldValue.increment(1),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+  }
 
   console.log(`Loop ${loopRef.id} submitted by ${uid}`);
   return { ok: true, loopId: loopRef.id };
@@ -897,6 +1549,7 @@ exports.pullLoop = onCall(
   { region: REGION, secrets: [RESEND_API_KEY] },
   async (request) => {
     if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
+    await assertCallableRateLimit("pullLoop", request);
     const uid = request.auth.uid;
     const { loopId } = request.data || {};
     if (!loopId) throw new HttpsError("invalid-argument", "loopId is required.");
@@ -954,24 +1607,14 @@ exports.pullLoop = onCall(
         await resend.emails.send({
           from:    "PluggurBeats <team@pluggurbeat.com>",
           to:      makerEmail,
-          subject: "Your loop was pulled on PluggurBeats!",
+          subject: "Your loop was just pulled",
           html: `
-            <div style="font-family:sans-serif;max-width:600px;margin:0 auto;color:#1a1a1a">
-              <h2 style="color:#C9A24B">Your loop got picked up</h2>
+            <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;color:#111;font-size:15px;line-height:1.6">
               <p>Hi ${loop.makerName || "there"},</p>
-              <p>
-                <strong>${pullerName}</strong> just pulled your loop
-                "<strong>${loop.title}</strong>" from the PluggurBeats pool.
-              </p>
-              <p>
-                A split-claim has been created — if the resulting beat gets placed
-                your contribution will be tracked through the existing paperwork flow.
-              </p>
+              <p><strong>${pullerName}</strong> just pulled your loop "<strong>${loop.title}</strong>" from the pool.</p>
+              <p>A split-claim has been created. If the beat gets placed, your contribution is tracked through the paperwork flow.</p>
               <p>Log in to your dashboard to see your loop activity.</p>
               <p>— The PluggurBeats Team</p>
-              <p style="color:#888;font-size:12px">
-                Powered by <a href="https://pluggurbeat.com" style="color:#C9A24B">PluggurBeats</a>
-              </p>
             </div>`
         });
         console.log(`Loop-pull email sent to ${makerEmail}`);
@@ -990,28 +1633,34 @@ exports.pullLoop = onCall(
 );
 
 // ====================================================================
-// listLiveLoops — verifiedPuller-only: returns all live loops with
-// 2-hour signed playback URLs so the browser can preview before pulling.
+// listLiveLoops — verifiedPuller-only: returns a paginated live-loop metadata
+// page. Preview URLs are intentionally lazy-loaded by getVerifiedPreviewUrl.
 // ====================================================================
 exports.listLiveLoops = onCall({ region: REGION }, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
+  await assertCallableRateLimit("listLiveLoops", request);
   const uid = request.auth.uid;
-  const db      = admin.firestore();
-  const storage = admin.storage().bucket();
+  const db = admin.firestore();
+  const { pageSize = 50, cursor = null } = request.data || {};
+  const limit = Math.min(Math.max(Number(pageSize) || 50, 1), 80);
 
   const pullerSnap = await db.doc(`users/${uid}`).get();
   if (!pullerSnap.get("verifiedPuller")) {
     throw new HttpsError("permission-denied", "Only verified pullers can browse the loop pool.");
   }
 
-  const snap  = await db.collection("loops").where("status", "==", "live").get();
-  const loops = await Promise.all(snap.docs.map(async (d) => {
+  let q = db.collection("loops")
+    .where("status", "==", "live")
+    .orderBy("createdAt", "desc")
+    .limit(limit + 1);
+  if (cursor?.createdAt) {
+    q = q.startAfter(admin.firestore.Timestamp.fromMillis(Number(cursor.createdAt)));
+  }
+
+  const snap = await q.get();
+  const pageDocs = snap.docs.slice(0, limit);
+  const loops = pageDocs.map((d) => {
     const l = d.data();
-    let playUrl = null;
-    try {
-      [playUrl] = await storage.file(l.storagePath)
-        .getSignedUrl({ action: "read", expires: Date.now() + 2 * 60 * 60 * 1000 });
-    } catch (e) { console.warn("Signed URL failed for loop", d.id, e.message); }
     return {
       id:        d.id,
       makerUid:  l.makerUid,
@@ -1022,65 +1671,369 @@ exports.listLiveLoops = onCall({ region: REGION }, async (request) => {
       genre:     l.genre || null,
       tags:      l.tags  || [],
       downloads: l.downloads || 0,
-      createdAt: l.createdAt?.toMillis ? l.createdAt.toMillis() : null,
-      playUrl
+      createdAt: l.createdAt?.toMillis ? l.createdAt.toMillis() : null
     };
-  }));
+  });
 
-  loops.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-  return { loops };
+  const last = pageDocs[pageDocs.length - 1]?.data();
+  return {
+    loops,
+    hasMore: snap.docs.length > limit,
+    nextCursor: last?.createdAt?.toMillis ? { createdAt: last.createdAt.toMillis() } : null
+  };
 });
 
 // ====================================================================
 // listApprovedBeats — verifiedListener or verifiedPuller callable.
-// Returns a flat list of every beat from every pitched campaign,
-// with 2-hour signed playback URLs, for the Verified library.
+// Returns a paginated metadata page of individual verified beat docs. Preview
+// URLs are lazy-loaded only when a verified user taps a beat.
 // ====================================================================
 exports.listApprovedBeats = onCall({ region: REGION }, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
+  await assertCallableRateLimit("listApprovedBeats", request);
   const uid = request.auth.uid;
-  const db      = admin.firestore();
-  const storage = admin.storage().bucket();
+  const db = admin.firestore();
+  const { pageSize = 25, cursor = null, genre = "", tag = "" } = request.data || {};
+  const limit = Math.min(Math.max(Number(pageSize) || 25, 1), 60);
+  const genreFilter = String(genre || "").trim();
+  const tagFilter = normalizeBeatTags([tag])[0] || "";
 
   const userSnap = await db.doc(`users/${uid}`).get();
   const ok = userSnap.get("verifiedListener") === true
           || userSnap.get("verifiedPuller")   === true;
   if (!ok) throw new HttpsError("permission-denied", "Verified access required.");
 
-  const snap  = await db.collectionGroup("campaigns").where("status", "==", "pitched").get();
+  if (!cursor?.pitchedAt) {
+    const weighted = await recentWeightedVerifiedDocs(db, { genreFilter, tagFilter, limit });
+    if (weighted) {
+      return {
+        beats: weighted.docs.map(publicVerifiedBeat),
+        hasMore: weighted.hasMore,
+        nextCursor: weighted.nextCursor
+      };
+    }
+  }
+
+  let indexedQ = db.collection("verifiedBeats");
+  if (genreFilter) indexedQ = indexedQ.where("genre", "==", genreFilter);
+  if (tagFilter) indexedQ = indexedQ.where("tags", "array-contains", tagFilter);
+  indexedQ = indexedQ.orderBy("pitchedAt", "desc").limit(limit + 1);
+  if (cursor?.pitchedAt) {
+    indexedQ = indexedQ.startAfter(admin.firestore.Timestamp.fromMillis(Number(cursor.pitchedAt)));
+  }
+
+  const indexedSnap = await indexedQ.get();
+  if (!indexedSnap.empty) {
+    const pageDocs = indexedSnap.docs.slice(0, limit);
+    const beats = pageDocs.map(publicVerifiedBeat);
+    const last = pageDocs[pageDocs.length - 1]?.data();
+    return {
+      beats,
+      hasMore: indexedSnap.docs.length > limit,
+      nextCursor: last?.pitchedAt?.toMillis ? { pitchedAt: last.pitchedAt.toMillis() } : null
+    };
+  }
+
+  const backfillState = await db.doc("system/verifiedBeatsBackfill").get();
+  if (backfillState.get("completed") === true) {
+    return { beats: [], hasMore: false, nextCursor: null };
+  }
+
+  // Migration fallback: old campaigns keep beat metadata embedded in the
+  // campaign doc. Page campaigns, return that page, and opportunistically
+  // backfill the individual verifiedBeats index for future requests.
+  let q = db.collectionGroup("campaigns")
+    .where("status", "==", "pitched")
+    .orderBy("pitchedAt", "desc")
+    .limit(limit + 1);
+  if (cursor?.pitchedAt) {
+    q = q.startAfter(admin.firestore.Timestamp.fromMillis(Number(cursor.pitchedAt)));
+  }
+
+  const snap = await q.get();
+  const pageDocs = snap.docs.slice(0, limit);
   const beats = [];
 
-  await Promise.all(snap.docs.map(async (d) => {
+  pageDocs.forEach((d) => {
     const c        = d.data();
-    const producer = c.producer || {};
     const ownerUid = d.ref.path.split("/")[1];
-    const pitchedAt = c.pitchedAt?.toMillis ? c.pitchedAt.toMillis() : null;
+    indexVerifiedBeats(db, ownerUid, d.id, c, c.pitchedAt).catch((e) => {
+      console.warn("Verified beat backfill failed", d.ref.path, e.message);
+    });
 
-    await Promise.all((c.beats || []).map(async (b, i) => {
+    (c.beats || []).forEach((b, i) => {
       if (!b.storagePath) return;
-      let playUrl = null;
-      try {
-        [playUrl] = await storage.file(b.storagePath)
-          .getSignedUrl({ action: "read", expires: Date.now() + 2 * 60 * 60 * 1000 });
-      } catch (e) { console.warn("Signed URL failed for beat", b.storagePath, e.message); }
-      beats.push({
-        id:         `${d.id}_${i}`,
-        campaignId: d.id,
-        ownerUid,
-        beatIndex:  i,
-        title:      b.title  || "Untitled",
-        genre:      b.genre  || "",
-        key:        b.key    || "",
-        bpm:        b.bpm    || "",
-        producer:   { name: producer.name || "", instagram: producer.instagram || "" },
-        pitchedAt,
-        playUrl
-      });
-    }));
-  }));
+      if (genreFilter && b.genre !== genreFilter) return;
+      if (tagFilter && !normalizeBeatTags(b.tags).includes(tagFilter)) return;
+      beats.push(publicBeatFromCampaignDoc(d, c, b, i, ownerUid));
+    });
+  });
 
   beats.sort((a, b) => (b.pitchedAt || 0) - (a.pitchedAt || 0));
-  return { beats };
+  const last = pageDocs[pageDocs.length - 1]?.data();
+  return {
+    beats,
+    hasMore: snap.docs.length > limit,
+    nextCursor: last?.pitchedAt?.toMillis ? { pitchedAt: last.pitchedAt.toMillis() } : null
+  };
+});
+
+// ====================================================================
+// createCampaignRequest — verified public-role users can post opportunities.
+// Producers can only request loops; Artists/A&Rs can request beats, loops, or both.
+// Contact info is never stored on request docs.
+// ====================================================================
+exports.createCampaignRequest = onCall({ region: REGION }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
+  await assertCallableRateLimit("createCampaignRequest", request);
+  const uid = request.auth.uid;
+  const db = admin.firestore();
+  const me = await db.doc(`users/${uid}`).get();
+  if (!me.exists) throw new HttpsError("not-found", "Profile not found.");
+  const verifiedRole = String(me.get("verifiedRole") || "");
+  const family = verifiedRoleFamily(verifiedRole);
+  if (!family) throw new HttpsError("permission-denied", "A verified profile role is required to create requests.");
+  if (!(me.get("verifiedListener") === true || me.get("verifiedPuller") === true)) {
+    throw new HttpsError("permission-denied", "Verified access required.");
+  }
+
+  // Daily cap: 5 requests per user per UTC day, tracked in Firestore.
+  const todayKey = new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
+  const dailyRef = db.doc(`users/${uid}/requestDailyCounters/${todayKey}`);
+  const dailySnap = await dailyRef.get();
+  const dailyCount = dailySnap.exists ? (dailySnap.get("count") || 0) : 0;
+  if (dailyCount >= 5) {
+    throw new HttpsError("resource-exhausted", "You can post up to 5 requests per day. Try again tomorrow.");
+  }
+
+  const requestType = cleanShortString(request.data?.requestType, 12);
+  const allowedTypes = family === "producer" ? ["loops"] : ["beats", "loops", "both"];
+  if (!allowedTypes.includes(requestType)) {
+    throw new HttpsError("invalid-argument", family === "producer"
+      ? "Producer roles can only create loop requests."
+      : "Request type must be beats, loops, or both.");
+  }
+
+  const title = cleanShortString(request.data?.title, 90);
+  const brief = cleanShortString(request.data?.brief, 900);
+  if (title.length < 4 || brief.length < 20) {
+    throw new HttpsError("invalid-argument", "Add a clear title and briefing before posting.");
+  }
+  const deadline = cleanShortString(request.data?.deadline, 20);
+  if (deadline && !/^\d{4}-\d{2}-\d{2}$/.test(deadline)) {
+    throw new HttpsError("invalid-argument", "Deadline must use YYYY-MM-DD.");
+  }
+
+  const labelName = isArVerifiedRole(verifiedRole) ? cleanShortString(me.get("labelName"), 80) : "";
+  const doc = {
+    createdByUid: uid,
+    createdByName: cleanShortString(me.get("displayName") || request.auth.token?.name || "Verified user", 80),
+    createdByPhotoURL: cleanShortString(me.get("photoURL"), 500),
+    createdByRole: verifiedRole,
+    labelName,
+    requestType,
+    title,
+    brief,
+    genres: cleanStringList(request.data?.genres, 6, 32),
+    tags: cleanStringList(request.data?.tags, 10, 32).map((t) => t.replace(/^#/, "").toLowerCase()),
+    references: cleanStringList(request.data?.references, 8, 48),
+    deadline,
+    status: "open",
+    visibility: "verified",
+    viewCount: 0,
+    submissionCount: 0,
+    approvedSubmissionCount: 0,
+    emailSentCount: 0,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+  };
+  const ref = await db.collection("campaignRequests").add(doc);
+
+  // Increment daily counter (set with merge so first-of-day creates the doc).
+  await dailyRef.set(
+    { count: admin.firestore.FieldValue.increment(1), updatedAt: admin.firestore.FieldValue.serverTimestamp() },
+    { merge: true }
+  );
+
+  return {
+    ok: true,
+    request: {
+      id: ref.id,
+      createdByUid: uid,
+      createdByName: doc.createdByName,
+      createdByPhotoURL: doc.createdByPhotoURL,
+      createdByRole: verifiedRole,
+      createdByRoleLabel: publicRoleLabel(verifiedRole),
+      labelName,
+      requestType,
+      title,
+      brief,
+      genres: doc.genres,
+      tags: doc.tags,
+      references: doc.references,
+      deadline,
+      status: "open",
+      viewCount: 0,
+      submissionCount: 0,
+      approvedSubmissionCount: 0,
+      emailSentCount: 0,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      isMine: true
+    }
+  };
+});
+
+// ====================================================================
+// listCampaignRequests — verified users see public request feed + own analytics.
+// Public identity is denormalized; requester contact info never leaves users docs.
+// ====================================================================
+exports.listCampaignRequests = onCall({ region: REGION }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
+  await assertCallableRateLimit("listCampaignRequests", request);
+  const uid = request.auth.uid;
+  const db = admin.firestore();
+  const me = await db.doc(`users/${uid}`).get();
+  const isVerified = me.exists && (me.get("verifiedListener") === true || me.get("verifiedPuller") === true);
+  const viewerTier = me.exists ? (me.data()?.subscription?.tier || "free") : "free";
+  const isSubscriber = ["plugg", "pro"].includes(viewerTier);
+  if (!me.exists || (!isVerified && !isSubscriber)) {
+    throw new HttpsError("permission-denied", "Verified or subscriber access required.");
+  }
+  const limit = Math.min(Math.max(Number(request.data?.limit || 40), 1), 80);
+  const snap = await db.collection("campaignRequests")
+    .where("status", "==", "open")
+    .orderBy("createdAt", "desc")
+    .limit(limit)
+    .get();
+  const requests = snap.docs.map((doc) => publicCampaignRequest(doc, uid));
+  const mine = requests.filter((r) => r.isMine);
+  return {
+    requests,
+    analytics: {
+      mineOpen: mine.length,
+      mineViews: mine.reduce((sum, r) => sum + (r.viewCount || 0), 0),
+      mineSubmissions: mine.reduce((sum, r) => sum + (r.submissionCount || 0), 0),
+      mineApproved: mine.reduce((sum, r) => sum + (r.approvedSubmissionCount || 0), 0),
+      mineEmails: mine.reduce((sum, r) => sum + (r.emailSentCount || 0), 0)
+    }
+  };
+});
+
+// ====================================================================
+// recordCampaignRequestView — counts one unique view per viewer on an open
+// request. Deduped via a viewers/{uid} marker; the requester's own views and
+// closed requests never increment the counter.
+// ====================================================================
+exports.recordCampaignRequestView = onCall({ region: REGION }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
+  await assertCallableRateLimit("recordCampaignRequestView", request);
+  const uid = request.auth.uid;
+  const db = admin.firestore();
+  const requestId = cleanShortString(request.data?.requestId, 80);
+  if (!requestId) throw new HttpsError("invalid-argument", "Missing request id.");
+
+  const reqRef = db.collection("campaignRequests").doc(requestId);
+  const viewerRef = reqRef.collection("viewers").doc(uid);
+  return db.runTransaction(async (tx) => {
+    const reqSnap = await tx.get(reqRef);
+    if (!reqSnap.exists || reqSnap.get("status") !== "open") return { ok: false };
+    const current = reqSnap.get("viewCount") || 0;
+    if (reqSnap.get("createdByUid") === uid) return { ok: true, viewCount: current, counted: false };
+    const viewerSnap = await tx.get(viewerRef);
+    if (viewerSnap.exists) return { ok: true, viewCount: current, counted: false };
+    tx.set(viewerRef, { at: admin.firestore.FieldValue.serverTimestamp() });
+    tx.update(reqRef, { viewCount: admin.firestore.FieldValue.increment(1) });
+    return { ok: true, viewCount: current + 1, counted: true };
+  });
+});
+
+// ====================================================================
+// backfillVerifiedBeats — staff-only migration tool. Copies old pitched
+// campaign beat metadata into verifiedBeats docs in small pages. This never
+// renames or moves audio files; it preserves each beat.storagePath exactly.
+// ====================================================================
+exports.backfillVerifiedBeats = onCall({ region: REGION }, async (request) => {
+  assertStaff(request.auth);
+  await assertCallableRateLimit("backfillVerifiedBeats", request);
+  const db = admin.firestore();
+  const { pageSize = 25, cursor = null } = request.data || {};
+  const limit = Math.min(Math.max(Number(pageSize) || 25, 1), 50);
+
+  let q = db.collectionGroup("campaigns")
+    .where("status", "==", "pitched")
+    .orderBy("pitchedAt", "desc")
+    .limit(limit + 1);
+  if (cursor?.pitchedAt) {
+    q = q.startAfter(admin.firestore.Timestamp.fromMillis(Number(cursor.pitchedAt)));
+  }
+
+  const snap = await q.get();
+  const pageDocs = snap.docs.slice(0, limit);
+  let beatCount = 0;
+  for (const d of pageDocs) {
+    const campaign = d.data();
+    const ownerUid = d.ref.path.split("/")[1];
+    beatCount += (campaign.beats || []).filter((b) => b?.storagePath).length;
+    await indexVerifiedBeats(db, ownerUid, d.id, campaign, campaign.pitchedAt);
+  }
+
+  const last = pageDocs[pageDocs.length - 1]?.data();
+  const hasMore = snap.docs.length > limit;
+  if (!hasMore) {
+    await db.doc("system/verifiedBeatsBackfill").set({
+      completed: true,
+      completedAt: admin.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+  }
+  return {
+    ok: true,
+    campaignsProcessed: pageDocs.length,
+    beatsIndexed: beatCount,
+    hasMore,
+    nextCursor: last?.pitchedAt?.toMillis ? { pitchedAt: last.pitchedAt.toMillis() } : null
+  };
+});
+
+// ====================================================================
+// getVerifiedPreviewUrl — returns a short-lived preview URL only after the
+// listener chooses a specific beat/loop. Keeps list payloads tiny.
+// ====================================================================
+exports.getVerifiedPreviewUrl = onCall({ region: REGION }, async (request) => {
+  if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
+  await assertCallableRateLimit("getVerifiedPreviewUrl", request);
+  const uid = request.auth.uid;
+  const db = admin.firestore();
+  const storage = admin.storage().bucket();
+  const me = await db.doc(`users/${uid}`).get();
+  const { kind } = request.data || {};
+
+  if (kind === "beat") {
+    if (!(me.get("verifiedListener") === true || me.get("verifiedPuller") === true)) {
+      throw new HttpsError("permission-denied", "Verified access required.");
+    }
+    const { ownerUid, campaignId, beatIndex, storagePath } = request.data || {};
+    if (!ownerUid || !campaignId || beatIndex == null) throw new HttpsError("invalid-argument", "Beat reference required.");
+    const file = await resolveVerifiedBeatFile(db, ownerUid, campaignId, beatIndex, storagePath);
+    const [url] = await storage.file(file.storagePath).getSignedUrl({ action: "read", expires: Date.now() + 2 * 60 * 60 * 1000 });
+    return { ok: true, url };
+  }
+
+  if (kind === "loop") {
+    if (me.get("verifiedPuller") !== true) {
+      throw new HttpsError("permission-denied", "Only verified pullers can preview loops.");
+    }
+    const { loopId } = request.data || {};
+    if (!loopId) throw new HttpsError("invalid-argument", "loopId required.");
+    const loop = await db.doc(`loops/${loopId}`).get();
+    if (!loop.exists || loop.get("status") !== "live") throw new HttpsError("not-found", "Loop not found.");
+    const storagePath = loop.get("storagePath");
+    if (!storagePath) throw new HttpsError("not-found", "Loop file missing.");
+    const [url] = await storage.file(storagePath).getSignedUrl({ action: "read", expires: Date.now() + 2 * 60 * 60 * 1000 });
+    return { ok: true, url };
+  }
+
+  throw new HttpsError("invalid-argument", "Unknown preview kind.");
 });
 
 // ====================================================================
@@ -1091,6 +2044,7 @@ exports.listApprovedBeats = onCall({ region: REGION }, async (request) => {
 // ====================================================================
 exports.recordLibraryView = onCall({ region: REGION }, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
+  await assertCallableRateLimit("recordLibraryView", request);
   const uid = request.auth.uid;
   const db  = admin.firestore();
   const me  = await db.doc(`users/${uid}`).get();
@@ -1137,27 +2091,86 @@ exports.recordLibraryView = onCall({ region: REGION }, async (request) => {
 // ====================================================================
 exports.downloadLibraryBeat = onCall({ region: REGION }, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
+  await assertCallableRateLimit("downloadLibraryBeat", request);
   const uid = request.auth.uid;
   const db  = admin.firestore();
   const storage = admin.storage().bucket();
   const me  = await db.doc(`users/${uid}`).get();
   if (!(me.get("verifiedListener") === true || me.get("verifiedPuller") === true))
     throw new HttpsError("permission-denied", "Verified access required.");
-  const { ownerUid, campaignId, beatIndex } = request.data || {};
+  const { ownerUid, campaignId, beatIndex, storagePath } = request.data || {};
   if (!ownerUid || !campaignId || beatIndex == null) throw new HttpsError("invalid-argument", "Beat reference required.");
-  const camp = await db.doc(`users/${ownerUid}/campaigns/${campaignId}`).get();
-  if (!camp.exists || camp.get("status") !== "pitched") throw new HttpsError("not-found", "Beat not in library.");
-  const beat = (camp.get("beats") || [])[beatIndex];
-  if (!beat?.storagePath) throw new HttpsError("not-found", "Beat file missing.");
-  const [url] = await storage.file(beat.storagePath).getSignedUrl({ action: "read", expires: Date.now() + 60 * 60 * 1000 });
+  const file = await resolveVerifiedBeatFile(db, ownerUid, campaignId, beatIndex, storagePath);
+  const [url] = await storage.file(file.storagePath).getSignedUrl({ action: "read", expires: Date.now() + 60 * 60 * 1000 });
   const resourceId = `${campaignId}_${beatIndex}`;
   await db.doc(`users/${ownerUid}/libraryActivity/download_beat_${resourceId}_${uid}`).set({
-    kind: "beat", resourceId, title: beat.title || "Beat",
+    kind: "beat", resourceId, title: file.title,
     actorUid: uid, actorName: me.get("displayName") || "A verified user", type: "download",
     count: admin.firestore.FieldValue.increment(1),
     lastAt: admin.firestore.FieldValue.serverTimestamp()
   }, { merge: true });
   return { ok: true, url };
+});
+
+exports.downloadVerifiedBeatFile = onRequest({ region: REGION }, async (req, res) => {
+  setCors(req, res);
+  if (req.method === "OPTIONS") { res.status(204).send(""); return; }
+  if (req.method !== "GET") { res.status(405).send("Method not allowed"); return; }
+
+  try {
+    const rate = await allowHttpRequest("downloadLibraryBeat", req, [String(req.query.ownerUid || ""), String(req.query.campaignId || ""), String(req.query.beatIndex || "")]);
+    if (!rate.allowed) {
+      res.set("Retry-After", String(Math.ceil(rate.retryAfterMs / 1000)));
+      res.status(429).send("Too many requests. Please wait a bit and try again.");
+      return;
+    }
+    const token = String(req.headers.authorization || "").replace(/^Bearer\s+/i, "");
+    if (!token) { res.status(401).send("Missing auth token"); return; }
+    const decoded = await admin.auth().verifyIdToken(token);
+    const uid = decoded.uid;
+    const db = admin.firestore();
+    const me = await db.doc(`users/${uid}`).get();
+    if (!(me.get("verifiedListener") === true || me.get("verifiedPuller") === true)) {
+      res.status(403).send("Verified access required.");
+      return;
+    }
+
+    const ownerUid = String(req.query.ownerUid || "");
+    const campaignId = String(req.query.campaignId || "");
+    const beatIndex = Number(req.query.beatIndex);
+    const requestedStoragePath = String(req.query.storagePath || "");
+    if (!ownerUid || !campaignId || !Number.isInteger(beatIndex)) {
+      res.status(400).send("Beat reference required.");
+      return;
+    }
+
+    const fileInfo = await resolveVerifiedBeatFile(db, ownerUid, campaignId, beatIndex, requestedStoragePath);
+    const file = admin.storage().bucket().file(fileInfo.storagePath);
+    const [meta] = await file.getMetadata();
+    const filename = fileInfo.storagePath.split("/").pop() || `${fileInfo.title || "beat"}.mp3`;
+    const resourceId = `${campaignId}_${beatIndex}`;
+    await db.doc(`users/${ownerUid}/libraryActivity/download_beat_${resourceId}_${uid}`).set({
+      kind: "beat", resourceId, title: fileInfo.title || "Beat",
+      actorUid: uid, actorName: me.get("displayName") || "A verified user", type: "download",
+      count: admin.firestore.FieldValue.increment(1),
+      lastAt: admin.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+
+    res.set("Content-Type", meta.contentType || "audio/mpeg");
+    if (meta.size) res.set("Content-Length", String(meta.size));
+    res.set("Content-Disposition", `attachment; filename="${filename.replace(/"/g, "")}"`);
+    file.createReadStream()
+      .on("error", (e) => {
+        console.error("downloadVerifiedBeatFile stream failed:", e.message);
+        if (!res.headersSent) res.status(500).send("Could not download beat.");
+        else res.end();
+      })
+      .pipe(res);
+  } catch (e) {
+    const code = e instanceof HttpsError && e.code === "permission-denied" ? 403 : 500;
+    console.error("downloadVerifiedBeatFile failed:", e.message);
+    res.status(code).send(e.message || "Could not download beat.");
+  }
 });
 
 // ====================================================================
@@ -1166,6 +2179,7 @@ exports.downloadLibraryBeat = onCall({ region: REGION }, async (request) => {
 // ====================================================================
 exports.setVerifiedListener = onCall({ region: REGION }, async (request) => {
   const staffEmail = assertStaff(request.auth);
+  await assertCallableRateLimit("setVerifiedListener", request);
   const { uid, value } = request.data || {};
   if (!uid || typeof value !== "boolean") {
     throw new HttpsError("invalid-argument", "uid and a boolean value are required.");
@@ -1178,11 +2192,69 @@ exports.setVerifiedListener = onCall({ region: REGION }, async (request) => {
 });
 
 // ====================================================================
+// setVerifiedRole — staff-only: assign public verified identity role.
+// Paid plan remains separate in subscription.tier.
+// ====================================================================
+exports.setVerifiedRole = onCall({ region: REGION }, async (request) => {
+  const staffEmail = assertStaff(request.auth);
+  await assertCallableRateLimit("setVerifiedRole", request);
+  const { uid } = request.data || {};
+  const verifiedRole = String(request.data?.verifiedRole || "").trim();
+  const labelName = String(request.data?.labelName || "").trim().slice(0, 80);
+  if (!uid || !VERIFIED_ROLES.has(verifiedRole)) {
+    throw new HttpsError("invalid-argument", "uid and a valid verified role are required.");
+  }
+  if (labelName && !isArVerifiedRole(verifiedRole)) {
+    throw new HttpsError("invalid-argument", "Label names are only available for A&R roles.");
+  }
+  const ref = admin.firestore().doc(`users/${uid}`);
+  if (!(await ref.get()).exists) throw new HttpsError("not-found", "User not found.");
+  await ref.set({
+    verifiedRole,
+    labelName: isArVerifiedRole(verifiedRole) ? labelName : "",
+    verifiedRoleUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    verifiedRoleUpdatedBy: staffEmail
+  }, { merge: true });
+  console.log(`verifiedRole=${verifiedRole || "none"} for ${uid} by ${staffEmail}`);
+  return { ok: true, uid, verifiedRole, labelName: isArVerifiedRole(verifiedRole) ? labelName : "" };
+});
+
+exports.setStaffRole = onCall({ region: REGION }, async (request) => {
+  const staffEmail = assertStaff(request.auth);
+  await assertCallableRateLimit("setStaffRole", request);
+  const { uid, value } = request.data || {};
+  if (!uid || typeof value !== "boolean") {
+    throw new HttpsError("invalid-argument", "uid and a boolean value are required.");
+  }
+  if (!value && uid === request.auth.uid) {
+    throw new HttpsError("failed-precondition", "You cannot revoke your own staff access.");
+  }
+
+  const user = await admin.auth().getUser(uid);
+  const email = String(user.email || "").toLowerCase();
+  if (!value && STAFF_EMAILS.includes(email)) {
+    throw new HttpsError("failed-precondition", "Owner staff accounts are managed in the server allowlist.");
+  }
+
+  const claims = user.customClaims || {};
+  await admin.auth().setCustomUserClaims(uid, { ...claims, staff: value });
+  await admin.firestore().doc(`users/${uid}`).set({
+    staff: value,
+    staffUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    staffUpdatedBy: staffEmail
+  }, { merge: true });
+
+  console.log(`staff=${value} for ${uid} by ${staffEmail}`);
+  return { ok: true, uid, staff: value };
+});
+
+// ====================================================================
 // adjustCredits — staff-only: add or remove pitch/loop credits.
 // delta is a signed integer (positive = grant, negative = debit).
 // ====================================================================
 exports.adjustCredits = onCall({ region: REGION }, async (request) => {
   const staffEmail = assertStaff(request.auth);
+  await assertCallableRateLimit("adjustCredits", request);
   const { uid, kind, delta } = request.data || {};
   if (!uid || !["pitch","loop"].includes(kind) || typeof delta !== "number" || delta === 0) {
     throw new HttpsError("invalid-argument", "uid, kind (pitch|loop), and a non-zero integer delta are required.");
@@ -1220,6 +2292,7 @@ exports.adjustCredits = onCall({ region: REGION }, async (request) => {
 // ====================================================================
 exports.banUser = onCall({ region: REGION }, async (request) => {
   const staffEmail = assertStaff(request.auth);
+  await assertCallableRateLimit("banUser", request);
   const { uid, banned } = request.data || {};
   if (!uid || typeof banned !== "boolean") {
     throw new HttpsError("invalid-argument", "uid and banned (boolean) are required.");
@@ -1237,6 +2310,7 @@ exports.banUser = onCall({ region: REGION }, async (request) => {
 // ====================================================================
 exports.listLoopClaims = onCall({ region: REGION }, async (request) => {
   assertStaff(request.auth);
+  await assertCallableRateLimit("listLoopClaims", request);
   const db   = admin.firestore();
   const snap = await db.collection("loopClaims").get();
   const claims = snap.docs.map(d => {
@@ -1427,6 +2501,7 @@ async function buildSplitSheetPdf({ songTitle, artist, dateCreated, writers }) {
 
 exports.generateSplitSheet = onCall({ region: REGION, secrets: DS_SECRETS }, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
+  await assertCallableRateLimit("generateSplitSheet", request);
   const uid = request.auth.uid;
   const db  = admin.firestore();
   const { campaignId, beatIndex, song, writers } = request.data || {};
@@ -1495,6 +2570,7 @@ exports.generateSplitSheet = onCall({ region: REGION, secrets: DS_SECRETS }, asy
 
 exports.refreshSplitSheetStatus = onCall({ region: REGION, secrets: DS_SECRETS }, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
+  await assertCallableRateLimit("refreshSplitSheetStatus", request);
   const uid = request.auth.uid;
   const db  = admin.firestore();
   const { sheetId } = request.data || {};
