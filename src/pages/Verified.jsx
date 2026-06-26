@@ -9,7 +9,7 @@ import { useLiveCollection, useLiveDoc, call } from "../lib/live.js";
 import { avatarInitial, resolveAvatarUrl } from "../lib/avatar.js";
 import { canPlanSubmitToRole, isArRole, verifiedRoleLabel, verifiedRoleMeta } from "../lib/roles.js";
 import {
-  ArrowLeft, CalendarDays, Disc3, Filter, Library,
+  ArrowLeft, CalendarDays, ChevronDown, Disc3, Filter, Library,
   ListMusic, LogOut, Menu, MessageSquarePlus, Music2, Pause, Play, RefreshCw, Search, Send, Share2, ShieldCheck, Tag, X
 } from "lucide-react";
 import "./Verified.css";
@@ -36,7 +36,7 @@ const LOOP_PAGE_SIZE = 50;
 const FN_BASE = "https://us-central1-pluggurbeats.cloudfunctions.net";
 const REQUEST_GENRES = ["Trap", "Drill", "R&B", "Pop", "Afrobeats", "Hip-Hop", "Reggaeton", "Other"];
 
-const buttonBase = "inline-flex items-center justify-center gap-2 rounded-full text-sm font-semibold transition active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50";
+const buttonBase = "inline-flex items-center justify-center gap-2 rounded-full text-sm font-semibold transition-[background,border-color,color,opacity,transform] duration-140 ease-expo active:scale-[0.96] disabled:pointer-events-none disabled:opacity-50";
 const GoldBtn = ({ className = "", children, ...p }) => (
   <button className={`${buttonBase} bg-gold px-5 py-2.5 text-[#1a1405] hover:bg-gold-deep ${className}`} {...p}>{children}</button>
 );
@@ -200,6 +200,7 @@ export default function Verified() {
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [selectedId, setSelectedId] = useState("");
   const [playerItem, setPlayerItem] = useState(null);
+  const [playerClosing, setPlayerClosing] = useState(false);
   const [player, setPlayer] = useState({ id: "", kind: "", src: "", playing: false, current: 0, duration: 0, loading: false });
   const [toast, setToast] = useState("");
   const [requestDraft, setRequestDraft] = useState({
@@ -693,20 +694,20 @@ export default function Verified() {
               <div className="truncate font-mono text-[10px] uppercase tracking-[0.14em] text-bone-dim">{tab === "requests" ? `${campaignRequests.length} open` : `${filteredItems.length} visible · ${activeItems.length}${canFetchMore ? "+" : ""} loaded`}</div>
             </div>
             <button
-              className="hidden items-center gap-2 rounded-full border border-line bg-ink px-3 py-1.5 text-xs font-semibold text-bone-dim transition hover:border-strong hover:text-bone sm:flex"
+              className="hidden items-center gap-2 rounded-full border border-line bg-ink px-3 py-1.5 text-xs font-semibold text-bone-dim transition-colors duration-140 ease-expo active:scale-[0.95] hover:border-strong hover:text-bone sm:flex"
               onClick={() => activeQuery.refetch()}
             >
               <RefreshCw size={13} /> Refresh
             </button>
             <button
-              className="hidden items-center gap-2 rounded-full border border-gold/35 bg-gold/10 px-3 py-1.5 text-xs font-semibold text-gold transition hover:border-gold/60 hover:bg-gold/15 sm:flex"
+              className="hidden items-center gap-2 rounded-full border border-gold/35 bg-gold/10 px-3 py-1.5 text-xs font-semibold text-gold transition-colors duration-140 ease-expo active:scale-[0.95] hover:border-gold/60 hover:bg-gold/15 sm:flex"
               onClick={() => navigate("/dashboard")}
             >
               <ArrowLeft size={13} /> Dashboard
             </button>
             {isStaff && (
               <button
-                className="hidden items-center gap-2 rounded-full border border-line bg-ink px-3 py-1.5 text-xs font-semibold text-bone-dim transition hover:border-strong hover:text-bone sm:flex"
+                className="hidden items-center gap-2 rounded-full border border-line bg-ink px-3 py-1.5 text-xs font-semibold text-bone-dim transition-colors duration-140 ease-expo active:scale-[0.95] hover:border-strong hover:text-bone sm:flex"
                 onClick={() => navigate("/staff")}
               >
                 <ShieldCheck size={13} /> Staff
@@ -765,13 +766,11 @@ export default function Verified() {
                 />
 
                 <section className="overflow-hidden rounded-xl border border-line bg-ink-2/55">
-                  <div className="hidden grid-cols-[44px_minmax(300px,1.7fr)_minmax(130px,.7fr)_minmax(150px,.7fr)_minmax(120px,.55fr)_86px] border-b border-line px-4 py-2 font-mono text-[10px] uppercase tracking-[0.14em] text-bone-dim lg:grid">
-                    <div>#</div>
-                    <div>Title</div>
-                    <div>{tab === "beats" ? "Producer" : "Maker"}</div>
-                    <div>Tags</div>
-                    <div>Info</div>
-                    <div className="text-right">Action</div>
+                  <div className="hidden border-b border-line px-4 py-2.5 font-mono text-[10px] uppercase tracking-[0.14em] text-bone-dim lg:flex lg:items-center lg:gap-4">
+                    <div className="w-6 shrink-0 text-center">#</div>
+                    <div className="w-14 shrink-0" />
+                    <div className="flex-1">Title &amp; Info</div>
+                    <div className="w-9 shrink-0" />
                   </div>
 
                   {isLoading && <LoadingRows />}
@@ -824,17 +823,19 @@ export default function Verified() {
         <BottomPlayer
           item={playerItem}
           player={player}
+          closing={playerClosing}
           onToggle={() => togglePlayback(playerItem, playerItem.kind || tab)}
           onSeek={(pct) => seekPlayback(playerItem, pct)}
           onExport={(btn) => playerItem.kind === "loops" ? doPull(playerItem, btn) : doDownloadBeat(playerItem, btn)}
           onClose={() => {
             audioRef.current?.pause();
-            setPlayerItem(null);
+            setPlayerClosing(true);
+            setTimeout(() => { setPlayerItem(null); setPlayerClosing(false); }, 260);
           }}
         />
       )}
 
-      <div className={`pointer-events-none fixed bottom-24 left-1/2 z-[60] -translate-x-1/2 rounded-full border border-strong bg-ink-3 px-5 py-3 text-sm font-medium text-bone shadow-card transition-all lg:bottom-6 ${toast ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"}`}>
+      <div className={`pointer-events-none fixed bottom-24 left-1/2 z-[60] -translate-x-1/2 rounded-full border border-strong bg-ink-3 px-5 py-3 text-sm font-medium text-bone shadow-card transition-[opacity,transform] duration-260 ease-expo lg:bottom-6 ${toast ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"}`}>
         {toast}
       </div>
 
@@ -842,30 +843,30 @@ export default function Verified() {
         className="fixed inset-x-0 bottom-0 z-50 flex border-t border-line bg-ink-2/95 backdrop-blur-xl lg:hidden"
         style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
       >
-        <button onClick={() => switchTab("requests")} className={`flex flex-1 flex-col items-center justify-center gap-1 pt-2 pb-1.5 transition active:text-bone ${tab === "requests" ? "text-gold" : "text-bone-dim"}`}>
-          <span className={`flex h-7 w-12 items-center justify-center rounded-full transition ${tab === "requests" ? "bg-gold/12" : ""}`}><Send size={19} strokeWidth={tab === "requests" ? 2.4 : 1.8} /></span>
+        <button onClick={() => switchTab("requests")} className={`flex flex-1 flex-col items-center justify-center gap-1 pt-2 pb-1.5 transition-colors duration-140 ease-expo active:scale-[0.94] ${tab === "requests" ? "text-gold" : "text-bone-dim"}`}>
+          <span className={`flex h-7 w-12 items-center justify-center rounded-full transition-colors duration-140 ease-expo ${tab === "requests" ? "bg-gold/12" : ""}`}><Send size={19} strokeWidth={tab === "requests" ? 2.4 : 1.8} /></span>
           <span className="text-[9px] font-medium leading-none tracking-tight">Requests</span>
         </button>
-        <button onClick={() => switchTab("beats")} className={`flex flex-1 flex-col items-center justify-center gap-1 pt-2 pb-1.5 transition active:text-bone ${tab === "beats" ? "text-gold" : "text-bone-dim"}`}>
-          <span className={`flex h-7 w-12 items-center justify-center rounded-full transition ${tab === "beats" ? "bg-gold/12" : ""}`}><Music2 size={19} strokeWidth={tab === "beats" ? 2.4 : 1.8} /></span>
+        <button onClick={() => switchTab("beats")} className={`flex flex-1 flex-col items-center justify-center gap-1 pt-2 pb-1.5 transition-colors duration-140 ease-expo active:scale-[0.94] ${tab === "beats" ? "text-gold" : "text-bone-dim"}`}>
+          <span className={`flex h-7 w-12 items-center justify-center rounded-full transition-colors duration-140 ease-expo ${tab === "beats" ? "bg-gold/12" : ""}`}><Music2 size={19} strokeWidth={tab === "beats" ? 2.4 : 1.8} /></span>
           <span className="text-[9px] font-medium leading-none tracking-tight">Beats</span>
         </button>
         {isPuller && (
-          <button onClick={() => switchTab("loops")} className={`flex flex-1 flex-col items-center justify-center gap-1 pt-2 pb-1.5 transition active:text-bone ${tab === "loops" ? "text-gold" : "text-bone-dim"}`}>
-            <span className={`flex h-7 w-12 items-center justify-center rounded-full transition ${tab === "loops" ? "bg-gold/12" : ""}`}><Disc3 size={19} strokeWidth={tab === "loops" ? 2.4 : 1.8} /></span>
+          <button onClick={() => switchTab("loops")} className={`flex flex-1 flex-col items-center justify-center gap-1 pt-2 pb-1.5 transition-colors duration-140 ease-expo active:scale-[0.94] ${tab === "loops" ? "text-gold" : "text-bone-dim"}`}>
+            <span className={`flex h-7 w-12 items-center justify-center rounded-full transition-colors duration-140 ease-expo ${tab === "loops" ? "bg-gold/12" : ""}`}><Disc3 size={19} strokeWidth={tab === "loops" ? 2.4 : 1.8} /></span>
             <span className="text-[9px] font-medium leading-none tracking-tight">Loops</span>
           </button>
         )}
-        <button onClick={() => setSidebarOpen(true)} className="flex flex-1 flex-col items-center justify-center gap-1 pt-2 pb-1.5 text-bone-dim transition active:text-bone">
+        <button onClick={() => setSidebarOpen(true)} className="flex flex-1 flex-col items-center justify-center gap-1 pt-2 pb-1.5 text-bone-dim transition-colors duration-140 ease-expo active:scale-[0.94] active:text-bone">
           <span className="flex h-7 w-12 items-center justify-center rounded-full"><Filter size={19} /></span>
           <span className="text-[9px] font-medium leading-none tracking-tight">Filters</span>
         </button>
-        <button onClick={() => navigate("/dashboard")} className="flex flex-1 flex-col items-center justify-center gap-1 pt-2 pb-1.5 text-bone-dim transition active:text-bone">
+        <button onClick={() => navigate("/dashboard")} className="flex flex-1 flex-col items-center justify-center gap-1 pt-2 pb-1.5 text-bone-dim transition-colors duration-140 ease-expo active:scale-[0.94] active:text-bone">
           <span className="flex h-7 w-12 items-center justify-center rounded-full"><ArrowLeft size={19} /></span>
           <span className="text-[9px] font-medium leading-none tracking-tight">Studio</span>
         </button>
         {isStaff && (
-          <button onClick={() => navigate("/staff")} className="flex flex-1 flex-col items-center justify-center gap-1 pt-2 pb-1.5 text-bone-dim transition active:text-bone">
+          <button onClick={() => navigate("/staff")} className="flex flex-1 flex-col items-center justify-center gap-1 pt-2 pb-1.5 text-bone-dim transition-colors duration-140 ease-expo active:scale-[0.94] active:text-bone">
             <span className="flex h-7 w-12 items-center justify-center rounded-full"><ShieldCheck size={19} /></span>
             <span className="text-[9px] font-medium leading-none tracking-tight">Staff</span>
           </button>
@@ -906,7 +907,7 @@ function LibrarySidebar({ open, tab, isPuller, beats, loops, genres, tags, genre
         <SidebarSection title="Tags">
           <div className="flex flex-wrap gap-1.5 px-1">
             {tags.slice(0, 24).map((t) => (
-              <button key={t} onClick={() => setTag(tag === t ? "" : t)} className={`rounded-full border px-2 py-1 font-mono text-[10px] transition ${tag === t ? "border-gold bg-gold/12 text-gold" : "border-line bg-ink text-bone-dim hover:border-strong hover:text-bone"}`}>#{t}</button>
+              <button key={t} onClick={() => setTag(tag === t ? "" : t)} className={`rounded-full border px-2 py-1 font-mono text-[10px] transition-colors duration-140 ease-expo active:scale-[0.94] ${tag === t ? "border-gold bg-gold/12 text-gold" : "border-line bg-ink text-bone-dim hover:border-strong hover:text-bone"}`}>#{t}</button>
             ))}
           </div>
         </SidebarSection>
@@ -1122,7 +1123,7 @@ function SidebarSection({ title, children }) {
 
 function SidebarButton({ active, icon, swatch, label, count, onClick }) {
   return (
-    <button onClick={onClick} className={`group flex min-h-[38px] items-center gap-3 rounded-lg px-2.5 py-2 text-left text-sm font-semibold transition ${active ? "bg-white/[0.075] text-bone" : "text-bone-dim hover:bg-white/5 hover:text-bone"}`}>
+    <button onClick={onClick} className={`group flex min-h-[38px] items-center gap-3 rounded-lg px-2.5 py-2 text-left text-sm font-semibold transition-colors duration-140 ease-expo active:scale-[0.97] ${active ? "bg-white/[0.075] text-bone" : "text-bone-dim hover:bg-white/5 hover:text-bone"}`}>
       {swatch ? <span className="h-5 w-5 rounded-md shadow-inner" style={{ background: swatch }} /> : <span className={`grid h-5 w-5 place-items-center rounded-md ${active ? "bg-gold/12 text-gold" : "bg-white/5 text-bone-dim group-hover:text-bone"}`}>{icon}</span>}
       <span className="min-w-0 flex-1 truncate">{label}</span>
       {typeof count === "number" && <span className="font-mono text-[10px] text-bone-dim">{count}</span>}
@@ -1190,63 +1191,105 @@ function Toolbar({ tab, search, setSearch, genre, setGenre, tag, setTag, sort, s
 }
 
 function SelectControl({ icon, value, onChange, options }) {
+  const label = options.find(([v]) => v === value)?.[1] ?? options[0]?.[1];
   return (
-    <label className="flex h-10 items-center gap-2 rounded-lg border border-strong bg-ink-2 px-2 text-bone-dim">
-      {icon}
-      <select className="h-full bg-transparent pr-1 text-sm font-medium text-bone outline-none" value={value} onChange={(e) => onChange(e.target.value)}>
-        {options.map(([v, label]) => <option key={v} value={v}>{label}</option>)}
+    <div className="relative">
+      <div className="pointer-events-none flex h-8 items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.05] px-2.5 text-bone-dim">
+        <span className="text-bone-dim/60">{icon}</span>
+        <span className="text-xs font-medium text-bone">{label}</span>
+        <ChevronDown size={11} className="text-bone-dim/50" />
+      </div>
+      <select
+        className="absolute inset-0 h-full w-full cursor-pointer appearance-none opacity-0"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      >
+        {options.map(([v, lbl]) => <option key={v} value={v}>{lbl}</option>)}
       </select>
-    </label>
+    </div>
   );
 }
 
 function LibraryRow({ item, index, tab, selected, player, onSelect, onDownload, onPull }) {
-  const chips = [item.genre, item.key, item.bpm && `${item.bpm} BPM`].filter(Boolean);
   const tags = Array.isArray(item.tags) ? item.tags.map(normalizeTag).filter(Boolean).slice(0, 3) : [];
   const handle = itemHandle(item, tab);
   const date = itemDate(item.pitchedAt || item.createdAt);
   const isActive = player.id === item.id;
+  const genreGrad = accentFor(item.genre);
+  const genreHex = genreGrad.match(/#[a-fA-F0-9]{6}/)?.[0] || null;
 
   return (
     <div
-      className={`grid cursor-pointer gap-3 px-4 py-3 transition active:scale-[0.997] hover:bg-white/[0.03] lg:grid-cols-[44px_minmax(300px,1.7fr)_minmax(130px,.7fr)_minmax(150px,.7fr)_minmax(120px,.55fr)_86px] lg:items-center ${selected || isActive ? "bg-gold/[0.045]" : ""}`}
+      className={`group relative flex cursor-pointer items-center gap-4 px-4 py-3.5 transition-[background,transform] duration-140 ease-expo active:scale-[0.98] ${selected || isActive ? "bg-gold/[0.05]" : "hover:bg-white/[0.028]"}`}
       onClick={onSelect}
     >
-      <div className="hidden font-mono text-[12px] text-bone-dim lg:block">{index + 1}</div>
-      <div className="flex min-w-0 items-center gap-3">
-        <ArtTile genre={item.genre} title={item.title} />
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <span className="truncate text-sm font-semibold text-bone" title={item.title}>{item.title || "Untitled"}</span>
-            {isActive && <span className="rounded-full bg-gold/12 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-gold">{player.playing ? "playing" : "selected"}</span>}
-          </div>
-          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] text-bone-dim">
-            <span className="truncate">{handle}</span>
-            {date && <><span className="hidden sm:inline">·</span><span>{date}</span></>}
-          </div>
+      {(selected || isActive) && (
+        <div className="absolute left-0 top-3 bottom-3 w-0.5 rounded-r-full bg-gold" />
+      )}
+
+      <div className="hidden w-6 shrink-0 text-center font-mono text-[11px] text-bone-dim lg:block">{index + 1}</div>
+
+      <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl" style={{ background: genreGrad }}>
+        <span className="absolute inset-0 flex select-none items-center justify-center font-display text-3xl font-black text-white opacity-[0.12]">
+          {(item.genre || item.title || "T")[0]}
+        </span>
+        <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-black/55 opacity-0 transition-opacity duration-140 ease-out group-hover:opacity-100">
+          <Play size={18} fill="white" className="ml-0.5 text-white" />
         </div>
       </div>
-      <div className="hidden truncate text-[13px] text-bone-dim lg:block">{handle}</div>
-      <div className="flex flex-wrap gap-1.5">
-        {tab === "beats" && tags.length > 0 ? tags.map((t) => (
-          <span key={t} className="rounded-full border border-gold/25 bg-gold/[0.07] px-2 py-0.5 font-mono text-[10px] text-gold">#{t}</span>
-        )) : <span className="hidden text-[12px] text-bone-dim lg:inline">—</span>}
+
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <span className="truncate text-[14px] font-semibold text-bone leading-tight" title={item.title}>{item.title || "Untitled"}</span>
+          {isActive && (
+            <span className="shrink-0 rounded-full bg-gold/15 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-gold">
+              {player.playing ? "playing" : "selected"}
+            </span>
+          )}
+        </div>
+        <div className="mt-0.5 flex items-center gap-2">
+          <span className="truncate font-mono text-[11px] text-bone-dim">{handle}</span>
+          {date && <span className="shrink-0 font-mono text-[11px] text-bone-dim/50">{date}</span>}
+        </div>
+        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+          {item.bpm && (
+            <span className="rounded-full border border-white/[0.08] bg-white/[0.05] px-2 py-0.5 font-mono text-[10px] text-bone-dim">
+              {item.bpm} BPM
+            </span>
+          )}
+          {item.key && (
+            <span className="rounded-full border border-white/[0.08] bg-white/[0.05] px-2 py-0.5 font-mono text-[10px] text-bone-dim">
+              {item.key}
+            </span>
+          )}
+          {item.genre && (
+            <span
+              className="rounded-full px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide"
+              style={{
+                background: genreHex ? `${genreHex}1a` : "rgba(255,255,255,0.06)",
+                color: genreHex || "rgba(245,243,242,0.55)",
+                border: `1px solid ${genreHex ? `${genreHex}38` : "rgba(255,255,255,0.1)"}`,
+              }}
+            >
+              {item.genre}
+            </span>
+          )}
+          {tags.map((t) => (
+            <span key={t} className="rounded-full border border-gold/22 bg-gold/[0.07] px-2 py-0.5 font-mono text-[10px] text-gold">
+              #{t}
+            </span>
+          ))}
+        </div>
       </div>
-      <div className="flex flex-wrap gap-1.5">
-        {chips.map((c) => <span key={c} className="rounded-full border border-line bg-ink-3 px-2 py-0.5 font-mono text-[10px] text-bone-dim">{c}</span>)}
-      </div>
-      <div className="flex justify-end" onClick={(e) => e.stopPropagation()}>
-        {tab === "beats" ? (
-          <button className="flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-line bg-ink px-3 text-bone-dim transition active:scale-[0.98] hover:border-strong hover:text-bone sm:w-auto" onClick={(e) => onDownload(item, e.currentTarget)} title="Export audio">
-            <Share2 size={15} />
-            <span className="text-sm font-semibold sm:hidden">Export</span>
-          </button>
-        ) : (
-          <button className="flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-line bg-ink px-3 text-bone-dim transition active:scale-[0.98] hover:border-strong hover:text-bone sm:w-auto" onClick={(e) => onPull(item, e.currentTarget)} title="Export loop">
-            <Share2 size={15} />
-            <span className="text-sm font-semibold sm:hidden">Export loop</span>
-          </button>
-        )}
+
+      <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
+        <button
+          className="flex h-9 w-9 items-center justify-center rounded-full border border-transparent text-bone-dim transition duration-150 hover:border-white/10 hover:bg-white/[0.07] hover:text-bone active:scale-[0.92]"
+          onClick={(e) => tab === "beats" ? onDownload(item, e.currentTarget) : onPull(item, e.currentTarget)}
+          title={tab === "beats" ? "Export audio" : "Export loop"}
+        >
+          <Share2 size={15} />
+        </button>
       </div>
     </div>
   );
@@ -1290,36 +1333,74 @@ function TrackPreview({ item, isActive, playing, loading, progress, current, dur
   );
 }
 
-function BottomPlayer({ item, player, onToggle, onSeek, onExport, onClose }) {
+function BottomPlayer({ item, player, closing, onToggle, onSeek, onExport, onClose }) {
   const playing = player.id === item.id && player.playing;
   const loading = player.id === item.id && player.loading;
-  const progress = player.id === item.id && player.duration ? Math.min(100, Math.max(0, player.current / player.duration * 100)) : 0;
+  const progress = player.id === item.id && player.duration
+    ? Math.min(100, Math.max(0, player.current / player.duration * 100))
+    : 0;
+  const current = player.id === item.id ? player.current : 0;
+  const duration = player.id === item.id ? player.duration : 0;
   const handle = itemHandle(item, item.kind || "beats");
+  const genreGrad = accentFor(item.genre);
+  const bars = useMemo(() => waveformBars(item.id || item.title || "track"), [item.id, item.title]);
+
   return (
-    <div className="vf-now-playing" style={{ "--vf-progress": `${progress}%` }}>
-      <div className="vf-now-art" style={{ background: accentFor(item.genre) }}>
+    <div
+      className={`vf-now-playing${closing ? " is-closing" : ""}`}
+      style={{ "--vf-progress": `${progress}%`, "--genre-grad": genreGrad }}
+    >
+      <div className="vf-now-accent-line" />
+
+      <div className="vf-now-art" style={{ background: genreGrad }}>
         <span>{(item.genre || item.title || "P")[0]}</span>
       </div>
+
       <div className="vf-now-info">
         <div className="vf-now-title">{item.title || "Untitled"}</div>
-        <div className="vf-now-sub">{handle}</div>
+        <div className="vf-now-sub">
+          {handle}
+          {item.genre && <span className="vf-now-genre-chip">{item.genre}</span>}
+        </div>
       </div>
-      <TrackPreview
-        item={item}
-        isActive
-        playing={playing}
-        loading={loading}
-        progress={progress}
-        current={player.id === item.id ? player.current : 0}
-        duration={player.id === item.id ? player.duration : 0}
-        onToggle={onToggle}
-        onSeek={onSeek}
-      />
+
+      <button
+        className={`vf-now-play${playing ? " is-playing" : ""}${loading ? " is-loading" : ""}`}
+        onClick={onToggle}
+        title={playing ? "Pause" : "Play preview"}
+      >
+        <span className="vf-now-play-ring" />
+        {playing
+          ? <Pause size={16} fill="currentColor" />
+          : <Play size={16} fill="currentColor" style={{ marginLeft: "2px" }} />}
+      </button>
+
+      <div className={`vf-now-scrub-zone${loading ? " loading" : ""}`}>
+        <div className="vf-now-wave" aria-hidden="true">
+          {bars.map((h, i) => <i key={i} style={{ height: `${h}%` }} />)}
+          <span className="vf-now-wave-played">
+            {bars.map((h, i) => <i key={i} style={{ height: `${h}%` }} />)}
+          </span>
+        </div>
+        <input
+          className="vf-now-scrub-input"
+          type="range" min="0" max="100" step="0.1"
+          value={duration ? progress : 0}
+          disabled={!duration}
+          aria-label="Seek audio"
+          onChange={(e) => onSeek?.(e.target.value)}
+        />
+        <div className="vf-now-timestamps">
+          <span>{fmtClock(current)}</span>
+          <span>{duration ? fmtClock(duration) : "--:--"}</span>
+        </div>
+      </div>
+
       <button className="vf-now-action" onClick={(e) => onExport(e.currentTarget)} title="Export audio">
-        <Share2 size={18} />
+        <Share2 size={16} />
       </button>
       <button className="vf-now-close" onClick={onClose} title="Close player">
-        <X size={16} />
+        <X size={15} />
       </button>
     </div>
   );
@@ -1343,13 +1424,19 @@ function LoadingRows() {
   return (
     <div className="divide-y divide-line">
       {Array.from({ length: 12 }).map((_, i) => (
-        <div key={i} className="grid gap-3 px-4 py-3 lg:grid-cols-[44px_minmax(300px,1.7fr)_minmax(130px,.7fr)_minmax(150px,.7fr)_minmax(120px,.55fr)_86px] lg:items-center">
-          <Skeleton className="hidden h-4 lg:block" />
-          <div className="flex items-center gap-3"><Skeleton className="h-11 w-11" /><div className="flex-1"><Skeleton className="h-4 w-2/3" /><Skeleton className="mt-2 h-3 w-1/2" /></div></div>
-          <Skeleton className="hidden h-4 lg:block" />
-          <Skeleton className="hidden h-4 lg:block" />
-          <Skeleton className="hidden h-4 lg:block" />
-          <Skeleton className="h-8" />
+        <div key={i} className="flex items-center gap-4 px-4 py-3.5">
+          <Skeleton className="hidden h-4 w-6 lg:block" />
+          <Skeleton className="h-14 w-14 shrink-0 rounded-xl" />
+          <div className="min-w-0 flex-1">
+            <Skeleton className="h-4 w-2/5" />
+            <Skeleton className="mt-1.5 h-3 w-1/4" />
+            <div className="mt-2 flex gap-1.5">
+              <Skeleton className="h-5 w-16 rounded-full" />
+              <Skeleton className="h-5 w-14 rounded-full" />
+              <Skeleton className="h-5 w-12 rounded-full" />
+            </div>
+          </div>
+          <Skeleton className="h-9 w-9 shrink-0 rounded-full" />
         </div>
       ))}
     </div>

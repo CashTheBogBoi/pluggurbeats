@@ -34,6 +34,14 @@ export default {
       },
       animation: {
         "fade-up": "fade-up .3s ease both"
+      },
+      transitionTimingFunction: {
+        expo: "cubic-bezier(0.23, 1, 0.32, 1)",
+      },
+      transitionDuration: {
+        130: "130ms",
+        140: "140ms",
+        260: "260ms",
       }
     }
   },
