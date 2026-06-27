@@ -89,12 +89,7 @@ service cloud.firestore {
     // contact info lives in users docs and never lands here). All writes and
     // counter updates stay Cloud Functions only.
     match /campaignRequests/{requestId} {
-      allow read: if request.auth != null
-        && (
-          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.verifiedListener == true
-          || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.verifiedPuller == true
-          || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.subscription.tier in ['plugg', 'pro']
-        );
+      allow read: if request.auth != null;
       allow write: if false;
 
       // View dedupe markers stay Cloud Functions only.

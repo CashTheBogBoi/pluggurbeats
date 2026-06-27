@@ -437,118 +437,61 @@ function Overview({ name, campaigns, tier, pitch, go, onPickRequest, uid }) {
         <Stat value={downs || 0} label="Beat downloads" accent="text-ok" />
       </div>
 
-      {tier === "pro" ? (
-        <>
-          {/* Pro: requests left | recent campaigns right, same height */}
-          <div className="mt-4 grid gap-3 lg:mt-6 lg:grid-cols-2 lg:gap-4">
-            <RequestForum onPick={onPickRequest} uid={uid} />
+      {/* Requests + Recent campaigns — visible to all tiers */}
+      <div className="mt-4 grid gap-3 lg:mt-6 lg:grid-cols-2 lg:gap-4">
+        <RequestForum onPick={onPickRequest} uid={uid} />
 
-            <Card className="p-4 lg:p-5">
-              <div className="mb-3 flex items-center justify-between lg:mb-4">
-                <h3 className="font-display text-lg">Recent campaigns</h3>
-                <button onClick={() => go("analytics")} className="flex items-center gap-1 text-[13px] text-gold hover:underline">View all <ArrowRight size={13} /></button>
-              </div>
-              {recent.length === 0 ? (
-                <div className="flex flex-col items-center gap-3 py-10 text-center">
-                  <span className="grid h-12 w-12 place-items-center rounded-2xl bg-white/5 text-bone-dim"><Music2 size={22} /></span>
-                  <p className="text-sm text-bone-dim">No campaigns yet. Load your beats and pick your lanes.</p>
-                  <GoldBtn onClick={() => go("submit")}><Plus size={16} /> Start a campaign</GoldBtn>
-                </div>
-              ) : (
-                <div className="flex flex-col divide-y divide-line">
-                  {recent.map((c) => {
-                    const title = (c.beats || []).map((b) => b.title).filter(Boolean).join(", ") || "Campaign";
-                    return (
-                      <div key={c.id} className="flex items-center gap-3 py-3">
-                        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-white/5 text-bone-dim"><Music2 size={16} /></span>
-                        <div className="min-w-0 flex-1">
-                          <div className="truncate text-sm font-medium">{title}</div>
-                          <div className="truncate text-[12px] text-bone-dim">{(c.beats || []).length} beat{(c.beats || []).length !== 1 ? "s" : ""} · {(c.targets || []).length} lane{(c.targets || []).length !== 1 ? "s" : ""}</div>
-                        </div>
-                        <StatusBadge status={c.status} />
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </Card>
+        <Card className="p-4 lg:p-5">
+          <div className="mb-3 flex items-center justify-between lg:mb-4">
+            <h3 className="font-display text-lg">Recent campaigns</h3>
+            <button onClick={() => go("analytics")} className="flex items-center gap-1 text-[13px] text-gold hover:underline">View all <ArrowRight size={13} /></button>
           </div>
-
-          {/* Quick actions — full width below */}
-          <Card className="mt-3 p-4 lg:mt-4 lg:p-5">
-            <h3 className="mb-3 font-display text-lg lg:mb-4">Quick actions</h3>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              {[
-                { label: "Start a campaign", desc: "Beats → lanes → pitch", Icon: Rocket, v: "submit" },
-                { label: "Check analytics", desc: "Opens & downloads", Icon: BarChart3, v: "analytics" },
-                { label: "Drop a loop", desc: "Earn from the pool", Icon: Disc3, v: "loops" },
-                { label: "File paperwork", desc: "Split sheets", Icon: FileText, v: "paperwork" }
-              ].map(({ label, desc, Icon, v }) => (
-                <button key={v} onClick={() => go(v)} className="group flex items-center gap-3 rounded-xl border border-line bg-ink p-3 text-left transition hover:border-strong hover:bg-white/[0.03] active:scale-[0.98]">
-                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-white/5 text-gold transition group-hover:bg-gold/15"><Icon size={17} /></span>
-                  <span className="flex-1">
-                    <span className="block text-sm font-medium text-bone">{label}</span>
-                    <span className="block text-[12px] text-bone-dim">{desc}</span>
-                  </span>
-                </button>
-              ))}
+          {recent.length === 0 ? (
+            <div className="flex flex-col items-center gap-3 py-10 text-center">
+              <span className="grid h-12 w-12 place-items-center rounded-2xl bg-white/5 text-bone-dim"><Music2 size={22} /></span>
+              <p className="text-sm text-bone-dim">No campaigns yet. Load your beats and pick your lanes.</p>
+              <GoldBtn onClick={() => go("submit")}><Plus size={16} /> Start a campaign</GoldBtn>
             </div>
-          </Card>
-        </>
-      ) : (
-        <div className="mt-4 grid gap-3 lg:mt-6 lg:grid-cols-3 lg:gap-4">
-          <Card className="p-4 lg:col-span-2 lg:p-5">
-            <div className="mb-3 flex items-center justify-between lg:mb-4">
-              <h3 className="font-display text-lg">Recent campaigns</h3>
-              <button onClick={() => go("analytics")} className="flex items-center gap-1 text-[13px] text-gold hover:underline">View all <ArrowRight size={13} /></button>
-            </div>
-            {recent.length === 0 ? (
-              <div className="flex flex-col items-center gap-3 py-10 text-center">
-                <span className="grid h-12 w-12 place-items-center rounded-2xl bg-white/5 text-bone-dim"><Music2 size={22} /></span>
-                <p className="text-sm text-bone-dim">No campaigns yet. Load your beats and pick your lanes.</p>
-                <GoldBtn onClick={() => go("submit")}><Plus size={16} /> Start a campaign</GoldBtn>
-              </div>
-            ) : (
-              <div className="flex flex-col divide-y divide-line">
-                {recent.map((c) => {
-                  const title = (c.beats || []).map((b) => b.title).filter(Boolean).join(", ") || "Campaign";
-                  return (
-                    <div key={c.id} className="flex items-center gap-3 py-3">
-                      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-white/5 text-bone-dim"><Music2 size={16} /></span>
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-sm font-medium">{title}</div>
-                        <div className="truncate text-[12px] text-bone-dim">{(c.beats || []).length} beat{(c.beats || []).length !== 1 ? "s" : ""} · {(c.targets || []).length} lane{(c.targets || []).length !== 1 ? "s" : ""}</div>
-                      </div>
-                      <StatusBadge status={c.status} />
+          ) : (
+            <div className="flex flex-col divide-y divide-line">
+              {recent.map((c) => {
+                const title = (c.beats || []).map((b) => b.title).filter(Boolean).join(", ") || "Campaign";
+                return (
+                  <div key={c.id} className="flex items-center gap-3 py-3">
+                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-white/5 text-bone-dim"><Music2 size={16} /></span>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-medium">{title}</div>
+                      <div className="truncate text-[12px] text-bone-dim">{(c.beats || []).length} beat{(c.beats || []).length !== 1 ? "s" : ""} · {(c.targets || []).length} lane{(c.targets || []).length !== 1 ? "s" : ""}</div>
                     </div>
-                  );
-                })}
-              </div>
-            )}
-          </Card>
-
-          <Card className="p-4 lg:p-5">
-            <h3 className="mb-3 font-display text-lg lg:mb-4">Quick actions</h3>
-            <div className="flex flex-col gap-2">
-              {[
-                { label: "Start a campaign", desc: "Beats → lanes → pitch", Icon: Rocket, v: "submit" },
-                { label: "Check analytics", desc: "Opens & downloads", Icon: BarChart3, v: "analytics" },
-                { label: "Drop a loop", desc: "Earn from the pool", Icon: Disc3, v: "loops" },
-                { label: "File paperwork", desc: "Split sheets", Icon: FileText, v: "paperwork" }
-              ].map(({ label, desc, Icon, v }) => (
-                <button key={v} onClick={() => go(v)} className="group flex items-center gap-3 rounded-xl border border-line bg-ink p-3 text-left transition hover:border-strong hover:bg-white/[0.03]">
-                  <span className="grid h-9 w-9 place-items-center rounded-lg bg-white/5 text-gold transition group-hover:bg-gold/15"><Icon size={17} /></span>
-                  <span className="flex-1">
-                    <span className="block text-sm font-medium text-bone">{label}</span>
-                    <span className="block text-[12px] text-bone-dim">{desc}</span>
-                  </span>
-                  <ArrowRight size={15} className="text-bone-dim transition group-hover:translate-x-0.5 group-hover:text-bone" />
-                </button>
-              ))}
+                    <StatusBadge status={c.status} />
+                  </div>
+                );
+              })}
             </div>
-          </Card>
+          )}
+        </Card>
+      </div>
+
+      {/* Quick actions — full width below */}
+      <Card className="mt-3 p-4 lg:mt-4 lg:p-5">
+        <h3 className="mb-3 font-display text-lg lg:mb-4">Quick actions</h3>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {[
+            { label: "Start a campaign", desc: "Beats → lanes → pitch", Icon: Rocket, v: "submit" },
+            { label: "Check analytics", desc: "Opens & downloads", Icon: BarChart3, v: "analytics" },
+            { label: "Drop a loop", desc: "Earn from the pool", Icon: Disc3, v: "loops" },
+            { label: "File paperwork", desc: "Split sheets", Icon: FileText, v: "paperwork" }
+          ].map(({ label, desc, Icon, v }) => (
+            <button key={v} onClick={() => go(v)} className="group flex items-center gap-3 rounded-xl border border-line bg-ink p-3 text-left transition hover:border-strong hover:bg-white/[0.03] active:scale-[0.98]">
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-white/5 text-gold transition group-hover:bg-gold/15"><Icon size={17} /></span>
+              <span className="flex-1">
+                <span className="block text-sm font-medium text-bone">{label}</span>
+                <span className="block text-[12px] text-bone-dim">{desc}</span>
+              </span>
+            </button>
+          ))}
         </div>
-      )}
+      </Card>
     </section>
   );
 }
@@ -750,7 +693,7 @@ function RequestForum({ onPick, uid }) {
           <span className="font-display text-[15px] font-semibold leading-tight text-bone">Open requests</span>
           <span className="font-mono text-[11px] text-bone-dim">{requests.length} live</span>
         </div>
-        <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-bone-dim/50">Pro</span>
+        <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-bone-dim/50">Live</span>
       </div>
 
       {profileReq && <UserProfilePopup req={profileReq} allRequests={requests} onClose={() => setProfileReq(null)} />}
