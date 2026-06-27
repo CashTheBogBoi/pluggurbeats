@@ -487,7 +487,7 @@ function Overview({ name, campaigns, tier, pitch, go, onPickRequest, uid }) {
                 <button key={v} onClick={() => go(v)} className="group flex items-center gap-3 rounded-xl border border-line bg-ink p-3 text-left transition hover:border-strong hover:bg-white/[0.03] active:scale-[0.98]">
                   <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-white/5 text-gold transition group-hover:bg-gold/15"><Icon size={17} /></span>
                   <span className="flex-1">
-                    <span className="block text-sm font-medium">{label}</span>
+                    <span className="block text-sm font-medium text-bone">{label}</span>
                     <span className="block text-[12px] text-bone-dim">{desc}</span>
                   </span>
                 </button>
@@ -539,7 +539,7 @@ function Overview({ name, campaigns, tier, pitch, go, onPickRequest, uid }) {
                 <button key={v} onClick={() => go(v)} className="group flex items-center gap-3 rounded-xl border border-line bg-ink p-3 text-left transition hover:border-strong hover:bg-white/[0.03]">
                   <span className="grid h-9 w-9 place-items-center rounded-lg bg-white/5 text-gold transition group-hover:bg-gold/15"><Icon size={17} /></span>
                   <span className="flex-1">
-                    <span className="block text-sm font-medium">{label}</span>
+                    <span className="block text-sm font-medium text-bone">{label}</span>
                     <span className="block text-[12px] text-bone-dim">{desc}</span>
                   </span>
                   <ArrowRight size={15} className="text-bone-dim transition group-hover:translate-x-0.5 group-hover:text-bone" />
@@ -560,8 +560,125 @@ const REQUEST_TYPE_META = {
   both:  { label: "Beats + Loops", Icon: Sparkles, color: "text-violet", bg: "bg-violet/10" }
 };
 
+function UserProfilePopup({ req, allRequests = [], onClose }) {
+  if (!req) return null;
+  const initial = avatarInitial(req.createdByName);
+
+  // Analytics derived from all visible requests by this poster
+  const theirRequests = allRequests.filter((r) => r.createdByUid === req.createdByUid);
+  const totalViews = theirRequests.reduce((s, r) => s + (r.viewCount || 0), 0);
+  const totalSubmissions = theirRequests.reduce((s, r) => s + (r.submissionCount || 0), 0);
+  const totalApproved = theirRequests.reduce((s, r) => s + (r.approvedSubmissionCount || 0), 0);
+  const requestCount = theirRequests.length;
+
+  const postedAgo = req.createdAt ? (() => {
+    const diff = Date.now() - req.createdAt;
+    const mins = Math.floor(diff / 60000);
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    const days = Math.floor(hrs / 24);
+    return `${days}d ago`;
+  })() : null;
+
+  const TYPE_META = {
+    beats: { label: "Beats", color: "text-gold" },
+    loops: { label: "Loops", color: "text-ok" },
+    both:  { label: "Beats + Loops", color: "text-violet" }
+  };
+  const typeMeta = TYPE_META[req.requestType] || TYPE_META.beats;
+
+  return (
+    <div className="fixed inset-0 z-[80] flex items-end justify-center p-4 sm:items-center" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <div
+        className="relative w-full max-w-sm overflow-hidden rounded-2xl border border-white/[0.09] bg-ink-3 shadow-card"
+        style={{ animation: "fade-up .25s cubic-bezier(0.23,1,0.32,1) both" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* header gradient */}
+        <div className="h-14 bg-gradient-to-br from-violet/40 to-gold/30" />
+
+        <div className="relative px-5 pb-5">
+          {/* avatar + close */}
+          <div className="relative -mt-8 mb-3 flex items-end justify-between">
+            <span
+              className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-2xl border-2 border-ink-3 bg-gradient-to-br from-violet to-gold font-display text-xl font-bold text-[#1a1405]"
+              style={req.createdByPhotoURL ? { backgroundImage: `url("${req.createdByPhotoURL}")`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}
+            >{req.createdByPhotoURL ? "" : initial}</span>
+            <button onClick={onClose} className="grid h-8 w-8 place-items-center rounded-full bg-white/[0.07] text-bone-dim hover:bg-white/10 hover:text-bone transition-colors">
+              <X size={15} />
+            </button>
+          </div>
+
+          {/* identity */}
+          <div className="mb-1 font-display text-lg font-bold text-bone leading-tight">{req.createdByName}</div>
+          <div className="mb-3 flex flex-wrap items-center gap-1.5">
+            {req.createdByRoleLabel && (
+              <span className="rounded-full bg-violet/15 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-violet">{req.createdByRoleLabel}</span>
+            )}
+            {req.labelName && (
+              <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[11px] text-bone-dim">{req.labelName}</span>
+            )}
+            {req.createdByLocation && (
+              <span className="text-[11px] text-bone-dim/70">{req.createdByLocation}</span>
+            )}
+          </div>
+
+          {/* analytics row */}
+          <div className="mb-3 grid grid-cols-3 divide-x divide-white/[0.07] overflow-hidden rounded-xl border border-white/[0.07] bg-white/[0.03]">
+            <div className="flex flex-col items-center py-2.5 px-2">
+              <span className="font-display text-[18px] font-bold text-bone leading-none">{requestCount}</span>
+              <span className="mt-1 font-mono text-[9px] uppercase tracking-wide text-bone-dim/60">Requests</span>
+            </div>
+            <div className="flex flex-col items-center py-2.5 px-2">
+              <span className="font-display text-[18px] font-bold text-bone leading-none">{totalViews}</span>
+              <span className="mt-1 font-mono text-[9px] uppercase tracking-wide text-bone-dim/60">Views</span>
+            </div>
+            <div className="flex flex-col items-center py-2.5 px-2">
+              <span className="font-display text-[18px] font-bold text-bone leading-none">{totalSubmissions}</span>
+              <span className="mt-1 font-mono text-[9px] uppercase tracking-wide text-bone-dim/60">Submissions</span>
+            </div>
+          </div>
+
+          {/* this request */}
+          <div className="rounded-xl border border-white/[0.07] bg-white/[0.04] p-3">
+            <div className="mb-2 flex items-center justify-between">
+              <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-bone-dim/60">This request</div>
+              <div className="flex items-center gap-2">
+                <span className={`font-mono text-[9px] uppercase tracking-widest font-semibold ${typeMeta.color}`}>{typeMeta.label}</span>
+                {postedAgo && <span className="text-[10px] text-bone-dim/40">{postedAgo}</span>}
+              </div>
+            </div>
+            <div className="text-[13px] font-semibold text-bone leading-snug">{req.title}</div>
+            {req.brief && <div className="mt-1 line-clamp-3 text-[12px] text-bone-dim leading-relaxed">{req.brief}</div>}
+            {(req.genres?.length > 0 || req.tags?.length > 0) && (
+              <div className="mt-2.5 flex flex-wrap gap-1.5">
+                {(req.genres || []).map((g) => (
+                  <span key={g} className="rounded-full border border-white/10 px-2 py-0.5 text-[11px] text-bone">{g}</span>
+                ))}
+                {(req.tags || []).map((t) => (
+                  <span key={t} className="rounded-full bg-white/5 px-2 py-0.5 font-mono text-[10px] text-bone-dim">#{t}</span>
+                ))}
+              </div>
+            )}
+            {/* per-request stats */}
+            <div className="mt-2.5 flex items-center gap-3 text-[11px] text-bone-dim/50">
+              <span className="flex items-center gap-1"><Eye size={11} /> {req.viewCount || 0} views</span>
+              <span className="flex items-center gap-1"><Send size={11} /> {req.submissionCount || 0} submissions</span>
+              {totalApproved > 0 && <span className="flex items-center gap-1 text-ok"><CheckCircle2 size={11} /> {totalApproved} approved</span>}
+              {req.deadline && <span className="flex items-center gap-1"><Clock size={11} /> Due {req.deadline}</span>}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function RequestForum({ onPick, uid }) {
   const [openId, setOpenId] = useState(null);
+  const [profileReq, setProfileReq] = useState(null);
   const viewed = useRef(new Set());
   const feedRef = useRef(null);
 
@@ -584,6 +701,7 @@ function RequestForum({ onPick, uid }) {
           createdByPhotoURL: r.createdByPhotoURL || "",
           createdByRole: r.createdByRole || "",
           createdByRoleLabel: r.createdByRole ? verifiedRoleLabel(r.createdByRole) : "",
+          createdByLocation: r.createdByLocation || "",
           labelName: r.labelName || "",
           requestType: r.requestType || "loops",
           title: r.title || "",
@@ -635,6 +753,8 @@ function RequestForum({ onPick, uid }) {
         <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-bone-dim/50">Pro</span>
       </div>
 
+      {profileReq && <UserProfilePopup req={profileReq} allRequests={requests} onClose={() => setProfileReq(null)} />}
+
       {/* feed */}
       {loading ? (
         <div className="flex flex-col gap-5 px-4 py-5">
@@ -656,7 +776,7 @@ function RequestForum({ onPick, uid }) {
       ) : (
         <div ref={feedRef} className="req-scroll flex flex-col gap-3 overflow-y-auto px-4 py-5 lg:px-5" style={{ height: "340px" }}>
           {requests.map((req, i) => (
-            <RequestBubble key={req.id} req={req} index={i} open={openId === req.id} onToggle={() => toggle(req)} onPick={onPick} />
+            <RequestBubble key={req.id} req={req} index={i} open={openId === req.id} onToggle={() => toggle(req)} onPick={onPick} onAvatarClick={() => setProfileReq(req)} />
           ))}
         </div>
       )}
@@ -664,7 +784,7 @@ function RequestForum({ onPick, uid }) {
   );
 }
 
-function RequestBubble({ req, index, open, onToggle, onPick }) {
+function RequestBubble({ req, index, open, onToggle, onPick, onAvatarClick }) {
   const meta = REQUEST_TYPE_META[req.requestType] || REQUEST_TYPE_META.beats;
   const TypeIcon = meta.Icon;
   const initial = avatarInitial(req.createdByName);
@@ -675,10 +795,12 @@ function RequestBubble({ req, index, open, onToggle, onPick }) {
     <div className="msg-row flex items-end gap-2.5" style={{ "--i": index }}>
       {/* avatar pinned to bottom-left */}
       <div className="flex shrink-0 items-end">
-        <span
-          className="grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-full bg-gradient-to-br from-violet to-gold font-display text-[11px] font-bold text-[#1a1405]"
+        <button
+          onClick={(e) => { e.stopPropagation(); onAvatarClick(); }}
+          className="grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-full bg-gradient-to-br from-violet to-gold font-display text-[11px] font-bold text-[#1a1405] ring-0 transition-transform duration-130 ease-expo active:scale-[0.9] hover:ring-2 hover:ring-white/20"
           style={req.createdByPhotoURL ? { backgroundImage: `url("${req.createdByPhotoURL}")`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}
-        >{req.createdByPhotoURL ? "" : initial}</span>
+          aria-label={`View ${req.createdByName}'s profile`}
+        >{req.createdByPhotoURL ? "" : initial}</button>
       </div>
 
       {/* bubble column — max 84% width like iMessage */}
