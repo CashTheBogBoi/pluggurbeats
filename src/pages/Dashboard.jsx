@@ -10,7 +10,7 @@ import { db } from "../firebase/db.js";
 import { storage } from "../firebase/storage.js";
 import { useLiveDoc, useLiveCollection, call } from "../lib/live.js";
 import { hasVerifiedAccess } from "../lib/userRouting.js";
-import { verifiedRoleLabel } from "../lib/roles.js";
+import { canPlanSubmitToRole, verifiedRoleLabel } from "../lib/roles.js";
 import { avatarInitial, isAvatarImage, resolveAvatarUrl, uploadProfileAvatar } from "../lib/avatar.js";
 import {
   LayoutDashboard, Rocket, BarChart3, FileText, Disc3, CreditCard, ArrowLeft,
@@ -342,7 +342,7 @@ export default function Dashboard() {
 
         <main className="mx-auto max-w-[1180px] px-4 pt-5 pb-28 sm:px-6 lg:px-10 lg:pt-8 lg:pb-8">
           <div key={view} className="animate-fade-up">
-            {view === "overview" && <Overview name={name} campaigns={campaigns} tier={tier} pitch={pitchBalance} go={go} onPickRequest={pickRequest} uid={uid} />}
+            {view === "overview" && <Overview name={name} campaigns={campaigns} tier={tier} pitch={pitchBalance} go={go} onPickRequest={pickRequest} uid={uid} onGoToBilling={() => go("billing")} />}
             {view === "submit" && <CampaignBuilder tier={tier} caps={caps} pitchBalance={pitchBalance} user={user} profile={profile} campaignCount={campaigns.length} targetRequest={targetRequest} clearTargetRequest={() => setTargetRequest(null)} showToast={showToast} onSubmitted={() => go("analytics")} onGoToBilling={() => go("billing")} />}
             {view === "analytics" && <Analytics campaigns={campaigns} uid={uid} tier={tier} />}
             {view === "paperwork" && <Paperwork campaigns={campaigns} uid={uid} profile={profile} showToast={showToast} />}
@@ -406,7 +406,7 @@ function Toast({ text }) {
 }
 
 /* ============================ overview ============================ */
-function Overview({ name, campaigns, tier, pitch, go, onPickRequest, uid }) {
+function Overview({ name, campaigns, tier, pitch, go, onPickRequest, uid, onGoToBilling }) {
   const sent = campaigns.reduce((s, c) => s + (Array.isArray(c.pitchedTo) ? c.pitchedTo.length : 0), 0);
   const opens = campaigns.reduce((s, c) => s + (c.opens || 0), 0);
   const downs = campaigns.reduce((s, c) => s + (c.downloads || 0), 0);
@@ -439,7 +439,7 @@ function Overview({ name, campaigns, tier, pitch, go, onPickRequest, uid }) {
 
       {/* Requests + Recent campaigns — visible to all tiers */}
       <div className="mt-4 grid gap-3 lg:mt-6 lg:grid-cols-2 lg:gap-4">
-        <RequestForum onPick={onPickRequest} uid={uid} />
+        <RequestForum onPick={onPickRequest} uid={uid} tier={tier} onGoToBilling={onGoToBilling} />
 
         <Card className="p-4 lg:p-5">
           <div className="mb-3 flex items-center justify-between lg:mb-4">
@@ -619,7 +619,7 @@ function UserProfilePopup({ req, allRequests = [], onClose }) {
   );
 }
 
-function RequestForum({ onPick, uid }) {
+function RequestForum({ onPick, uid, tier = "free", onGoToBilling }) {
   const [openId, setOpenId] = useState(null);
   const [profileReq, setProfileReq] = useState(null);
   const viewed = useRef(new Set());
@@ -719,7 +719,7 @@ function RequestForum({ onPick, uid }) {
       ) : (
         <div ref={feedRef} className="req-scroll flex flex-col gap-3 overflow-y-auto px-4 py-5 lg:px-5" style={{ height: "340px" }}>
           {requests.map((req, i) => (
-            <RequestBubble key={req.id} req={req} index={i} open={openId === req.id} onToggle={() => toggle(req)} onPick={onPick} onAvatarClick={() => setProfileReq(req)} />
+            <RequestBubble key={req.id} req={req} index={i} open={openId === req.id} onToggle={() => toggle(req)} onPick={onPick} onAvatarClick={() => setProfileReq(req)} tier={tier} onGoToBilling={onGoToBilling} />
           ))}
         </div>
       )}
@@ -727,12 +727,16 @@ function RequestForum({ onPick, uid }) {
   );
 }
 
-function RequestBubble({ req, index, open, onToggle, onPick, onAvatarClick }) {
+function RequestBubble({ req, index, open, onToggle, onPick, onAvatarClick, tier = "free", onGoToBilling }) {
   const meta = REQUEST_TYPE_META[req.requestType] || REQUEST_TYPE_META.beats;
   const TypeIcon = meta.Icon;
   const initial = avatarInitial(req.createdByName);
-  const canSubmitBeat = req.requestType === "beats" || req.requestType === "both";
-  const canSubmitLoop = req.requestType === "loops" || req.requestType === "both";
+  const wantsBeats = req.requestType === "beats" || req.requestType === "both";
+  const wantsLoops = req.requestType === "loops" || req.requestType === "both";
+  const roleAllowed = canPlanSubmitToRole(tier, req.createdByRole);
+  const minPlan = !canPlanSubmitToRole("plugg", req.createdByRole) ? "Pro" : "Plugg";
+  const canSubmitBeat = wantsBeats && roleAllowed;
+  const canSubmitLoop = wantsLoops && roleAllowed;
 
   return (
     <div className="msg-row flex items-end gap-2.5" style={{ "--i": index }}>
@@ -811,6 +815,16 @@ function RequestBubble({ req, index, open, onToggle, onPick, onAvatarClick }) {
 
               {req.isMine ? (
                 <div className="rounded-lg bg-white/5 px-3 py-2 text-[11px] text-bone-dim">Your request.</div>
+              ) : !roleAllowed ? (
+                <div className="flex items-center justify-between gap-3 rounded-lg border border-white/[0.07] bg-white/[0.04] px-3 py-2.5">
+                  <div>
+                    <div className="text-[11px] font-semibold text-bone">{minPlan} required</div>
+                    <div className="text-[10px] text-bone-dim/60">This role requires a {minPlan} subscription to submit.</div>
+                  </div>
+                  <button onClick={(e) => { e.stopPropagation(); onGoToBilling?.(); }} className="shrink-0 rounded-full bg-gold px-3 py-1.5 text-[11px] font-semibold text-[#1a1405] transition hover:bg-gold-deep active:scale-[0.97]">
+                    Upgrade
+                  </button>
+                </div>
               ) : (
                 <div className="flex flex-wrap gap-2">
                   {canSubmitBeat && (
