@@ -350,7 +350,36 @@ export default function Verified() {
     return myRequests.filter((req) => req.createdAt && new Date(req.createdAt).toISOString().slice(0, 10) === todayKey).length;
   }, [myRequests]);
 
-  // Beats submitted directly to A&R / artist / producer requests (not library pitches).
+  // Beats/loops submitted directly to this verified user's requests (their inbox).
+  const { data: inboundSubmissions } = useLiveCollection(
+    ["me", uid, "inbound-submissions"],
+    () => uid ? query(
+      collection(db, `users/${uid}/inboundSubmissions`),
+      orderBy("submittedAt", "desc"),
+      limit(50)
+    ) : null,
+    {
+      enabled: gate === "ok" && tab === "requests" && !!roleFamily,
+      map: (d) => {
+        const r = d.data();
+        return {
+          id: d.id,
+          producerName: r.producerName || "Producer",
+          producerInstagram: r.producerInstagram || "",
+          beats: Array.isArray(r.beats) ? r.beats : [],
+          beatCount: r.beatCount || 1,
+          creditsSpent: r.creditsSpent || 1,
+          targetRequestId: r.targetRequestId || "",
+          targetRequestTitle: r.targetRequestTitle || "",
+          kind: r.kind || "beats",
+          status: r.status || "pending_review",
+          submittedAt: r.submittedAt?.toMillis ? r.submittedAt.toMillis() : null
+        };
+      }
+    }
+  );
+
+  // Beats this producer submitted to other people's requests (outbound view).
   const { data: submittedCampaigns } = useLiveCollection(
     ["me", uid, "submitted-campaigns"],
     () => uid ? query(
@@ -740,6 +769,7 @@ export default function Verified() {
                 requestsToday={requestsToday}
                 analytics={requestAnalytics}
                 submittedCampaigns={submittedCampaigns || []}
+                inboundSubmissions={inboundSubmissions || []}
                 loading={requestsQ.isLoading}
                 error={requestsQ.error?.message || ""}
                 plan={plan}
@@ -922,7 +952,7 @@ function LibrarySidebar({ open, tab, isPuller, beats, loops, genres, tags, genre
   );
 }
 
-function RequestHub({ profile, avatarUrl, canCreate, roleMeta, isAr, requestTypeOptions, draft, setDraft, busy, onCreate, requests, myRequests, requestsToday = 0, analytics, loading, error, plan, onSubmitRequest, submittedCampaigns = [] }) {
+function RequestHub({ profile, avatarUrl, canCreate, roleMeta, isAr, requestTypeOptions, draft, setDraft, busy, onCreate, requests, myRequests, requestsToday = 0, analytics, loading, error, plan, onSubmitRequest, submittedCampaigns = [], inboundSubmissions = [] }) {
   const name = profile?.displayName || "Verified user";
   const initial = avatarInitial(name);
   const DAILY_LIMIT = 5;
@@ -1012,22 +1042,12 @@ function RequestHub({ profile, avatarUrl, canCreate, roleMeta, isAr, requestType
         </div>
       </div>
 
-      <div className="vf-feed-head">
-        <span>Open requests</span>
-        <em>{loading ? "Loading" : `${requests.length} live`}</em>
-      </div>
-      {error ? <div className="vf-request-empty">{error}</div> : (
-        <div className="vf-request-feed">
-          {loading && visibleRequests.length === 0 ? (
-            Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-28" />)
-          ) : visibleRequests.length === 0 ? (
-            <div className="vf-request-empty">No open requests yet.</div>
-          ) : visibleRequests.map((request) => (
-            <RequestCard key={request.id} request={request} plan={plan} onSubmit={onSubmitRequest} />
-          ))}
-        </div>
-      )}
+      {/* Inbound inbox — shown to verified roles (A&R / artist / producer) */}
+      {roleMeta.family ? (
+        <InboundInbox submissions={inboundSubmissions} />
+      ) : null}
 
+      {/* Outbound — beats this producer sent to other people's requests */}
       {submittedCampaigns.length > 0 && (
         <>
           <div className="vf-feed-head" style={{ marginTop: "2rem" }}>
@@ -1042,6 +1062,84 @@ function RequestHub({ profile, avatarUrl, canCreate, roleMeta, isAr, requestType
         </>
       )}
     </section>
+  );
+}
+
+const INBOUND_STATUS = {
+  pending_review: { label: "Under review", color: "var(--gold, #d4a017)" },
+  approved:       { label: "Approved",     color: "var(--good, #4ade80)" },
+  pitched:        { label: "Delivered",    color: "var(--good, #4ade80)" },
+  rejected:       { label: "Not selected", color: "var(--bone-dim, #9a9087)" },
+  live:           { label: "Live",         color: "var(--good, #4ade80)" }
+};
+
+function InboundInbox({ submissions }) {
+  const totalCredits = submissions.reduce((s, r) => s + (r.creditsSpent || 0), 0);
+  const totalBeats   = submissions.reduce((s, r) => s + (r.beatCount || 0), 0);
+
+  return (
+    <>
+      <div className="vf-feed-head">
+        <span>Received submissions</span>
+        <em>{submissions.length} total</em>
+      </div>
+
+      {submissions.length > 0 && (
+        <div className="vf-inbound-totals">
+          <div><b>{totalBeats}</b><span>Beats received</span></div>
+          <div><b>{submissions.length}</b><span>Submissions</span></div>
+          <div><b>{totalCredits}</b><span>Credits spent on you</span></div>
+        </div>
+      )}
+
+      {submissions.length === 0 ? (
+        <div className="vf-request-empty">
+          <Music2 size={18} />
+          <span>No submissions yet. Beats sent to your requests will appear here.</span>
+        </div>
+      ) : (
+        <div className="vf-inbound-list">
+          {submissions.map((s) => {
+            const status = INBOUND_STATUS[s.status] || INBOUND_STATUS.pending_review;
+            const date = s.submittedAt ? new Date(s.submittedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "";
+            const handle = s.producerInstagram
+              ? (s.producerInstagram.startsWith("@") ? s.producerInstagram : `@${s.producerInstagram}`)
+              : null;
+            return (
+              <div key={s.id} className="vf-inbound-row">
+                <div className="vf-inbound-header">
+                  <div className="vf-inbound-producer">
+                    <span className="vf-inbound-name">{s.producerName}</span>
+                    {handle && <span className="vf-inbound-handle">{handle}</span>}
+                  </div>
+                  <div className="vf-inbound-meta">
+                    <span className="vf-inbound-status" style={{ color: status.color }}>{status.label}</span>
+                    {date && <span className="vf-inbound-date">{date}</span>}
+                  </div>
+                </div>
+                {s.targetRequestTitle && (
+                  <div className="vf-inbound-request">Re: {s.targetRequestTitle}</div>
+                )}
+                <div className="vf-inbound-beats">
+                  {s.beats.map((b, i) => (
+                    <div key={i} className="vf-inbound-beat">
+                      <span className="vf-inbound-beat-title">{b.title || "Untitled"}</span>
+                      {(b.genre || b.bpm || b.key) && (
+                        <span className="vf-inbound-beat-info">{[b.genre, b.bpm ? `${b.bpm} BPM` : "", b.key].filter(Boolean).join(" · ")}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <div className="vf-inbound-credits">
+                  <span>{s.creditsSpent} credit{s.creditsSpent !== 1 ? "s" : ""} spent</span>
+                  <span className="vf-inbound-kind">{s.kind === "loop" ? "Loop" : "Beat campaign"}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </>
   );
 }
 
