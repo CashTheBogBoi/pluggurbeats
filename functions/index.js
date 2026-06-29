@@ -324,6 +324,7 @@ function publicCampaignRequest(docSnap, viewerUid = "") {
     createdByName: r.createdByName || "Verified user",
     createdByPhotoURL: r.createdByPhotoURL || "",
     createdByRole: r.createdByRole || "",
+    createdByStaff: r.createdByStaff === true,
     createdByRoleLabel: publicRoleLabel(r.createdByRole || ""),
     createdByLocation: r.createdByLocation || "",
     labelName: r.labelName || "",
@@ -335,6 +336,7 @@ function publicCampaignRequest(docSnap, viewerUid = "") {
     references: Array.isArray(r.references) ? r.references : [],
     deadline: r.deadline || "",
     status: r.status || "open",
+    pinned: r.pinned === true,
     viewCount: r.viewCount || 0,
     submissionCount: r.submissionCount || 0,
     approvedSubmissionCount: r.approvedSubmissionCount || 0,
@@ -1793,32 +1795,44 @@ exports.createCampaignRequest = onCall({ region: REGION }, async (request) => {
   if (!me.exists) throw new HttpsError("not-found", "Profile not found.");
   const verifiedRole = String(me.get("verifiedRole") || "");
   const family = verifiedRoleFamily(verifiedRole);
-  if (!family) throw new HttpsError("permission-denied", "A verified profile role is required to create requests.");
-  if (!(me.get("verifiedListener") === true || me.get("verifiedPuller") === true)) {
-    throw new HttpsError("permission-denied", "Verified access required.");
+  const createdByStaff = hasStaffAccess(request.auth) || me.get("staff") === true;
+  const requestType = cleanShortString(request.data?.requestType, 14);
+  const isAnnouncement = requestType === "announcement";
+
+  if (isAnnouncement) {
+    // Announcements are a staff-only broadcast — no verified-role requirement.
+    if (!createdByStaff) throw new HttpsError("permission-denied", "Only staff can post announcements.");
+  } else {
+    if (!family) throw new HttpsError("permission-denied", "A verified profile role is required to create requests.");
+    if (!(me.get("verifiedListener") === true || me.get("verifiedPuller") === true)) {
+      throw new HttpsError("permission-denied", "Verified access required.");
+    }
+    const allowedTypes = family === "producer" ? ["loops"] : ["beats", "loops", "both"];
+    if (!allowedTypes.includes(requestType)) {
+      throw new HttpsError("invalid-argument", family === "producer"
+        ? "Producer roles can only create loop requests."
+        : "Request type must be beats, loops, or both.");
+    }
   }
 
-  // Daily cap: 5 requests per user per UTC day, tracked in Firestore.
+  // Daily cap: 5 requests per user per UTC day. Staff announcements are exempt.
   const todayKey = new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
   const dailyRef = db.doc(`users/${uid}/requestDailyCounters/${todayKey}`);
-  const dailySnap = await dailyRef.get();
-  const dailyCount = dailySnap.exists ? (dailySnap.get("count") || 0) : 0;
-  if (dailyCount >= 5) {
-    throw new HttpsError("resource-exhausted", "You can post up to 5 requests per day. Try again tomorrow.");
-  }
-
-  const requestType = cleanShortString(request.data?.requestType, 12);
-  const allowedTypes = family === "producer" ? ["loops"] : ["beats", "loops", "both"];
-  if (!allowedTypes.includes(requestType)) {
-    throw new HttpsError("invalid-argument", family === "producer"
-      ? "Producer roles can only create loop requests."
-      : "Request type must be beats, loops, or both.");
+  if (!isAnnouncement) {
+    const dailySnap = await dailyRef.get();
+    const dailyCount = dailySnap.exists ? (dailySnap.get("count") || 0) : 0;
+    if (dailyCount >= 5) {
+      throw new HttpsError("resource-exhausted", "You can post up to 5 requests per day. Try again tomorrow.");
+    }
   }
 
   const title = cleanShortString(request.data?.title, 90);
   const brief = cleanShortString(request.data?.brief, 900);
-  if (title.length < 4 || brief.length < 20) {
-    throw new HttpsError("invalid-argument", "Add a clear title and briefing before posting.");
+  // Announcements need a title; the body is optional. Requests need both.
+  if (title.length < 4 || (!isAnnouncement && brief.length < 20)) {
+    throw new HttpsError("invalid-argument", isAnnouncement
+      ? "Add a clear announcement title before posting."
+      : "Add a clear title and briefing before posting.");
   }
   const deadline = cleanShortString(request.data?.deadline, 20);
   if (deadline && !/^\d{4}-\d{2}-\d{2}$/.test(deadline)) {
@@ -1831,17 +1845,19 @@ exports.createCampaignRequest = onCall({ region: REGION }, async (request) => {
     createdByName: cleanShortString(me.get("displayName") || request.auth.token?.name || "Verified user", 80),
     createdByPhotoURL: cleanShortString(me.get("photoURL"), 500),
     createdByRole: verifiedRole,
+    createdByStaff,
     createdByLocation: cleanShortString(me.get("location"), 100),
     labelName,
     requestType,
     title,
     brief,
-    genres: cleanStringList(request.data?.genres, 6, 32),
-    tags: cleanStringList(request.data?.tags, 10, 32).map((t) => t.replace(/^#/, "").toLowerCase()),
-    references: cleanStringList(request.data?.references, 8, 48),
+    genres: isAnnouncement ? [] : cleanStringList(request.data?.genres, 6, 32),
+    tags: isAnnouncement ? [] : cleanStringList(request.data?.tags, 10, 32).map((t) => t.replace(/^#/, "").toLowerCase()),
+    references: isAnnouncement ? [] : cleanStringList(request.data?.references, 8, 48),
     deadline,
     status: "open",
     visibility: "verified",
+    pinned: false,
     viewCount: 0,
     submissionCount: 0,
     approvedSubmissionCount: 0,
@@ -1852,10 +1868,13 @@ exports.createCampaignRequest = onCall({ region: REGION }, async (request) => {
   const ref = await db.collection("campaignRequests").add(doc);
 
   // Increment daily counter (set with merge so first-of-day creates the doc).
-  await dailyRef.set(
-    { count: admin.firestore.FieldValue.increment(1), updatedAt: admin.firestore.FieldValue.serverTimestamp() },
-    { merge: true }
-  );
+  // Announcements are exempt from the cap, so they don't count toward it.
+  if (!isAnnouncement) {
+    await dailyRef.set(
+      { count: admin.firestore.FieldValue.increment(1), updatedAt: admin.firestore.FieldValue.serverTimestamp() },
+      { merge: true }
+    );
+  }
 
   return {
     ok: true,
@@ -1865,6 +1884,7 @@ exports.createCampaignRequest = onCall({ region: REGION }, async (request) => {
       createdByName: doc.createdByName,
       createdByPhotoURL: doc.createdByPhotoURL,
       createdByRole: verifiedRole,
+      createdByStaff,
       createdByRoleLabel: publicRoleLabel(verifiedRole),
       labelName,
       requestType,
@@ -1875,6 +1895,7 @@ exports.createCampaignRequest = onCall({ region: REGION }, async (request) => {
       references: doc.references,
       deadline,
       status: "open",
+      pinned: false,
       viewCount: 0,
       submissionCount: 0,
       approvedSubmissionCount: 0,
@@ -1948,6 +1969,129 @@ exports.recordCampaignRequestView = onCall({ region: REGION }, async (request) =
     tx.update(reqRef, { viewCount: admin.firestore.FieldValue.increment(1) });
     return { ok: true, viewCount: current + 1, counted: true };
   });
+});
+
+// ====================================================================
+// moderateCampaignRequest — staff-only: close / reopen / delete / pin / unpin
+// a feed post. Closing flips status off "open" so it leaves the live request
+// feed; delete hard-removes it; pin/unpin floats it to the top of the board.
+// All campaignRequests writes are backend-only per the rules.
+// ====================================================================
+exports.moderateCampaignRequest = onCall({ region: REGION }, async (request) => {
+  const staffEmail = assertStaff(request.auth);
+  await assertCallableRateLimit("moderateCampaignRequest", request);
+  const db = admin.firestore();
+  const requestId = cleanShortString(request.data?.requestId, 80);
+  const action = cleanShortString(request.data?.action, 12);
+  if (!requestId) throw new HttpsError("invalid-argument", "Missing request id.");
+  if (!["close", "reopen", "delete", "pin", "unpin"].includes(action)) {
+    throw new HttpsError("invalid-argument", "action must be close, reopen, delete, pin, or unpin.");
+  }
+  const ref = db.collection("campaignRequests").doc(requestId);
+  const snap = await ref.get();
+  if (!snap.exists) throw new HttpsError("not-found", "Request not found.");
+
+  if (action === "delete") {
+    await ref.delete();
+    console.log(`campaignRequest ${requestId} deleted by ${staffEmail}`);
+    return { ok: true, action, requestId };
+  }
+
+  if (action === "pin" || action === "unpin") {
+    await ref.update({
+      pinned: action === "pin",
+      pinnedAt: action === "pin" ? admin.firestore.FieldValue.serverTimestamp() : null,
+      moderatedBy: staffEmail,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp()
+    });
+    console.log(`campaignRequest ${requestId} ${action} by ${staffEmail}`);
+    return { ok: true, action, requestId };
+  }
+
+  await ref.update({
+    status: action === "close" ? "closed" : "open",
+    moderatedBy: staffEmail,
+    moderationNote: cleanShortString(request.data?.note, 200),
+    moderatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+  });
+  console.log(`campaignRequest ${requestId} ${action} by ${staffEmail}`);
+  return { ok: true, action, requestId };
+});
+
+// ====================================================================
+// getStaffOverview — staff-only metrics for the overview board: user/tier
+// breakdown, open-request feed stats, and live Stripe revenue (30-day gross
+// + active subscriptions). Stripe is best-effort; failures degrade gracefully.
+// ====================================================================
+exports.getStaffOverview = onCall({ region: REGION, secrets: [STRIPE_SECRET] }, async (request) => {
+  assertStaff(request.auth);
+  await assertCallableRateLimit("getStaffOverview", request);
+  const db = admin.firestore();
+  const now = Date.now();
+  const d7 = now - 7 * 864e5;
+  const d30 = now - 30 * 864e5;
+
+  // ---- users + tiers (Firestore) ----
+  const usersSnap = await db.collection("users").get();
+  const tiers = { free: 0, plugg: 0, pro: 0 };
+  let verifiedListeners = 0, verifiedPullers = 0, staff = 0, banned = 0, new7d = 0, new30d = 0;
+  usersSnap.forEach((doc) => {
+    const u = doc.data();
+    const tier = u.subscription?.tier || "free";
+    tiers[tier] = (tiers[tier] || 0) + 1;
+    if (u.verifiedListener === true) verifiedListeners++;
+    if (u.verifiedPuller === true) verifiedPullers++;
+    if (u.staff === true) staff++;
+    if (u.banned === true) banned++;
+    const created = u.createdAt?.toMillis ? u.createdAt.toMillis() : 0;
+    if (created >= d7) new7d++;
+    if (created >= d30) new30d++;
+  });
+  const estMrr = tiers.plugg * 29 + tiers.pro * 99;
+
+  // ---- open-request feed stats (Firestore) ----
+  const reqSnap = await db.collection("campaignRequests").where("status", "==", "open").get();
+  let reqViews = 0, reqSubs = 0;
+  reqSnap.forEach((doc) => { reqViews += doc.get("viewCount") || 0; reqSubs += doc.get("submissionCount") || 0; });
+
+  // ---- live Stripe revenue (best-effort) ----
+  let stripe;
+  try {
+    const sk = Stripe(STRIPE_SECRET.value());
+    const charges = await sk.charges
+      .list({ limit: 100, created: { gte: Math.floor(d30 / 1000) } })
+      .autoPagingToArray({ limit: 1000 });
+    const startToday = new Date(); startToday.setHours(0, 0, 0, 0);
+    let gross30 = 0, grossToday = 0, count30 = 0;
+    charges.forEach((c) => {
+      if (c.status !== "succeeded" || !c.paid) return;
+      const net = c.amount - (c.amount_refunded || 0);
+      gross30 += net; count30++;
+      if (c.created * 1000 >= startToday.getTime()) grossToday += net;
+    });
+    const subs = await sk.subscriptions
+      .list({ status: "active", limit: 100 })
+      .autoPagingToArray({ limit: 1000 });
+    stripe = {
+      currency: "usd",
+      gross30d: gross30 / 100,
+      grossToday: grossToday / 100,
+      paymentCount30d: count30,
+      activeSubscriptions: subs.length
+    };
+  } catch (e) {
+    console.error("getStaffOverview stripe error:", e.message);
+    stripe = { error: true };
+  }
+
+  return {
+    users: { total: usersSnap.size, tiers, verifiedListeners, verifiedPullers, staff, banned, new7d, new30d },
+    estMrr,
+    requests: { open: reqSnap.size, views: reqViews, submissions: reqSubs },
+    stripe,
+    generatedAt: now
+  };
 });
 
 // ====================================================================

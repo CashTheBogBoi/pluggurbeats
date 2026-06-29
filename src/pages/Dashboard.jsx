@@ -16,7 +16,7 @@ import {
   LayoutDashboard, Rocket, BarChart3, FileText, Disc3, CreditCard, ArrowLeft,
   LogOut, Menu, X, Plus, Trash2, Upload, Check, ChevronDown, Music2, Mail, Phone,
   Settings, Sparkles, TrendingUp, Clock, CheckCircle2, XCircle, ArrowRight, Wallet,
-  ShieldCheck, Eye, Download, RefreshCw, Send, PenLine
+  ShieldCheck, Eye, Download, RefreshCw, Send, PenLine, Megaphone, Pin
 } from "lucide-react";
 
 /* ============================ domain constants ============================ */
@@ -82,38 +82,47 @@ const NAV = [
 
 /* ============================ ui primitives ============================ */
 const Card = ({ className = "", children, ...p }) => (
-  <div className={`rounded-2xl border border-line bg-ink-2/70 backdrop-blur-sm ${className}`} {...p}>{children}</div>
+  <div className={`rounded-none border border-[#262626] bg-[#0e0e0e]/70 backdrop-blur-sm ${className}`} {...p}>{children}</div>
 );
 const Eyebrow = ({ children }) => (
-  <div className="font-mono text-[11px] uppercase tracking-[0.18em] text-gold flex items-center gap-2.5">
-    <span className="h-px w-5 bg-gold/70" />{children}
+  <div className="font-mono text-[11px] uppercase tracking-[0.18em] text-[#f2ca50] flex items-center gap-2.5">
+    <span className="h-px w-5 bg-[#f2ca50]/70" />{children}
   </div>
 );
 const GoldBtn = ({ className = "", children, ...p }) => (
-  <button className={`inline-flex items-center justify-center gap-2 rounded-full bg-gold px-5 py-2.5 text-sm font-semibold text-[#1a1405] transition active:translate-y-px hover:bg-gold-deep disabled:opacity-50 disabled:pointer-events-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet ${className}`} {...p}>{children}</button>
+  <button className={`inline-flex items-center justify-center gap-2 rounded-none border border-[#f2ca50] bg-[#f2ca50] px-5 py-2.5 text-sm font-semibold uppercase tracking-wider text-[#3c2f00] transition active:scale-[0.98] hover:bg-[#d4af37] hover:border-[#d4af37] disabled:opacity-50 disabled:pointer-events-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet ${className}`} {...p}>{children}</button>
 );
 const GhostBtn = ({ className = "", children, ...p }) => (
-  <button className={`inline-flex items-center justify-center gap-2 rounded-full border border-strong bg-transparent px-5 py-2.5 text-sm font-semibold text-bone transition hover:border-bone hover:bg-white/5 active:translate-y-px disabled:opacity-50 disabled:pointer-events-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet ${className}`} {...p}>{children}</button>
+  <button className={`inline-flex items-center justify-center gap-2 rounded-none border border-[#4d4635] bg-transparent px-5 py-2.5 text-sm font-semibold uppercase tracking-wider text-bone transition hover:border-[#99907c] hover:bg-white/5 active:scale-[0.98] disabled:opacity-50 disabled:pointer-events-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet ${className}`} {...p}>{children}</button>
 );
-const inputCls = "w-full rounded-xl border border-strong bg-ink px-3.5 py-2.5 text-sm text-bone placeholder:text-bone-dim/50 transition focus:border-gold/60 focus:outline-none focus:ring-1 focus:ring-gold/30";
-const Label = ({ children }) => <label className="mb-1.5 block font-mono text-[10px] uppercase tracking-[0.14em] text-bone-dim">{children}</label>;
+const inputCls = "w-full rounded-none border border-[#4d4635] bg-[#131313] px-3.5 py-2.5 text-sm text-bone placeholder:text-[#99907c]/50 transition focus:border-[#f2ca50]/60 focus:outline-none focus:ring-1 focus:ring-[#f2ca50]/30 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none [-moz-appearance:textfield]";
+const Label = ({ children }) => <label className="mb-1.5 block font-mono text-[10px] uppercase tracking-[0.14em] text-[#99907c]">{children}</label>;
+// Safari draws native <select> chrome that ignores the dark theme; strip the
+// platform appearance and draw our own chevron (mirrors the Stitch reference).
+const Select = ({ className = "", children, ...p }) => (
+  <div className="relative">
+    <select className={`${inputCls} appearance-none [-webkit-appearance:none] pr-9 ${className}`} {...p}>{children}</select>
+    <ChevronDown size={15} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#99907c]" />
+  </div>
+);
 const SectionHead = ({ eyebrow, title, sub }) => (
   <div className="mb-5 lg:mb-6">
     {/* marketing eyebrow is a website tell — desktop only; mobile uses the iOS large-title look */}
     {eyebrow && <div className="mb-2 hidden lg:block"><Eyebrow>{eyebrow}</Eyebrow></div>}
     <h1 className="font-display text-[26px] leading-[1.1] tracking-tight text-bone lg:text-3xl">{title}</h1>
-    {sub && <p className="mt-1.5 max-w-xl text-sm text-bone-dim lg:mt-2">{sub}</p>}
+    {sub && <p className="mt-1.5 max-w-xl text-sm text-[#99907c] lg:mt-2">{sub}</p>}
   </div>
 );
-const Stat = ({ value, label, accent = "text-bone", hint }) => (
+const Stat = ({ value, label, accent = "text-bone", hint, Icon }) => (
   <Card className="p-3.5 lg:p-4">
+    {Icon && <Icon size={17} className="mb-2.5 text-[#f2ca50]" />}
     <div className={`font-display text-[26px] leading-none lg:text-3xl ${accent}`}>{value}</div>
-    <div className="mt-1.5 text-[12px] leading-tight text-bone-dim lg:mt-2 lg:text-[13px]">{label}</div>
+    <div className="mt-1.5 text-[12px] leading-tight text-[#99907c] lg:mt-2 lg:text-[13px]">{label}</div>
     {hint && <div className="mt-1 text-[11px] text-ok">{hint}</div>}
   </Card>
 );
 const Skeleton = ({ className = "" }) => (
-  <div className={`relative overflow-hidden rounded-xl bg-white/5 ${className}`}>
+  <div className={`relative overflow-hidden rounded-none bg-white/5 ${className}`}>
     <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/5 to-transparent animate-[shimmer_1.4s_infinite]" />
   </div>
 );
@@ -252,67 +261,67 @@ export default function Dashboard() {
   const initial = avatarInitial(name);
 
   if (!authReady) {
-    return <div className="grid min-h-screen place-items-center bg-ink text-bone-dim"><div className="flex items-center gap-3 text-sm"><span className="h-4 w-4 animate-spin rounded-full border-2 border-gold/30 border-t-gold" />Loading studio…</div></div>;
+    return <div className="grid min-h-screen place-items-center bg-[#131313] text-[#99907c]"><div className="flex items-center gap-3 text-sm"><span className="h-4 w-4 animate-spin rounded-full border-2 border-[#f2ca50]/30 border-t-[#f2ca50]" />Loading studio…</div></div>;
   }
 
   return (
-    <div className="min-h-screen bg-ink font-sans text-bone">
+    <div className="min-h-screen bg-[#131313] font-sans text-bone">
       {/* mobile scrim */}
       {navOpen && <div className="fixed inset-0 z-40 bg-black/60 lg:hidden" onClick={() => setNavOpen(false)} />}
 
       {/* sidebar */}
-      <aside className={`fixed inset-y-0 left-0 z-50 flex w-[264px] flex-col border-r border-line bg-ink-2/95 px-4 py-5 backdrop-blur-xl transition-transform lg:translate-x-0 ${navOpen ? "translate-x-0" : "-translate-x-full"}`}>
+      <aside className={`fixed inset-y-0 left-0 z-50 flex w-[264px] flex-col border-r border-[#262626] bg-[#0e0e0e]/95 px-4 py-5 backdrop-blur-xl transition-transform lg:translate-x-0 ${navOpen ? "translate-x-0" : "-translate-x-full"}`}>
         <div className="flex items-center justify-between px-2">
           <div className="flex items-center gap-2.5 font-display text-lg tracking-tight">
-            <span className="h-2.5 w-2.5 rounded-full bg-gold shadow-glow" /> PluggurBeats
+            <span className="h-2.5 w-2.5 rounded-full bg-[#f2ca50] shadow-glow" /> PluggurBeats
           </div>
-          <button className="lg:hidden text-bone-dim hover:text-bone" onClick={() => setNavOpen(false)}><X size={20} /></button>
+          <button className="lg:hidden text-[#99907c] hover:text-bone" onClick={() => setNavOpen(false)}><X size={20} /></button>
         </div>
 
-        <div className="mt-7 mb-2 px-2 font-mono text-[10px] uppercase tracking-[0.16em] text-bone-dim">Workspace</div>
+        <div className="mt-7 mb-2 px-2 font-mono text-[10px] uppercase tracking-[0.16em] text-[#99907c]">Workspace</div>
         <nav className="flex flex-col gap-1">
           {navItems.map(({ v, href, label, Icon }) => {
             const active = view === v;
             if (href) {
               return (
                 <a key={v} href={href}
-                  className="group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-bone-dim transition hover:bg-white/5 hover:text-bone">
-                  <Icon size={18} className="text-gold" />
+                  className="group flex items-center gap-3 rounded-none px-3 py-2.5 text-sm font-medium text-[#99907c] transition hover:bg-white/5 hover:text-bone">
+                  <Icon size={18} className="text-[#f2ca50]" />
                   {label}
-                  <span className="ml-auto rounded-full border border-gold/30 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-gold">Access</span>
+                  <span className="ml-auto rounded-full border border-[#f2ca50]/30 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-[#f2ca50]">Access</span>
                 </a>
               );
             }
             return (
               <button key={v} onClick={() => go(v)}
-                className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${active ? "bg-gold/12 text-bone" : "text-bone-dim hover:bg-white/5 hover:text-bone"}`}>
-                <Icon size={18} className={active ? "text-gold" : "text-bone-dim group-hover:text-bone"} />
+                className={`group flex items-center gap-3 rounded-none px-3 py-2.5 text-sm font-medium transition ${active ? "bg-[#f2ca50]/12 text-bone" : "text-[#99907c] hover:bg-white/5 hover:text-bone"}`}>
+                <Icon size={18} className={active ? "text-[#f2ca50]" : "text-[#99907c] group-hover:text-bone"} />
                 {label}
-                {active && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-gold" />}
+                {active && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-[#f2ca50]" />}
               </button>
             );
           })}
-          <a href="/" className="mt-1 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-bone-dim transition hover:bg-white/5 hover:text-bone">
+          <a href="/" className="mt-1 flex items-center gap-3 rounded-none px-3 py-2.5 text-sm font-medium text-[#99907c] transition hover:bg-white/5 hover:text-bone">
             <ArrowLeft size={18} /> Marketing site
           </a>
         </nav>
 
         <div className="relative mt-auto">
           {menuOpen && (
-            <div data-menu className="absolute bottom-[58px] left-0 right-0 overflow-hidden rounded-2xl border border-strong bg-ink-3 shadow-card">
+            <div data-menu className="absolute bottom-[58px] left-0 right-0 overflow-hidden rounded-none border border-[#4d4635] bg-[#1c1b1b] shadow-card">
               <button onClick={() => { setMenuOpen(false); setProfileOpen(true); }} className="flex w-full items-center gap-2.5 px-4 py-3 text-left text-sm text-bone hover:bg-white/5"><Settings size={15} /> Profile &amp; settings</button>
               <button onClick={() => { setMenuOpen(false); go("billing"); }} className="flex w-full items-center gap-2.5 px-4 py-3 text-left text-sm text-bone hover:bg-white/5"><CreditCard size={15} /> Billing</button>
-              <div className="h-px bg-line" />
+              <div className="h-px bg-[#262626]" />
               <button onClick={() => signOut(auth)} className="flex w-full items-center gap-2.5 px-4 py-3 text-left text-sm text-bad hover:bg-bad/10"><LogOut size={15} /> Sign out</button>
             </div>
           )}
-          <button data-me onClick={() => setMenuOpen((v) => !v)} className="flex w-full items-center gap-3 rounded-2xl border border-line bg-ink p-2.5 text-left transition hover:border-strong">
-            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-gold to-violet font-display text-sm text-[#1a1405]" style={avatarUrl ? { backgroundImage: `url("${avatarUrl}")`, backgroundSize: "cover" } : undefined}>{avatarUrl ? "" : initial}</span>
+          <button data-me onClick={() => setMenuOpen((v) => !v)} className="flex w-full items-center gap-3 rounded-none border border-[#262626] bg-[#131313] p-2.5 text-left transition hover:border-[#4d4635]">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#f2ca50] to-violet font-display text-sm text-[#3c2f00]" style={avatarUrl ? { backgroundImage: `url("${avatarUrl}")`, backgroundSize: "cover" } : undefined}>{avatarUrl ? "" : initial}</span>
             <span className="min-w-0 flex-1">
               <span className="block truncate text-[13px] font-semibold">{profile.displayName || "—"}</span>
-              <span className="block truncate text-[11px] text-bone-dim">{user?.email}</span>
+              <span className="block truncate text-[11px] text-[#99907c]">{user?.email}</span>
             </span>
-            <ChevronDown size={15} className={`text-bone-dim transition ${menuOpen ? "rotate-180" : ""}`} />
+            <ChevronDown size={15} className={`text-[#99907c] transition ${menuOpen ? "rotate-180" : ""}`} />
           </button>
         </div>
       </aside>
@@ -320,19 +329,19 @@ export default function Dashboard() {
       {/* main */}
       <div className="lg:pl-[264px]">
         {/* top bar */}
-        <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-line bg-ink/70 px-4 py-2.5 backdrop-blur-xl sm:px-6 lg:px-10" style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 0.625rem)" }}>
+        <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-[#262626] bg-[#131313]/70 px-4 py-2.5 backdrop-blur-xl sm:px-6 lg:px-10" style={{ paddingTop: "calc(env(safe-area-inset-top, 0px) + 0.625rem)" }}>
           {/* mobile account avatar + menu (sidebar handles this on desktop) */}
           <div className="relative lg:hidden">
-            <button data-me onClick={() => setMenuOpen((v) => !v)} className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full bg-gradient-to-br from-gold to-violet font-display text-sm text-[#1a1405]" style={avatarUrl ? { backgroundImage: `url("${avatarUrl}")`, backgroundSize: "cover" } : undefined}>{avatarUrl ? "" : initial}</button>
+            <button data-me onClick={() => setMenuOpen((v) => !v)} className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full bg-gradient-to-br from-[#f2ca50] to-violet font-display text-sm text-[#3c2f00]" style={avatarUrl ? { backgroundImage: `url("${avatarUrl}")`, backgroundSize: "cover" } : undefined}>{avatarUrl ? "" : initial}</button>
             {menuOpen && (
-              <div data-menu className="absolute left-0 top-[48px] z-50 w-60 overflow-hidden rounded-2xl border border-strong bg-ink-3 shadow-card">
-                <div className="border-b border-line px-4 py-3">
+              <div data-menu className="absolute left-0 top-[48px] z-50 w-60 overflow-hidden rounded-none border border-[#4d4635] bg-[#1c1b1b] shadow-card">
+                <div className="border-b border-[#262626] px-4 py-3">
                   <div className="truncate text-sm font-semibold">{name}</div>
-                  <div className="truncate text-[11px] text-bone-dim">{user?.email}</div>
+                  <div className="truncate text-[11px] text-[#99907c]">{user?.email}</div>
                 </div>
                 <button onClick={() => { setMenuOpen(false); setProfileOpen(true); }} className="flex w-full items-center gap-2.5 px-4 py-3 text-left text-sm text-bone hover:bg-white/5"><Settings size={15} /> Profile &amp; settings</button>
                 <button onClick={() => { setMenuOpen(false); go("billing"); }} className="flex w-full items-center gap-2.5 px-4 py-3 text-left text-sm text-bone hover:bg-white/5"><CreditCard size={15} /> Billing &amp; credits</button>
-                <div className="h-px bg-line" />
+                <div className="h-px bg-[#262626]" />
                 <button onClick={() => signOut(auth)} className="flex w-full items-center gap-2.5 px-4 py-3 text-left text-sm text-bad hover:bg-bad/10"><LogOut size={15} /> Sign out</button>
               </div>
             )}
@@ -345,7 +354,7 @@ export default function Dashboard() {
             {view === "overview" && <Overview name={name} campaigns={campaigns} tier={tier} pitch={pitchBalance} go={go} onPickRequest={pickRequest} uid={uid} onGoToBilling={() => go("billing")} />}
             {view === "submit" && <CampaignBuilder tier={tier} caps={caps} pitchBalance={pitchBalance} user={user} profile={profile} campaignCount={campaigns.length} targetRequest={targetRequest} clearTargetRequest={() => setTargetRequest(null)} showToast={showToast} onSubmitted={() => go("analytics")} onGoToBilling={() => go("billing")} />}
             {view === "analytics" && <Analytics campaigns={campaigns} uid={uid} tier={tier} />}
-            {view === "paperwork" && <Paperwork campaigns={campaigns} uid={uid} profile={profile} showToast={showToast} />}
+            {view === "paperwork" && <Paperwork campaigns={campaigns} uid={uid} profile={profile} showToast={showToast} go={go} />}
             {view === "loops" && <LoopDrops user={user} pitchBalance={pitchBalance} loopBalance={loopBalance} targetRequest={targetRequest} clearTargetRequest={() => setTargetRequest(null)} showToast={showToast} />}
             {view === "billing" && <Billing tier={tier} profile={profile} pitchBalance={pitchBalance} loopBalance={loopBalance} startSubscription={startSubscription} buyPack={buyPack} />}
           </div>
@@ -356,7 +365,7 @@ export default function Dashboard() {
 
       {/* ---- mobile bottom nav ---- */}
       <nav
-        className="fixed inset-x-0 bottom-0 z-50 flex border-t border-line bg-ink-2/95 backdrop-blur-xl lg:hidden"
+        className="fixed inset-x-0 bottom-0 z-50 flex border-t border-[#262626] bg-[#0e0e0e]/95 backdrop-blur-xl lg:hidden"
         style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
       >
         {navItems.map(({ v, href, label, Icon }) => {
@@ -373,9 +382,9 @@ export default function Dashboard() {
             <button
               key={v}
               onClick={() => href ? (window.location.href = href) : go(v)}
-              className={`flex flex-1 flex-col items-center justify-center gap-1 pt-2 pb-1.5 transition ${active || href ? "text-gold" : "text-bone-dim active:text-bone"}`}
+              className={`flex flex-1 flex-col items-center justify-center gap-1 pt-2 pb-1.5 transition ${active || href ? "text-[#f2ca50]" : "text-[#99907c] active:text-bone"}`}
             >
-              <span className={`flex h-7 w-12 items-center justify-center rounded-full transition ${active ? "bg-gold/12" : ""}`}>
+              <span className={`flex h-7 w-12 items-center justify-center rounded-full transition ${active ? "bg-[#f2ca50]/12" : ""}`}>
                 <Icon size={19} strokeWidth={active ? 2.4 : 1.8} />
               </span>
               <span className="text-[9px] font-medium leading-none tracking-tight">{short}</span>
@@ -391,17 +400,17 @@ export default function Dashboard() {
 
 function CreditPills({ tier, pitch, loop, onClick }) {
   return (
-    <button onClick={onClick} className="group flex items-center gap-1.5 rounded-full border border-line bg-ink-2 p-1 pr-2 transition hover:border-strong">
-      <span className="flex items-center gap-1.5 rounded-full bg-gold/10 px-2.5 py-1 text-[13px] font-semibold text-gold"><Rocket size={13} /> {pitch}</span>
-      <span className="flex items-center gap-1.5 rounded-full bg-ok/10 px-2.5 py-1 text-[13px] font-semibold text-ok"><Disc3 size={13} /> {loop}</span>
-      <span className="hidden px-1 font-mono text-[10px] uppercase tracking-wider text-bone-dim sm:inline">{tier}</span>
+    <button onClick={onClick} title="Pitch & loop credits — tap to manage in Billing" className="group flex items-center gap-1.5 rounded-none border border-[#262626] bg-[#0e0e0e] p-1 pr-2 transition hover:border-[#4d4635]">
+      <span title={`${pitch} pitch credits`} className="flex items-center gap-1.5 rounded-none bg-[#f2ca50]/10 px-2.5 py-1 text-[13px] font-semibold text-[#f2ca50]"><Rocket size={13} /> {pitch}</span>
+      <span title={`${loop} loop credits`} className="flex items-center gap-1.5 rounded-none bg-ok/10 px-2.5 py-1 text-[13px] font-semibold text-ok"><Disc3 size={13} /> {loop}</span>
+      <span className="hidden px-1 font-mono text-[10px] uppercase tracking-wider text-[#99907c] sm:inline">{tier}</span>
     </button>
   );
 }
 
 function Toast({ text }) {
   return (
-    <div className={`pointer-events-none fixed bottom-24 left-1/2 z-[60] -translate-x-1/2 rounded-full border border-strong bg-ink-3 px-5 py-3 text-sm font-medium text-bone shadow-card transition-all lg:bottom-6 ${text ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"}`}>{text}</div>
+    <div className={`pointer-events-none fixed bottom-24 left-1/2 z-[60] -translate-x-1/2 rounded-none border border-[#f2ca50]/50 bg-[#1c1b1b] px-5 py-3 text-sm font-medium text-bone shadow-card transition-all lg:bottom-6 ${text ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"}`}>{text}</div>
   );
 }
 
@@ -418,12 +427,12 @@ function Overview({ name, campaigns, tier, pitch, go, onPickRequest, uid, onGoTo
       <SectionHead eyebrow="Welcome back" title={`Hey ${firstName} 👋`} sub="Here's where your records stand right now." />
 
       {tier === "free" && (
-        <Card className="mb-4 flex flex-wrap items-center justify-between gap-3 border-gold/30 bg-gold/[0.06] p-4 lg:mb-6 lg:p-5">
+        <Card className="mb-4 flex flex-wrap items-center justify-between gap-3 border-[#f2ca50]/30 bg-[#f2ca50]/[0.06] p-4 lg:mb-6 lg:p-5">
           <div className="flex items-center gap-3">
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-gold/15 text-gold"><Sparkles size={20} /></span>
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-none bg-[#f2ca50]/15 text-[#f2ca50]"><Sparkles size={20} /></span>
             <div>
               <div className="font-display text-base lg:text-lg">Activate your studio</div>
-              <div className="text-[13px] text-bone-dim lg:text-sm">Subscribe to Plugg or Pro to start pitching campaigns.</div>
+              <div className="text-[13px] text-[#99907c] lg:text-sm">Subscribe to Plugg or Pro to start pitching campaigns.</div>
             </div>
           </div>
           <GoldBtn className="w-full sm:w-auto" onClick={() => go("billing")}>See plans <ArrowRight size={16} /></GoldBtn>
@@ -431,10 +440,10 @@ function Overview({ name, campaigns, tier, pitch, go, onPickRequest, uid, onGoTo
       )}
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
-        <Stat value={campaigns.length || 0} label="Campaigns submitted" />
-        <Stat value={sent || 0} label="Pitches sent" />
-        <Stat value={sent ? Math.round(opens / sent * 100) + "%" : "—"} label="Open rate" accent="text-gold" />
-        <Stat value={downs || 0} label="Beat downloads" accent="text-ok" />
+        <Stat value={campaigns.length || 0} label="Campaigns submitted" Icon={Rocket} />
+        <Stat value={sent || 0} label="Pitches sent" Icon={Send} />
+        <Stat value={sent ? Math.round(opens / sent * 100) + "%" : "—"} label="Open rate" accent="text-[#f2ca50]" Icon={TrendingUp} />
+        <Stat value={downs || 0} label="Beat downloads" accent="text-ok" Icon={Download} />
       </div>
 
       {/* Requests + Recent campaigns — visible to all tiers */}
@@ -444,24 +453,24 @@ function Overview({ name, campaigns, tier, pitch, go, onPickRequest, uid, onGoTo
         <Card className="p-4 lg:p-5">
           <div className="mb-3 flex items-center justify-between lg:mb-4">
             <h3 className="font-display text-lg">Recent campaigns</h3>
-            <button onClick={() => go("analytics")} className="flex items-center gap-1 text-[13px] text-gold hover:underline">View all <ArrowRight size={13} /></button>
+            <button onClick={() => go("analytics")} className="flex items-center gap-1 text-[13px] text-[#f2ca50] hover:underline">View all <ArrowRight size={13} /></button>
           </div>
           {recent.length === 0 ? (
             <div className="flex flex-col items-center gap-3 py-10 text-center">
-              <span className="grid h-12 w-12 place-items-center rounded-2xl bg-white/5 text-bone-dim"><Music2 size={22} /></span>
-              <p className="text-sm text-bone-dim">No campaigns yet. Load your beats and pick your lanes.</p>
+              <span className="grid h-12 w-12 place-items-center rounded-none bg-white/5 text-[#99907c]"><Music2 size={22} /></span>
+              <p className="text-sm text-[#99907c]">No campaigns yet. Load your beats and pick your lanes.</p>
               <GoldBtn onClick={() => go("submit")}><Plus size={16} /> Start a campaign</GoldBtn>
             </div>
           ) : (
-            <div className="flex flex-col divide-y divide-line">
+            <div className="flex flex-col divide-y divide-[#262626]">
               {recent.map((c) => {
                 const title = (c.beats || []).map((b) => b.title).filter(Boolean).join(", ") || "Campaign";
                 return (
                   <div key={c.id} className="flex items-center gap-3 py-3">
-                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-white/5 text-bone-dim"><Music2 size={16} /></span>
+                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-none bg-white/5 text-[#99907c]"><Music2 size={16} /></span>
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-sm font-medium">{title}</div>
-                      <div className="truncate text-[12px] text-bone-dim">{(c.beats || []).length} beat{(c.beats || []).length !== 1 ? "s" : ""} · {(c.targets || []).length} lane{(c.targets || []).length !== 1 ? "s" : ""}</div>
+                      <div className="truncate text-[12px] text-[#99907c]">{(c.beats || []).length} beat{(c.beats || []).length !== 1 ? "s" : ""} · {(c.targets || []).length} lane{(c.targets || []).length !== 1 ? "s" : ""}</div>
                     </div>
                     <StatusBadge status={c.status} />
                   </div>
@@ -482,11 +491,11 @@ function Overview({ name, campaigns, tier, pitch, go, onPickRequest, uid, onGoTo
             { label: "Drop a loop", desc: "Earn from the pool", Icon: Disc3, v: "loops" },
             { label: "File paperwork", desc: "Split sheets", Icon: FileText, v: "paperwork" }
           ].map(({ label, desc, Icon, v }) => (
-            <button key={v} onClick={() => go(v)} className="group flex items-center gap-3 rounded-xl border border-line bg-ink p-3 text-left transition hover:border-strong hover:bg-white/[0.03] active:scale-[0.98]">
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-white/5 text-gold transition group-hover:bg-gold/15"><Icon size={17} /></span>
+            <button key={v} onClick={() => go(v)} className="group flex items-center gap-3 rounded-none border border-[#262626] bg-[#131313] p-3 text-left transition hover:border-[#4d4635] hover:bg-white/[0.03] active:scale-[0.98]">
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-none bg-white/5 text-[#f2ca50] transition group-hover:bg-[#f2ca50]/15"><Icon size={17} /></span>
               <span className="flex-1">
                 <span className="block text-sm font-medium text-bone">{label}</span>
-                <span className="block text-[12px] text-bone-dim">{desc}</span>
+                <span className="block text-[12px] text-[#99907c]">{desc}</span>
               </span>
             </button>
           ))}
@@ -498,9 +507,10 @@ function Overview({ name, campaigns, tier, pitch, go, onPickRequest, uid, onGoTo
 
 /* ---- open requests feed (Pro overview) ---- */
 const REQUEST_TYPE_META = {
-  beats: { label: "Beats", Icon: Music2, color: "text-gold", bg: "bg-gold/10" },
+  beats: { label: "Beats", Icon: Music2, color: "text-[#f2ca50]", bg: "bg-[#f2ca50]/10" },
   loops: { label: "Loops", Icon: Disc3, color: "text-ok", bg: "bg-ok/10" },
-  both:  { label: "Beats + Loops", Icon: Sparkles, color: "text-violet", bg: "bg-violet/10" }
+  both:  { label: "Beats + Loops", Icon: Sparkles, color: "text-violet", bg: "bg-violet/10" },
+  announcement: { label: "Announcement", Icon: Megaphone, color: "text-[#f2ca50]", bg: "bg-[#f2ca50]/10" }
 };
 
 function UserProfilePopup({ req, allRequests = [], onClose }) {
@@ -525,7 +535,7 @@ function UserProfilePopup({ req, allRequests = [], onClose }) {
   })() : null;
 
   const TYPE_META = {
-    beats: { label: "Beats", color: "text-gold" },
+    beats: { label: "Beats", color: "text-[#f2ca50]" },
     loops: { label: "Loops", color: "text-ok" },
     both:  { label: "Beats + Loops", color: "text-violet" }
   };
@@ -535,21 +545,21 @@ function UserProfilePopup({ req, allRequests = [], onClose }) {
     <div className="fixed inset-0 z-[80] flex items-end justify-center p-4 sm:items-center" onClick={onClose}>
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
       <div
-        className="relative w-full max-w-sm overflow-hidden rounded-2xl border border-white/[0.09] bg-ink-3 shadow-card"
+        className="relative w-full max-w-sm overflow-hidden rounded-none border border-white/[0.09] bg-[#1c1b1b] shadow-card"
         style={{ animation: "fade-up .25s cubic-bezier(0.23,1,0.32,1) both" }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* header gradient */}
-        <div className="h-14 bg-gradient-to-br from-violet/40 to-gold/30" />
+        <div className="h-14 bg-gradient-to-br from-violet/40 to-[#f2ca50]/30" />
 
         <div className="relative px-5 pb-5">
           {/* avatar + close */}
           <div className="relative -mt-8 mb-3 flex items-end justify-between">
             <span
-              className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-2xl border-2 border-ink-3 bg-gradient-to-br from-violet to-gold font-display text-xl font-bold text-[#1a1405]"
+              className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-none border-2 border-[#1c1b1b] bg-gradient-to-br from-violet to-[#f2ca50] font-display text-xl font-bold text-[#3c2f00]"
               style={req.createdByPhotoURL ? { backgroundImage: `url("${req.createdByPhotoURL}")`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}
             >{req.createdByPhotoURL ? "" : initial}</span>
-            <button onClick={onClose} className="grid h-8 w-8 place-items-center rounded-full bg-white/[0.07] text-bone-dim hover:bg-white/10 hover:text-bone transition-colors">
+            <button onClick={onClose} className="grid h-8 w-8 place-items-center rounded-full bg-white/[0.07] text-[#99907c] hover:bg-white/10 hover:text-bone transition-colors">
               <X size={15} />
             </button>
           </div>
@@ -561,52 +571,52 @@ function UserProfilePopup({ req, allRequests = [], onClose }) {
               <span className="rounded-full bg-violet/15 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-violet">{req.createdByRoleLabel}</span>
             )}
             {req.labelName && (
-              <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[11px] text-bone-dim">{req.labelName}</span>
+              <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[11px] text-[#99907c]">{req.labelName}</span>
             )}
             {req.createdByLocation && (
-              <span className="text-[11px] text-bone-dim/70">{req.createdByLocation}</span>
+              <span className="text-[11px] text-[#99907c]/70">{req.createdByLocation}</span>
             )}
           </div>
 
           {/* analytics row */}
-          <div className="mb-3 grid grid-cols-3 divide-x divide-white/[0.07] overflow-hidden rounded-xl border border-white/[0.07] bg-white/[0.03]">
+          <div className="mb-3 grid grid-cols-3 divide-x divide-white/[0.07] overflow-hidden rounded-none border border-white/[0.07] bg-white/[0.03]">
             <div className="flex flex-col items-center py-2.5 px-2">
               <span className="font-display text-[18px] font-bold text-bone leading-none">{requestCount}</span>
-              <span className="mt-1 font-mono text-[9px] uppercase tracking-wide text-bone-dim/60">Requests</span>
+              <span className="mt-1 font-mono text-[9px] uppercase tracking-wide text-[#99907c]/60">Requests</span>
             </div>
             <div className="flex flex-col items-center py-2.5 px-2">
               <span className="font-display text-[18px] font-bold text-bone leading-none">{totalViews}</span>
-              <span className="mt-1 font-mono text-[9px] uppercase tracking-wide text-bone-dim/60">Views</span>
+              <span className="mt-1 font-mono text-[9px] uppercase tracking-wide text-[#99907c]/60">Views</span>
             </div>
             <div className="flex flex-col items-center py-2.5 px-2">
               <span className="font-display text-[18px] font-bold text-bone leading-none">{totalSubmissions}</span>
-              <span className="mt-1 font-mono text-[9px] uppercase tracking-wide text-bone-dim/60">Submissions</span>
+              <span className="mt-1 font-mono text-[9px] uppercase tracking-wide text-[#99907c]/60">Submissions</span>
             </div>
           </div>
 
           {/* this request */}
-          <div className="rounded-xl border border-white/[0.07] bg-white/[0.04] p-3">
+          <div className="rounded-none border border-white/[0.07] bg-white/[0.04] p-3">
             <div className="mb-2 flex items-center justify-between">
-              <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-bone-dim/60">This request</div>
+              <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-[#99907c]/60">This request</div>
               <div className="flex items-center gap-2">
                 <span className={`font-mono text-[9px] uppercase tracking-widest font-semibold ${typeMeta.color}`}>{typeMeta.label}</span>
-                {postedAgo && <span className="text-[10px] text-bone-dim/40">{postedAgo}</span>}
+                {postedAgo && <span className="text-[10px] text-[#99907c]/40">{postedAgo}</span>}
               </div>
             </div>
             <div className="text-[13px] font-semibold text-bone leading-snug">{req.title}</div>
-            {req.brief && <div className="mt-1 line-clamp-3 text-[12px] text-bone-dim leading-relaxed">{req.brief}</div>}
+            {req.brief && <div className="mt-1 line-clamp-3 text-[12px] text-[#99907c] leading-relaxed">{req.brief}</div>}
             {(req.genres?.length > 0 || req.tags?.length > 0) && (
               <div className="mt-2.5 flex flex-wrap gap-1.5">
                 {(req.genres || []).map((g) => (
                   <span key={g} className="rounded-full border border-white/10 px-2 py-0.5 text-[11px] text-bone">{g}</span>
                 ))}
                 {(req.tags || []).map((t) => (
-                  <span key={t} className="rounded-full bg-white/5 px-2 py-0.5 font-mono text-[10px] text-bone-dim">#{t}</span>
+                  <span key={t} className="rounded-full bg-white/5 px-2 py-0.5 font-mono text-[10px] text-[#99907c]">#{t}</span>
                 ))}
               </div>
             )}
             {/* per-request stats */}
-            <div className="mt-2.5 flex items-center gap-3 text-[11px] text-bone-dim/50">
+            <div className="mt-2.5 flex items-center gap-3 text-[11px] text-[#99907c]/50">
               <span className="flex items-center gap-1"><Eye size={11} /> {req.viewCount || 0} views</span>
               <span className="flex items-center gap-1"><Send size={11} /> {req.submissionCount || 0} submissions</span>
               {totalApproved > 0 && <span className="flex items-center gap-1 text-ok"><CheckCircle2 size={11} /> {totalApproved} approved</span>}
@@ -643,6 +653,7 @@ function RequestForum({ onPick, uid, tier = "free", onGoToBilling }) {
           createdByName: r.createdByName || "Verified user",
           createdByPhotoURL: r.createdByPhotoURL || "",
           createdByRole: r.createdByRole || "",
+          createdByStaff: r.createdByStaff === true,
           createdByRoleLabel: r.createdByRole ? verifiedRoleLabel(r.createdByRole) : "",
           createdByLocation: r.createdByLocation || "",
           labelName: r.labelName || "",
@@ -654,6 +665,7 @@ function RequestForum({ onPick, uid, tier = "free", onGoToBilling }) {
           references: Array.isArray(r.references) ? r.references : [],
           deadline: r.deadline || "",
           status: r.status || "open",
+          pinned: r.pinned === true,
           viewCount: r.viewCount || 0,
           submissionCount: r.submissionCount || 0,
           createdAt: r.createdAt?.toMillis ? r.createdAt.toMillis() : null,
@@ -666,11 +678,15 @@ function RequestForum({ onPick, uid, tier = "free", onGoToBilling }) {
   const loading = data === undefined;
   // Listener returns newest-first; reverse a copy so the newest "text" sits at the bottom like a chat.
   const requests = [...(data || [])].reverse();
+  // Pinned posts (announcements, etc.) float to the top of the board in their
+  // own strip; the rest stay in the bottom-anchored chat scroll.
+  const pinned = (data || []).filter((r) => r.pinned);
+  const feedItems = requests.filter((r) => !r.pinned);
 
   // Pin the feed to the bottom (latest message) on load and whenever new requests arrive.
   useEffect(() => {
     if (feedRef.current) feedRef.current.scrollTop = feedRef.current.scrollHeight;
-  }, [requests.length]);
+  }, [feedItems.length]);
 
   const toggle = (req) => {
     const next = openId === req.id ? null : req.id;
@@ -684,19 +700,29 @@ function RequestForum({ onPick, uid, tier = "free", onGoToBilling }) {
   return (
     <Card className="mt-4 overflow-hidden p-0 lg:mt-6" style={{ overflow: "visible" }}>
       {/* header */}
-      <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3 lg:px-5">
+      <div className="flex items-center justify-between gap-3 border-b border-[#262626] px-4 py-3 lg:px-5">
         <div className="flex items-center gap-2">
           <div className="relative flex h-2 w-2 shrink-0">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-ok opacity-60" />
             <span className="relative inline-flex h-2 w-2 rounded-full bg-ok" />
           </div>
           <span className="font-display text-[15px] font-semibold leading-tight text-bone">Open requests</span>
-          <span className="font-mono text-[11px] text-bone-dim">{requests.length} live</span>
+          <span className="font-mono text-[11px] text-[#99907c]">{requests.length} live</span>
         </div>
-        <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-bone-dim/50">Live</span>
+        <span className="font-mono text-[9px] uppercase tracking-[0.16em] text-[#99907c]/50">Live</span>
       </div>
 
       {profileReq && <UserProfilePopup req={profileReq} allRequests={requests} onClose={() => setProfileReq(null)} />}
+
+      {/* pinned strip — stays at the top regardless of chat scroll */}
+      {pinned.length > 0 && (
+        <div className="flex flex-col gap-3 border-b border-[#262626] bg-[#f2ca50]/[0.03] px-4 py-4 lg:px-5">
+          <div className="flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-[0.16em] text-[#f2ca50]"><Pin size={10} /> Pinned</div>
+          {pinned.map((req) => (
+            <RequestBubble key={`pin-${req.id}`} req={req} index={0} open={openId === req.id} onToggle={() => toggle(req)} onPick={onPick} onAvatarClick={() => setProfileReq(req)} tier={tier} onGoToBilling={onGoToBilling} />
+          ))}
+        </div>
+      )}
 
       {/* feed */}
       {loading ? (
@@ -713,12 +739,12 @@ function RequestForum({ onPick, uid, tier = "free", onGoToBilling }) {
         </div>
       ) : requests.length === 0 ? (
         <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
-          <span className="grid h-12 w-12 place-items-center rounded-2xl bg-white/5 text-bone-dim"><Send size={22} /></span>
-          <p className="text-sm text-bone-dim">No open requests yet.</p>
+          <span className="grid h-12 w-12 place-items-center rounded-none bg-white/5 text-[#99907c]"><Send size={22} /></span>
+          <p className="text-sm text-[#99907c]">No open requests yet.</p>
         </div>
       ) : (
         <div ref={feedRef} className="req-scroll flex flex-col gap-3 overflow-y-auto px-4 py-5 lg:px-5" style={{ height: "340px" }}>
-          {requests.map((req, i) => (
+          {feedItems.map((req, i) => (
             <RequestBubble key={req.id} req={req} index={i} open={openId === req.id} onToggle={() => toggle(req)} onPick={onPick} onAvatarClick={() => setProfileReq(req)} tier={tier} onGoToBilling={onGoToBilling} />
           ))}
         </div>
@@ -730,6 +756,7 @@ function RequestForum({ onPick, uid, tier = "free", onGoToBilling }) {
 function RequestBubble({ req, index, open, onToggle, onPick, onAvatarClick, tier = "free", onGoToBilling }) {
   const meta = REQUEST_TYPE_META[req.requestType] || REQUEST_TYPE_META.beats;
   const TypeIcon = meta.Icon;
+  const isAnnouncement = req.requestType === "announcement";
   const initial = avatarInitial(req.createdByName);
   const wantsBeats = req.requestType === "beats" || req.requestType === "both";
   const wantsLoops = req.requestType === "loops" || req.requestType === "both";
@@ -744,7 +771,7 @@ function RequestBubble({ req, index, open, onToggle, onPick, onAvatarClick, tier
       <div className="flex shrink-0 items-end">
         <button
           onClick={(e) => { e.stopPropagation(); onAvatarClick(); }}
-          className="grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-full bg-gradient-to-br from-violet to-gold font-display text-[11px] font-bold text-[#1a1405] ring-0 transition-transform duration-130 ease-expo active:scale-[0.9] hover:ring-2 hover:ring-white/20"
+          className="grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-full bg-gradient-to-br from-violet to-[#f2ca50] font-display text-[11px] font-bold text-[#3c2f00] ring-0 transition-transform duration-130 ease-expo active:scale-[0.9] hover:ring-2 hover:ring-white/20"
           style={req.createdByPhotoURL ? { backgroundImage: `url("${req.createdByPhotoURL}")`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}
           aria-label={`View ${req.createdByName}'s profile`}
         >{req.createdByPhotoURL ? "" : initial}</button>
@@ -754,12 +781,12 @@ function RequestBubble({ req, index, open, onToggle, onPick, onAvatarClick, tier
       <div className="flex min-w-0 max-w-[84%] flex-col gap-1">
         {/* sender name row */}
         <div className="flex flex-wrap items-center gap-1.5 pl-1">
-          <span className="text-[11px] font-semibold text-bone-dim">{req.createdByName}</span>
-          {req.createdByRoleLabel && (
-            <span className="rounded-full bg-violet/15 px-1.5 py-px font-mono text-[9px] uppercase tracking-wider text-violet">{req.createdByRoleLabel}</span>
-          )}
+          <span className="text-[11px] font-semibold text-bone">{req.createdByName}</span>
+          {req.createdByStaff
+            ? <span className="rounded-none bg-[#f2ca50]/15 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-[#f2ca50]">Staff</span>
+            : <span className="rounded-none bg-[#7C5CFF]/20 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-[#b9a8ff]">{req.createdByRoleLabel || "Verified"}</span>}
           {req.labelName && (
-            <span className="text-[10px] text-bone-dim/60">{req.labelName}</span>
+            <span className="rounded-none bg-[#f2ca50]/12 px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wider text-[#f2ca50]">{req.labelName}</span>
           )}
         </div>
 
@@ -796,14 +823,14 @@ function RequestBubble({ req, index, open, onToggle, onPick, onAvatarClick, tier
                     <span key={`g-${g}`} className="rounded-full border border-white/10 px-2 py-0.5 text-[11px] text-bone">{g}</span>
                   ))}
                   {(req.tags || []).map((t) => (
-                    <span key={`t-${t}`} className="rounded-full bg-white/5 px-2 py-0.5 font-mono text-[10px] text-bone-dim">#{t}</span>
+                    <span key={`t-${t}`} className="rounded-full bg-white/5 px-2 py-0.5 font-mono text-[10px] text-[#99907c]">#{t}</span>
                   ))}
                 </div>
               )}
 
               {(req.references?.length || 0) > 0 && (
                 <div className="mb-2 text-[11px] text-white/40">
-                  <span className="font-semibold text-bone-dim">Ref: </span>{req.references.join(" · ")}
+                  <span className="font-semibold text-[#99907c]">Ref: </span>{req.references.join(" · ")}
                 </div>
               )}
 
@@ -813,15 +840,15 @@ function RequestBubble({ req, index, open, onToggle, onPick, onAvatarClick, tier
                 <span className="inline-flex items-center gap-1"><Send size={11} /> {req.submissionCount || 0} submissions</span>
               </div>
 
-              {req.isMine ? (
-                <div className="rounded-lg bg-white/5 px-3 py-2 text-[11px] text-bone-dim">Your request.</div>
+              {isAnnouncement ? null : req.isMine ? (
+                <div className="rounded-none bg-white/5 px-3 py-2 text-[11px] text-[#99907c]">Your request.</div>
               ) : !roleAllowed ? (
-                <div className="flex items-center justify-between gap-3 rounded-lg border border-white/[0.07] bg-white/[0.04] px-3 py-2.5">
+                <div className="flex items-center justify-between gap-3 rounded-none border border-white/[0.07] bg-white/[0.04] px-3 py-2.5">
                   <div>
                     <div className="text-[11px] font-semibold text-bone">{minPlan} required</div>
-                    <div className="text-[10px] text-bone-dim/60">This role requires a {minPlan} subscription to submit.</div>
+                    <div className="text-[10px] text-[#99907c]/60">This role requires a {minPlan} subscription to submit.</div>
                   </div>
-                  <button onClick={(e) => { e.stopPropagation(); onGoToBilling?.(); }} className="shrink-0 rounded-full bg-gold px-3 py-1.5 text-[11px] font-semibold text-[#1a1405] transition hover:bg-gold-deep active:scale-[0.97]">
+                  <button onClick={(e) => { e.stopPropagation(); onGoToBilling?.(); }} className="shrink-0 rounded-full bg-[#f2ca50] px-3 py-1.5 text-[11px] font-semibold text-[#3c2f00] transition hover:bg-[#d4af37] active:scale-[0.97]">
                     Upgrade
                   </button>
                 </div>
@@ -854,9 +881,9 @@ function StatusBadge({ status }) {
     pitched: { t: "Pitched", c: "bg-ok/12 text-ok", I: CheckCircle2 },
     rejected: { t: "Rejected", c: "bg-bad/12 text-bad", I: XCircle },
     send_failed: { t: "Send failed", c: "bg-bad/12 text-bad", I: XCircle },
-    no_contacts: { t: "No contacts", c: "bg-white/8 text-bone-dim", I: Clock }
+    no_contacts: { t: "No contacts", c: "bg-white/8 text-[#99907c]", I: Clock }
   };
-  const s = map[status] || { t: status || "—", c: "bg-white/8 text-bone-dim", I: Clock };
+  const s = map[status] || { t: status || "—", c: "bg-white/8 text-[#99907c]", I: Clock };
   const I = s.I;
   return <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ${s.c}`}><I size={12} /> {s.t}</span>;
 }
@@ -897,6 +924,16 @@ function CampaignBuilder({ tier, caps, pitchBalance, user, profile, campaignCoun
   const rushCost = rush ? 2 : 0;
   const cost = beatCost + rushCost;
   const noCredit = cost > 0 && cost > pitchBalance;
+
+  // Surfaced inline so the user knows *why* Submit is disabled, instead of
+  // discovering it via a toast only after clicking.
+  const namedBeats = beats.filter((b) => b.title.trim());
+  const formIssue =
+    !bName.trim() || !bIg.trim() ? "Add your name and Instagram to continue."
+    : namedBeats.length === 0 ? "Name at least one beat."
+    : namedBeats.some((b) => !b.file && !b.storagePath) ? "Attach a file to every named beat."
+    : noCredit ? "Not enough pitch credits — top up in Billing."
+    : "";
 
   useEffect(() => {
     if (tier !== "pro" && selected.length) setSelected([]);
@@ -979,9 +1016,9 @@ function CampaignBuilder({ tier, caps, pitchBalance, user, profile, campaignCoun
       <section>
         <SectionHead eyebrow="New campaign" title="Start a campaign" />
         <Card className="flex flex-col items-center gap-4 p-12 text-center">
-          <span className="grid h-14 w-14 place-items-center rounded-2xl bg-gold/12 text-gold"><Disc3 size={26} /></span>
+          <span className="grid h-14 w-14 place-items-center rounded-none bg-[#f2ca50]/12 text-[#f2ca50]"><Disc3 size={26} /></span>
           <h2 className="font-display text-2xl">Campaigns require a subscription</h2>
-          <p className="max-w-sm text-sm leading-relaxed text-bone-dim">Upgrade to <strong className="text-bone">Plugg</strong> to land in the Verified library, or <strong className="text-bone">Pro</strong> to blast directly to artist &amp; A&amp;R inboxes.</p>
+          <p className="max-w-sm text-sm leading-relaxed text-[#99907c]">Upgrade to <strong className="text-bone">Plugg</strong> to land in the Verified library, or <strong className="text-bone">Pro</strong> to blast directly to artist &amp; A&amp;R inboxes.</p>
           <GoldBtn onClick={onGoToBilling}>See plans <ArrowRight size={16} /></GoldBtn>
         </Card>
       </section>
@@ -996,11 +1033,11 @@ function CampaignBuilder({ tier, caps, pitchBalance, user, profile, campaignCoun
       <SectionHead eyebrow="New campaign" title="Start a campaign" sub={targetRequest ? `Targeting ${targetRequest.createdByName}'s request. Staff review is still required before delivery.` : tier === "pro" ? "Approved campaigns go to Verified; optionally add up to 5 Pro desk lanes." : "Approved campaigns are added to the Verified library."} />
 
       {targetRequest && (
-        <Card className="mb-4 flex flex-col gap-3 border-gold/30 bg-gold/[0.06] p-4 sm:flex-row sm:items-center sm:justify-between">
+        <Card className="mb-4 flex flex-col gap-3 border-[#f2ca50]/30 bg-[#f2ca50]/[0.06] p-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
-            <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-gold">Request target</div>
+            <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-[#f2ca50]">Request target</div>
             <div className="mt-1 truncate font-display text-xl text-bone">{targetRequest.title}</div>
-            <div className="mt-0.5 text-[13px] text-bone-dim">{targetRequest.createdByName} · {targetRequest.createdByRoleLabel || "Verified"}{targetRequest.labelName ? ` · ${targetRequest.labelName}` : ""}</div>
+            <div className="mt-0.5 text-[13px] text-[#99907c]">{targetRequest.createdByName} · {targetRequest.createdByRoleLabel || "Verified"}{targetRequest.labelName ? ` · ${targetRequest.labelName}` : ""}</div>
           </div>
           <GhostBtn className="px-4 py-2 text-[12px]" onClick={() => { sessionStorage.removeItem("pluggurbeats:targetRequest"); clearTargetRequest?.(); }}>Clear target</GhostBtn>
         </Card>
@@ -1010,12 +1047,12 @@ function CampaignBuilder({ tier, caps, pitchBalance, user, profile, campaignCoun
       <Card className="mb-4 flex flex-wrap items-center justify-between gap-4 p-4 lg:mb-6 lg:p-5">
         <div>
           <Eyebrow>Pitch credits</Eyebrow>
-          <div className="mt-1 font-display text-4xl leading-none">{pitchBalance}<span className="ml-1 font-sans text-sm font-normal text-bone-dim">available</span></div>
+          <div className="mt-1 font-display text-4xl leading-none">{pitchBalance}<span className="ml-1 font-sans text-sm font-normal text-[#99907c]">available</span></div>
         </div>
         <div className="text-right">
-          <div className="text-[12px] text-bone-dim">1 per beat{rush ? " + 2 rush" : ""}</div>
-          <div className={`font-display text-3xl leading-none ${noCredit ? "text-bad" : "text-gold"}`}>{cost}</div>
-          <div className="text-[11px] text-bone-dim">credits</div>
+          <div className="text-[12px] text-[#99907c]">1 per beat{rush ? " + 2 rush" : ""}</div>
+          <div className={`font-display text-3xl leading-none ${noCredit ? "text-bad" : "text-[#f2ca50]"}`}>{cost}</div>
+          <div className="text-[11px] text-[#99907c]">credits</div>
         </div>
       </Card>
 
@@ -1030,29 +1067,29 @@ function CampaignBuilder({ tier, caps, pitchBalance, user, profile, campaignCoun
 
       {/* 2 beats */}
       <Card className="mb-4 p-4 lg:p-5">
-        <StepHead n={2} title="Your beats" right={<span className="font-mono text-[11px] text-bone-dim">{beats.length} / {caps.beats}</span>} />
-        <p className="mb-4 text-[13px] text-bone-dim">Each beat uploads when you submit. MP3 or WAV — untagged mixes pitch best.</p>
+        <StepHead n={2} title="Your beats" right={<span className="font-mono text-[11px] text-[#99907c]">{beats.length} / {caps.beats}</span>} />
+        <p className="mb-4 text-[13px] text-[#99907c]">Each beat uploads when you submit. MP3 or WAV — untagged mixes pitch best.</p>
         <div className="flex flex-col gap-3">
           {beats.map((b, i) => (
-            <div key={b.uid} className="overflow-hidden rounded-xl border border-line bg-ink">
+            <div key={b.uid} className="overflow-hidden rounded-none border border-[#262626] bg-[#131313]">
               <button className="flex w-full items-center gap-3 px-4 py-3 text-left" onClick={() => patchBeat(b.uid, { open: !b.open })}>
-                <span className="font-mono text-[12px] text-bone-dim">{String(i + 1).padStart(2, "0")}</span>
-                <span className={`flex-1 truncate text-sm ${b.title.trim() ? "text-bone" : "text-bone-dim"}`}>{b.title.trim() || "Untitled beat"}</span>
-                <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${b.status.includes("Uploaded") ? "bg-ok/12 text-ok" : b.status.includes("Uploading") ? "bg-gold/12 text-gold" : b.file ? "bg-info/12 text-info" : "bg-white/8 text-bone-dim"}`}>{b.file && !b.storagePath ? "Ready" : b.status}</span>
-                <ChevronDown size={16} className={`text-bone-dim transition ${b.open ? "rotate-180" : ""}`} />
+                <span className="font-mono text-[12px] text-[#99907c]">{String(i + 1).padStart(2, "0")}</span>
+                <span className={`flex-1 truncate text-sm ${b.title.trim() ? "text-bone" : "text-[#99907c]"}`}>{b.title.trim() || "Untitled beat"}</span>
+                <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${b.status.includes("Uploaded") ? "bg-ok/12 text-ok" : b.status.includes("Uploading") ? "bg-[#f2ca50]/12 text-[#f2ca50]" : b.file ? "bg-info/12 text-info" : "bg-white/8 text-[#99907c]"}`}>{b.file && !b.storagePath ? "Ready" : b.status}</span>
+                <ChevronDown size={16} className={`text-[#99907c] transition ${b.open ? "rotate-180" : ""}`} />
               </button>
               {b.open && (
-                <div className="border-t border-line p-4">
+                <div className="border-t border-[#262626] p-4">
                   <div className="grid gap-3 sm:grid-cols-3">
                     <div><Label>Beat title *</Label><input className={inputCls} placeholder="e.g. Midnight Run" value={b.title} onChange={(e) => patchBeat(b.uid, { title: e.target.value })} /></div>
-                    <div><Label>Genre</Label><select className={inputCls} value={b.genre} onChange={(e) => patchBeat(b.uid, { genre: e.target.value })}>{GENRES.map((g) => <option key={g}>{g}</option>)}</select></div>
-                    <div><Label>Key</Label><select className={inputCls} value={b.key} onChange={(e) => patchBeat(b.uid, { key: e.target.value })}>{KEY_OPTS.map((k) => <option key={k}>{k}</option>)}</select></div>
+                    <div><Label>Genre</Label><Select value={b.genre} onChange={(e) => patchBeat(b.uid, { genre: e.target.value })}>{GENRES.map((g) => <option key={g}>{g}</option>)}</Select></div>
+                    <div><Label>Key</Label><Select value={b.key} onChange={(e) => patchBeat(b.uid, { key: e.target.value })}>{KEY_OPTS.map((k) => <option key={k}>{k}</option>)}</Select></div>
                   </div>
                   <div className="mt-3 grid gap-3 sm:grid-cols-2">
                     <div><Label>BPM</Label><input className={inputCls} type="number" min="40" max="300" placeholder="e.g. 140" value={b.bpm} onChange={(e) => patchBeat(b.uid, { bpm: e.target.value })} /></div>
                     <div>
                       <Label>File *</Label>
-                      <label className={`flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed px-3 py-2.5 text-sm transition ${b.file || b.storagePath ? "border-ok/40 bg-ok/[0.06] text-ok" : "border-strong text-bone-dim hover:border-gold/50 hover:text-bone"}`}>
+                      <label className={`flex cursor-pointer items-center justify-center gap-2 rounded-none border border-dashed px-3 py-2.5 text-sm transition ${b.file || b.storagePath ? "border-ok/40 bg-ok/[0.06] text-ok" : "border-[#4d4635] text-[#99907c] hover:border-[#f2ca50]/50 hover:text-bone"}`}>
                         {b.file || b.storagePath ? <Check size={15} /> : <Upload size={15} />}
                         {b.file ? (b.file.name.length > 24 ? b.file.name.slice(0, 22) + "…" : b.file.name) : b.storagePath ? "Uploaded" : "Attach MP3"}
                         <input type="file" accept=".mp3,audio/mpeg" className="hidden" onChange={(e) => {
@@ -1062,19 +1099,19 @@ function CampaignBuilder({ tier, caps, pitchBalance, user, profile, campaignCoun
                           patchBeat(b.uid, { file: f, storagePath: "", status: "Ready", progress: 0 });
                         }} />
                       </label>
-                      {b.progress > 0 && b.progress < 100 && <div className="mt-2 h-1 overflow-hidden rounded-full bg-white/10"><div className="h-full bg-gold transition-all" style={{ width: b.progress + "%" }} /></div>}
+                      {b.progress > 0 && b.progress < 100 && <div className="mt-2 h-1 overflow-hidden rounded-full bg-white/10"><div className="h-full bg-[#f2ca50] transition-all" style={{ width: b.progress + "%" }} /></div>}
                     </div>
                   </div>
                   <div className="mt-3">
                     <Label>Tags</Label>
-                    <div className="flex flex-wrap items-center gap-2 rounded-xl border border-strong bg-ink px-2.5 py-2">
+                    <div className="flex flex-wrap items-center gap-2 rounded-none border border-[#262626] bg-[#131313] px-2.5 py-2 transition-colors focus-within:border-[#f2ca50]/60">
                       {(b.tags || []).map((tag) => (
-                        <button key={tag} type="button" onClick={() => removeTag(b.uid, tag)} className="inline-flex items-center gap-1 rounded-full border border-line bg-ink-3 px-2 py-1 font-mono text-[10px] text-bone-dim transition hover:border-bad hover:text-bad">
+                        <button key={tag} type="button" onClick={() => removeTag(b.uid, tag)} className="inline-flex items-center gap-1 rounded-none border border-[#4d4635] bg-[#1c1b1b] px-2 py-1 font-mono text-[10px] text-[#f2ca50] transition hover:border-bad hover:text-bad">
                           #{tag}<X size={11} />
                         </button>
                       ))}
                       <input
-                        className="min-w-[160px] flex-1 bg-transparent px-1 py-1 text-sm text-bone placeholder:text-bone-dim/50 outline-none"
+                        className="min-w-[160px] flex-1 bg-transparent px-1 py-1 text-sm text-bone placeholder:text-[#99907c]/50 outline-none"
                         placeholder="dark trap, melodic, 808 heavy"
                         value={b.tagDraft || ""}
                         onChange={(e) => patchBeat(b.uid, { tagDraft: e.target.value })}
@@ -1087,46 +1124,47 @@ function CampaignBuilder({ tier, caps, pitchBalance, user, profile, campaignCoun
                         }}
                       />
                     </div>
+                    <p className="mt-1.5 font-mono text-[10px] text-[#99907c]/70">Type a tag and press Enter or comma to add it.</p>
                   </div>
-                  <div className="mt-4 mb-2 font-mono text-[10px] uppercase tracking-[0.14em] text-bone-dim">Collaborators</div>
+                  <div className="mt-4 mb-2 font-mono text-[10px] uppercase tracking-[0.14em] text-[#99907c]">Collaborators</div>
                   <div className="flex flex-col gap-2">
                     {b.collabs.map((c, j) => (
                       <div key={j} className="grid grid-cols-2 gap-2 sm:grid-cols-[1fr_1fr_1fr_1fr_auto]">
                         <input className={inputCls} placeholder="Name" value={c.name} onChange={(e) => patchCollab(b.uid, j, { name: e.target.value })} />
-                        <select className={inputCls} value={c.role} onChange={(e) => patchCollab(b.uid, j, { role: e.target.value })}>{ROLE_OPTS.map((r) => <option key={r}>{r}</option>)}</select>
+                        <Select value={c.role} onChange={(e) => patchCollab(b.uid, j, { role: e.target.value })}>{ROLE_OPTS.map((r) => <option key={r}>{r}</option>)}</Select>
                         <input className={inputCls} placeholder="@instagram" value={c.instagram} onChange={(e) => patchCollab(b.uid, j, { instagram: e.target.value })} />
                         <input className={inputCls} placeholder="Phone" type="tel" value={c.phone} onChange={(e) => patchCollab(b.uid, j, { phone: e.target.value })} />
-                        <button className="grid place-items-center rounded-lg border border-line text-bone-dim transition hover:border-bad hover:text-bad" onClick={() => patchBeat(b.uid, { collabs: b.collabs.filter((_, k) => k !== j) })}><X size={14} /></button>
+                        <button className="grid place-items-center rounded-none border border-[#262626] text-[#99907c] transition hover:border-bad hover:text-bad" onClick={() => patchBeat(b.uid, { collabs: b.collabs.filter((_, k) => k !== j) })}><X size={14} /></button>
                       </div>
                     ))}
                   </div>
                   <div className="mt-3 flex items-center justify-between">
-                    <button className="flex items-center gap-1.5 text-[13px] text-gold hover:underline" onClick={() => patchBeat(b.uid, { collabs: [...b.collabs, { name: "", role: "Producer", instagram: "", phone: "" }] })}><Plus size={14} /> Add collaborator</button>
-                    <button className="flex items-center gap-1.5 text-[13px] text-bad hover:underline" onClick={() => removeBeat(b.uid)}><Trash2 size={14} /> Remove beat</button>
+                    <button className="flex items-center gap-1.5 text-[13px] text-[#f2ca50] hover:underline" onClick={() => patchBeat(b.uid, { collabs: [...b.collabs, { name: "", role: "Producer", instagram: "", phone: "" }] })}><Plus size={14} /> Add collaborator</button>
+                    <button className="flex items-center gap-1.5 text-[13px] text-bad hover:underline" onClick={() => { if (beats.length <= 1 || confirm("Remove this beat from the campaign?")) removeBeat(b.uid); }}><Trash2 size={14} /> Remove beat</button>
                   </div>
                 </div>
               )}
             </div>
           ))}
         </div>
-        <button disabled={beats.length >= caps.beats} onClick={addBeat} className="mt-3 flex items-center gap-1.5 text-sm text-bone-dim transition hover:text-bone disabled:opacity-40"><Plus size={15} /> Add beat</button>
+        <button disabled={beats.length >= caps.beats} onClick={addBeat} className="mt-3 flex items-center gap-1.5 text-sm text-[#99907c] transition hover:text-bone disabled:opacity-40"><Plus size={15} /> Add beat</button>
       </Card>
 
       {/* 3 desks */}
       <Card className="mb-4 p-4 lg:p-5">
-        <StepHead n={3} title="Pro desk targeting" right={<span className="font-mono text-[11px] text-bone-dim">{tier === "pro" ? `${selected.length} / ${caps.lanes}` : "PRO ONLY"}</span>} />
+        <StepHead n={3} title="Pro desk targeting" right={<span className="font-mono text-[11px] text-[#99907c]">{tier === "pro" ? `${selected.length} / ${caps.lanes}` : "PRO ONLY"}</span>} />
         {tier !== "pro" ? (
-          <div className="rounded-xl border border-line bg-ink p-4">
+          <div className="rounded-none border border-[#262626] bg-[#131313] p-4">
             <div className="font-display text-lg">Verified library delivery</div>
-            <p className="mt-1 max-w-xl text-sm leading-relaxed text-bone-dim">Plugg campaigns do not use desk targeting. Once approved, your tagged beats go into the Verified library for curators to browse, play, and download.</p>
+            <p className="mt-1 max-w-xl text-sm leading-relaxed text-[#99907c]">Plugg campaigns do not use desk targeting. Once approved, your tagged beats go into the Verified library for curators to browse, play, and download.</p>
             <GoldBtn className="mt-4" onClick={onGoToBilling}>Upgrade for Pro desks <ArrowRight size={16} /></GoldBtn>
           </div>
         ) : (
           <>
-            <p className="mb-4 text-[13px] text-bone-dim">Optional. Pick up to 5 lanes for direct email delivery; leaving this empty sends the campaign to the Verified library only.</p>
-            <div className="mb-4 inline-flex rounded-full border border-line bg-ink p-1">
+            <p className="mb-4 text-[13px] text-[#99907c]">Optional. Pick up to 5 lanes for direct email delivery; leaving this empty sends the campaign to the Verified library only.</p>
+            <div className="mb-4 inline-flex rounded-none border border-[#262626] bg-[#131313] p-1">
               {[["artists", "Artist targets"], ["anr", "A&R / labels"]].map(([k, t]) => (
-                <button key={k} onClick={() => setSeg(k)} className={`rounded-full px-4 py-1.5 text-[13px] font-medium transition ${seg === k ? "bg-gold text-[#1a1405]" : "text-bone-dim hover:text-bone"}`}>{t}</button>
+                <button key={k} onClick={() => setSeg(k)} className={`rounded-none px-4 py-1.5 text-[13px] font-medium uppercase tracking-wider transition ${seg === k ? "bg-[#f2ca50] text-[#3c2f00]" : "text-[#99907c] hover:text-bone"}`}>{t}</button>
               ))}
             </div>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -1135,12 +1173,12 @@ function CampaignBuilder({ tier, caps, pitchBalance, user, profile, campaignCoun
                 const on = selected.includes(t.id);
                 const capped = !on && selected.length >= caps.lanes;
                 return (
-                  <button key={t.id} disabled={locked || capped} onClick={() => toggleTarget(t.id)} className={`relative rounded-xl border p-4 text-left transition disabled:cursor-not-allowed ${on ? "border-gold bg-gold/[0.08]" : "border-line bg-ink hover:border-strong"} ${locked || capped ? "opacity-55" : ""}`}>
-                    {on && <span className="absolute right-3 top-3 grid h-5 w-5 place-items-center rounded-full bg-gold text-[#1a1405]"><Check size={12} /></span>}
-                    <div className="font-mono text-[10px] uppercase tracking-[0.12em] text-bone-dim">{t.tier}</div>
+                  <button key={t.id} disabled={locked || capped} onClick={() => toggleTarget(t.id)} className={`relative rounded-none border p-4 text-left transition disabled:cursor-not-allowed ${on ? "border-[#f2ca50] bg-[#f2ca50]/[0.08]" : "border-[#262626] bg-[#131313] hover:border-[#4d4635]"} ${locked || capped ? "opacity-55" : ""}`}>
+                    {on && <span className="absolute right-3 top-3 grid h-5 w-5 place-items-center rounded-full bg-[#f2ca50] text-[#3c2f00]"><Check size={12} /></span>}
+                    <div className="font-mono text-[10px] uppercase tracking-[0.12em] text-[#99907c]">{t.tier}</div>
                     <div className="mt-1.5 font-display text-lg">{t.lane}</div>
-                    <div className="text-[12px] text-bone-dim">{t.reach}</div>
-                    {capped && <div className="mt-2 font-mono text-[10px] tracking-[0.1em] text-bone-dim">LIMIT REACHED</div>}
+                    <div className="text-[12px] text-[#99907c]">{t.reach}</div>
+                    {capped && <div className="mt-2 font-mono text-[10px] tracking-[0.1em] text-[#99907c]">LIMIT REACHED</div>}
                   </button>
                 );
               })}
@@ -1151,41 +1189,49 @@ function CampaignBuilder({ tier, caps, pitchBalance, user, profile, campaignCoun
 
       {/* add-ons */}
       <Card className="mb-4 p-4 lg:mb-6 lg:p-5">
-        <h3 className="mb-4 font-display text-base">Add-ons <span className="text-[12px] font-normal text-bone-dim">(optional)</span></h3>
+        <h3 className="mb-4 font-display text-base">Add-ons <span className="text-[12px] font-normal text-[#99907c]">(optional)</span></h3>
         {[
           { on: rush, set: setRush, title: "Rush queue", price: "2 credits", desc: "Priority review — pushed to the front of the staff queue" },
           { on: feedback, set: setFeedback, title: "Written feedback", price: "Included", desc: "Summary from our pitching team after the campaign closes" }
         ].map((a) => (
-          <label key={a.title} className="flex cursor-pointer items-start gap-3 border-line py-2.5 [&:not(:last-child)]:border-b">
-            <input type="checkbox" checked={a.on} onChange={(e) => a.set(e.target.checked)} className="mt-1 h-4 w-4 accent-gold" />
+          <label key={a.title} className="flex cursor-pointer items-start gap-3 border-[#262626] py-2.5 [&:not(:last-child)]:border-b">
+            <input type="checkbox" checked={a.on} onChange={(e) => a.set(e.target.checked)} className="mt-1 h-4 w-4 accent-[#f2ca50]" />
             <div>
               <span className="text-sm font-medium">{a.title}</span>
-              <span className="ml-2 font-mono text-[11px] text-gold">{a.price}</span>
-              <div className="text-[12px] text-bone-dim">{a.desc}</div>
+              <span className="ml-2 font-mono text-[11px] text-[#f2ca50]">{a.price}</span>
+              <div className="text-[12px] text-[#99907c]">{a.desc}</div>
             </div>
           </label>
         ))}
       </Card>
 
-      <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-end">
-        {noCredit && <span className="text-center text-[13px] text-bad sm:text-left">Not enough pitch credits.</span>}
-        <GoldBtn className="w-full sm:w-auto" disabled={busy || noCredit} onClick={review}>{submitBtn} <ArrowRight size={16} /></GoldBtn>
+      {/* Sticky action bar — always shows credit cost + Submit, and tells the
+          user what's blocking submission. Sits above the mobile bottom nav. */}
+      <div className="sticky bottom-16 z-20 -mx-4 mt-6 border-t border-[#262626] bg-[#0e0e0e]/95 px-4 py-3 backdrop-blur-xl sm:-mx-6 sm:px-6 lg:bottom-0 lg:-mx-10 lg:px-10">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            {formIssue
+              ? <span className="text-[13px] text-[#f2ca50]">{formIssue}</span>
+              : <span className="text-[13px] text-[#99907c]">Costs <span className="font-semibold text-bone">{cost} credit{cost === 1 ? "" : "s"}</span> · {pitchBalance - cost} left after</span>}
+          </div>
+          <GoldBtn className="w-full sm:w-auto" disabled={busy || !!formIssue} onClick={review}>{submitBtn} <ArrowRight size={16} /></GoldBtn>
+        </div>
       </div>
 
       {pay && (
         <Overlay onClose={() => setPay(null)}>
-          <div className="mb-4 flex items-center justify-between"><h3 className="font-display text-2xl">Submit for review</h3><button onClick={() => setPay(null)} className="text-bone-dim hover:text-bone"><X size={20} /></button></div>
-          <div className="space-y-2 rounded-xl border border-line bg-ink p-4 text-sm">
+          <div className="mb-4 flex items-center justify-between"><h3 className="font-display text-2xl">Submit for review</h3><button onClick={() => setPay(null)} className="text-[#99907c] hover:text-bone"><X size={20} /></button></div>
+          <div className="space-y-2 rounded-none border border-[#262626] bg-[#131313] p-4 text-sm">
             <Row k="Beats" v={pay.beats.length} />
             <Row k="Delivery" v={targetRequest ? `Request: ${targetRequest.createdByRoleLabel || "Verified"}` : capLabel} />
             <Row k="Add-ons" v={addonLabels || "None"} />
             {pay.addons.includes("rush") && <Row k="Rush queue" v="2 credits" />}
-            <div className="my-1 h-px bg-line" />
+            <div className="my-1 h-px bg-[#262626]" />
             <Row k="Credit cost" v={`${pay.cost} credits`} bold />
             <Row k="Balance after" v={`${pitchBalance - pay.cost} credits`} muted />
           </div>
-          <p className="my-4 text-[13px] text-bone-dim">Our team reviews every campaign before any beats are pitched. No pitches go out until staff approves.</p>
-          {payMsg && <div className={`mb-3 rounded-lg px-3 py-2 text-[13px] ${payMsg.kind === "ok" ? "bg-ok/12 text-ok" : "bg-bad/12 text-bad"}`}>{payMsg.text}</div>}
+          <p className="my-4 text-[13px] text-[#99907c]">Our team reviews every campaign before any beats are pitched. No pitches go out until staff approves.</p>
+          {payMsg && <div className={`mb-3 rounded-none px-3 py-2 text-[13px] ${payMsg.kind === "ok" ? "bg-ok/12 text-ok" : "bg-bad/12 text-bad"}`}>{payMsg.text}</div>}
           <GoldBtn className="w-full" disabled={payBusy} onClick={doPay}>{payBusy ? "Submitting…" : "Submit campaign for review"}</GoldBtn>
         </Overlay>
       )}
@@ -1194,12 +1240,12 @@ function CampaignBuilder({ tier, caps, pitchBalance, user, profile, campaignCoun
 }
 const StepHead = ({ n, title, right }) => (
   <div className="mb-4 flex items-center justify-between">
-    <div className="flex items-center gap-2.5"><span className="grid h-6 w-6 place-items-center rounded-full bg-gold/12 font-mono text-[11px] text-gold">{n}</span><h3 className="font-display text-lg">{title}</h3></div>
+    <div className="flex items-center gap-2.5"><span className="grid h-6 w-6 place-items-center rounded-full bg-[#f2ca50]/12 font-mono text-[11px] text-[#f2ca50]">{n}</span><h3 className="font-display text-lg">{title}</h3></div>
     {right}
   </div>
 );
 const Row = ({ k, v, bold, muted }) => (
-  <div className="flex items-center justify-between"><span className={muted ? "text-bone-dim" : "text-bone-dim"}>{k}</span><span className={bold ? "font-semibold text-bone" : "text-bone"}>{v}</span></div>
+  <div className="flex items-center justify-between"><span className={muted ? "text-[#99907c]" : "text-[#99907c]"}>{k}</span><span className={bold ? "font-semibold text-bone" : "text-bone"}>{v}</span></div>
 );
 
 /* ============================ analytics ============================ */
@@ -1227,7 +1273,7 @@ function Analytics({ campaigns, uid, tier }) {
 
       {rejected.length > 0 && (
         <div className="mt-6">
-          <div className="mb-3 font-mono text-[10px] uppercase tracking-[0.14em] text-bone-dim">Rejection feedback</div>
+          <div className="mb-3 font-mono text-[10px] uppercase tracking-[0.14em] text-[#99907c]">Rejection feedback</div>
           <div className="flex flex-col gap-3">
             {rejected.map((c, i) => {
               const title = (c.beats || []).map((b) => b.title).filter(Boolean).join(", ") || "Campaign";
@@ -1238,8 +1284,8 @@ function Analytics({ campaigns, uid, tier }) {
                     {c.creditRefunded && <span className="rounded-full bg-ok/12 px-2.5 py-0.5 text-[11px] font-semibold text-ok">{c.creditCost} credit{c.creditCost !== 1 ? "s" : ""} refunded</span>}
                   </div>
                   <p className="mt-2 text-[13px]"><span className="font-semibold text-bad">Reason:</span> {c.rejectionReason || "No reason provided"}</p>
-                  {c.rejectionNote && <p className="mt-1 text-[13px] text-bone-dim">{c.rejectionNote}</p>}
-                  <p className="mt-2 text-[12px] text-bone-dim">Submitted {fmtDateShort(cms(c))}</p>
+                  {c.rejectionNote && <p className="mt-1 text-[13px] text-[#99907c]">{c.rejectionNote}</p>}
+                  <p className="mt-2 text-[12px] text-[#99907c]">Submitted {fmtDateShort(cms(c))}</p>
                 </Card>
               );
             })}
@@ -1249,16 +1295,16 @@ function Analytics({ campaigns, uid, tier }) {
 
       {/* Campaign tree */}
       <div className="mt-6">
-        <div className="mb-1 flex items-center gap-2"><BarChart3 size={18} className="text-gold" /><h3 className="font-display text-lg">Campaigns</h3></div>
-        <p className="mb-4 text-[13px] text-bone-dim">Expand a campaign to see each beat, then expand a beat to see who viewed or downloaded it.</p>
+        <div className="mb-1 flex items-center gap-2"><BarChart3 size={18} className="text-[#f2ca50]" /><h3 className="font-display text-lg">Campaigns</h3></div>
+        <p className="mb-4 text-[13px] text-[#99907c]">Expand a campaign to see each beat, then expand a beat to see who viewed or downloaded it.</p>
         <CampaignTree campaigns={campaigns} uid={uid} tier={tier} libActivity={libActivity} />
       </div>
 
       {/* Loop activity (loops are not in campaigns — separate section) */}
       {libActivity.some((r) => r.kind === "loop") && (
         <div className="mt-6">
-          <div className="mb-1 flex items-center gap-2"><Disc3 size={18} className="text-gold" /><h3 className="font-display text-lg">Loop Drops activity</h3></div>
-          <p className="mb-4 text-[13px] text-bone-dim">Who played or downloaded your loops from the Verified library.</p>
+          <div className="mb-1 flex items-center gap-2"><Disc3 size={18} className="text-[#f2ca50]" /><h3 className="font-display text-lg">Loop Drops activity</h3></div>
+          <p className="mb-4 text-[13px] text-[#99907c]">Who played or downloaded your loops from the Verified library.</p>
           <LoopActivity uid={uid} libActivity={libActivity} />
         </div>
       )}
@@ -1267,13 +1313,13 @@ function Analytics({ campaigns, uid, tier }) {
       {tier !== "pro" && (
         <Card className="mt-6 flex flex-wrap items-center justify-between gap-4 p-5">
           <div className="flex items-center gap-3">
-            <span className="grid h-10 w-10 place-items-center rounded-xl bg-gold/12 text-gold"><Mail size={18} /></span>
+            <span className="grid h-10 w-10 place-items-center rounded-none bg-[#f2ca50]/12 text-[#f2ca50]"><Mail size={18} /></span>
             <div>
               <div className="font-display text-base">Email pitch analytics</div>
-              <div className="text-[13px] text-bone-dim">See who opened your email blast and downloaded your beats — Pro subscribers only.</div>
+              <div className="text-[13px] text-[#99907c]">See who opened your email blast and downloaded your beats — Pro subscribers only.</div>
             </div>
           </div>
-          <span className="rounded-full border border-gold/40 px-3 py-1 font-mono text-[10px] uppercase tracking-wider text-gold">Pro only</span>
+          <span className="rounded-full border border-[#f2ca50]/40 px-3 py-1 font-mono text-[10px] uppercase tracking-wider text-[#f2ca50]">Pro only</span>
         </Card>
       )}
     </section>
@@ -1285,8 +1331,8 @@ function CampaignTree({ campaigns, uid, tier, libActivity }) {
   const sorted = [...campaigns].sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0));
   if (!sorted.length) return (
     <Card className="flex flex-col items-center gap-3 py-10 text-center p-5">
-      <span className="grid h-12 w-12 place-items-center rounded-2xl bg-white/5 text-bone-dim"><BarChart3 size={22} /></span>
-      <p className="text-sm text-bone-dim">No campaigns yet — submit your first to see analytics here.</p>
+      <span className="grid h-12 w-12 place-items-center rounded-none bg-white/5 text-[#99907c]"><BarChart3 size={22} /></span>
+      <p className="text-sm text-[#99907c]">No campaigns yet — submit your first to see analytics here.</p>
     </Card>
   );
   return (
@@ -1308,25 +1354,25 @@ function CampaignRow({ campaign, uid, tier, libActivity }) {
         onClick={() => setOpen((v) => !v)}
         className="flex w-full items-center gap-3 p-4 text-left transition hover:bg-white/[0.02]"
       >
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-white/5 text-bone-dim"><Music2 size={16} /></span>
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-none bg-white/5 text-[#99907c]"><Music2 size={16} /></span>
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-medium text-bone">{title}</div>
-          <div className="text-[12px] text-bone-dim">{beats.length} beat{beats.length !== 1 ? "s" : ""}{ms ? ` · ${fmtDateShort(ms)}` : ""}</div>
+          <div className="text-[12px] text-[#99907c]">{beats.length} beat{beats.length !== 1 ? "s" : ""}{ms ? ` · ${fmtDateShort(ms)}` : ""}</div>
         </div>
         <div className="hidden shrink-0 items-center gap-3 sm:flex">
-          {(campaign.opens || 0) > 0 && <span className="flex items-center gap-1 font-mono text-[11px] text-bone-dim"><Eye size={11} /> {campaign.opens}</span>}
+          {(campaign.opens || 0) > 0 && <span className="flex items-center gap-1 font-mono text-[11px] text-[#99907c]"><Eye size={11} /> {campaign.opens}</span>}
           {(campaign.downloads || 0) > 0 && <span className="flex items-center gap-1 font-mono text-[11px] text-ok"><Download size={11} /> {campaign.downloads}</span>}
           <StatusBadge status={campaign.status} />
         </div>
-        <ChevronDown size={16} className={`ml-1 shrink-0 text-bone-dim transition ${open ? "rotate-180" : ""}`} />
+        <ChevronDown size={16} className={`ml-1 shrink-0 text-[#99907c] transition ${open ? "rotate-180" : ""}`} />
       </button>
 
       {open && (
-        <div className="border-t border-line">
+        <div className="border-t border-[#262626]">
           {/* Mobile status + stats */}
           <div className="flex items-center gap-3 px-4 py-2 sm:hidden">
             <StatusBadge status={campaign.status} />
-            {(campaign.opens || 0) > 0 && <span className="flex items-center gap-1 font-mono text-[11px] text-bone-dim"><Eye size={11} /> {campaign.opens} opens</span>}
+            {(campaign.opens || 0) > 0 && <span className="flex items-center gap-1 font-mono text-[11px] text-[#99907c]"><Eye size={11} /> {campaign.opens} opens</span>}
             {(campaign.downloads || 0) > 0 && <span className="flex items-center gap-1 font-mono text-[11px] text-ok"><Download size={11} /> {campaign.downloads} downloads</span>}
           </div>
 
@@ -1334,7 +1380,7 @@ function CampaignRow({ campaign, uid, tier, libActivity }) {
           {beats.length > 0 ? beats.map((beat, i) => (
             <BeatRow key={i} beat={beat} beatIndex={i} totalBeats={beats.length} campaign={campaign} uid={uid} tier={tier} libActivity={libActivity} />
           )) : (
-            <div className="px-4 py-3 text-[13px] text-bone-dim">No beats in this campaign.</div>
+            <div className="px-4 py-3 text-[13px] text-[#99907c]">No beats in this campaign.</div>
           )}
         </div>
       )}
@@ -1363,16 +1409,16 @@ function BeatRow({ beat, beatIndex, totalBeats, campaign, uid, tier, libActivity
   const dlCount = viewers.filter((v) => v.downloaded).length;
 
   return (
-    <div className={beatIndex < totalBeats - 1 ? "border-b border-line" : ""}>
+    <div className={beatIndex < totalBeats - 1 ? "border-b border-[#262626]" : ""}>
       <button
         onClick={() => setOpen((v) => !v)}
         className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-white/[0.02]"
       >
-        <span className="font-mono text-[11px] text-bone-dim">{n}</span>
+        <span className="font-mono text-[11px] text-[#99907c]">{n}</span>
         <div className="min-w-0 flex-1">
           <span className="text-sm font-medium text-bone">{beat.title || "Untitled"}</span>
           {(beat.genre || beat.bpm || beat.key) && (
-            <span className="ml-2 text-[12px] text-bone-dim">{[beat.genre, beat.bpm ? `${beat.bpm} BPM` : "", beat.key].filter(Boolean).join(" · ")}</span>
+            <span className="ml-2 text-[12px] text-[#99907c]">{[beat.genre, beat.bpm ? `${beat.bpm} BPM` : "", beat.key].filter(Boolean).join(" · ")}</span>
           )}
         </div>
         {(viewCount > 0 || dlCount > 0) && (
@@ -1381,14 +1427,14 @@ function BeatRow({ beat, beatIndex, totalBeats, campaign, uid, tier, libActivity
             {dlCount > 0 && <span className="flex items-center gap-1 font-mono text-[11px] text-ok"><Download size={10} /> {dlCount}</span>}
           </div>
         )}
-        <ChevronDown size={14} className={`ml-1 shrink-0 text-bone-dim transition ${open ? "rotate-180" : ""}`} />
+        <ChevronDown size={14} className={`ml-1 shrink-0 text-[#99907c] transition ${open ? "rotate-180" : ""}`} />
       </button>
 
       {open && (
-        <div className="border-t border-line bg-ink/50">
+        <div className="border-t border-[#262626] bg-[#131313]/50">
           {/* Library activity sub-section */}
           <BeatSubSection
-            icon={<ShieldCheck size={13} className="text-gold" />}
+            icon={<ShieldCheck size={13} className="text-[#f2ca50]" />}
             label="Verified library"
             meta={viewCount > 0 || dlCount > 0 ? `${viewCount} viewed · ${dlCount} downloaded` : "No activity yet"}
           >
@@ -1403,7 +1449,7 @@ function BeatRow({ beat, beatIndex, totalBeats, campaign, uid, tier, libActivity
                 }))}
               />
             ) : (
-              <p className="text-[13px] text-bone-dim">No verified library activity for this beat yet.</p>
+              <p className="text-[13px] text-[#99907c]">No verified library activity for this beat yet.</p>
             )}
           </BeatSubSection>
 
@@ -1411,10 +1457,10 @@ function BeatRow({ beat, beatIndex, totalBeats, campaign, uid, tier, libActivity
           {tier === "pro" ? (
             <BeatEmailSection campaign={campaign} uid={uid} />
           ) : (
-            <div className="flex items-center gap-3 border-t border-line px-4 py-3">
-              <span className="grid h-6 w-6 shrink-0 place-items-center rounded-lg bg-gold/10 text-gold"><Mail size={12} /></span>
-              <span className="text-[13px] text-bone-dim">Email engagement</span>
-              <span className="ml-auto rounded-full border border-gold/40 px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-gold">Pro only</span>
+            <div className="flex items-center gap-3 border-t border-[#262626] px-4 py-3">
+              <span className="grid h-6 w-6 shrink-0 place-items-center rounded-none bg-[#f2ca50]/10 text-[#f2ca50]"><Mail size={12} /></span>
+              <span className="text-[13px] text-[#99907c]">Email engagement</span>
+              <span className="ml-auto rounded-full border border-[#f2ca50]/40 px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-[#f2ca50]">Pro only</span>
             </div>
           )}
         </div>
@@ -1426,17 +1472,17 @@ function BeatRow({ beat, beatIndex, totalBeats, campaign, uid, tier, libActivity
 function BeatSubSection({ icon, label, meta, children }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="border-t border-line first:border-t-0">
+    <div className="border-t border-[#262626] first:border-t-0">
       <button
         onClick={() => setOpen((v) => !v)}
         className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-white/[0.02]"
       >
-        <span className="grid h-6 w-6 shrink-0 place-items-center rounded-lg bg-white/5">{icon}</span>
+        <span className="grid h-6 w-6 shrink-0 place-items-center rounded-none bg-white/5">{icon}</span>
         <span className="flex-1 text-[13px] font-medium text-bone">{label}</span>
-        <span className="font-mono text-[11px] text-bone-dim">{meta}</span>
-        <ChevronDown size={13} className={`ml-2 shrink-0 text-bone-dim transition ${open ? "rotate-180" : ""}`} />
+        <span className="font-mono text-[11px] text-[#99907c]">{meta}</span>
+        <ChevronDown size={13} className={`ml-2 shrink-0 text-[#99907c] transition ${open ? "rotate-180" : ""}`} />
       </button>
-      {open && <div className="border-t border-line px-4 py-4">{children}</div>}
+      {open && <div className="border-t border-[#262626] px-4 py-4">{children}</div>}
     </div>
   );
 }
@@ -1471,18 +1517,18 @@ function BeatEmailSection({ campaign, uid }) {
   const meta = hasActivity ? `${campaign.opens || 0} opens · ${campaign.downloads || 0} downloads` : "No activity yet";
 
   return (
-    <div className="border-t border-line">
+    <div className="border-t border-[#262626]">
       <button
         onClick={() => setOpen((v) => !v)}
         className="flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-white/[0.02]"
       >
-        <span className="grid h-6 w-6 shrink-0 place-items-center rounded-lg bg-gold/10 text-gold"><Mail size={12} /></span>
+        <span className="grid h-6 w-6 shrink-0 place-items-center rounded-none bg-[#f2ca50]/10 text-[#f2ca50]"><Mail size={12} /></span>
         <span className="flex-1 text-[13px] font-medium text-bone">Email engagement</span>
-        <span className="font-mono text-[11px] text-bone-dim">{meta}</span>
-        <ChevronDown size={13} className={`ml-2 shrink-0 text-bone-dim transition ${open ? "rotate-180" : ""}`} />
+        <span className="font-mono text-[11px] text-[#99907c]">{meta}</span>
+        <ChevronDown size={13} className={`ml-2 shrink-0 text-[#99907c] transition ${open ? "rotate-180" : ""}`} />
       </button>
       {open && (
-        <div className="border-t border-line px-4 py-4">
+        <div className="border-t border-[#262626] px-4 py-4">
           {rows.length ? (
             <ActivityList
               headers={["Recipient", "Opened", "Downloaded", "Last activity"]}
@@ -1496,7 +1542,7 @@ function BeatEmailSection({ campaign, uid }) {
           ) : hasActivity ? (
             <div className="flex flex-col gap-2">{[0, 1].map((i) => <Skeleton key={i} className="h-10" />)}</div>
           ) : (
-            <p className="text-[13px] text-bone-dim">Awaiting recipient activity…</p>
+            <p className="text-[13px] text-[#99907c]">Awaiting recipient activity…</p>
           )}
         </div>
       )}
@@ -1529,10 +1575,10 @@ function LoopActivity({ uid, libActivity }) {
           <Card key={gi} className="p-4">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                <span className="grid h-7 w-7 place-items-center rounded-lg bg-white/5 text-bone-dim"><Disc3 size={14} /></span>
+                <span className="grid h-7 w-7 place-items-center rounded-none bg-white/5 text-[#99907c]"><Disc3 size={14} /></span>
                 <strong className="text-sm">{g.title}</strong>
               </div>
-              <span className="font-mono text-[11px] text-bone-dim">{actors.filter((a) => a.viewed).length} viewed · {actors.filter((a) => a.downloaded).length} downloaded</span>
+              <span className="font-mono text-[11px] text-[#99907c]">{actors.filter((a) => a.viewed).length} viewed · {actors.filter((a) => a.downloaded).length} downloaded</span>
             </div>
             <ActivityList
               headers={["Verified user", "Viewed", "Downloaded", "Last activity"]}
@@ -1558,16 +1604,16 @@ function ActivityList({ headers, rows }) {
   return (
     <>
       {/* mobile: stacked rows */}
-      <ul className="divide-y divide-line sm:hidden">
+      <ul className="divide-y divide-[#262626] sm:hidden">
         {rows.map((r, i) => (
           <li key={i} className="flex items-start justify-between gap-3 py-3">
             <div className="min-w-0 flex-1">
               <div className={`truncate ${r.mono ? "font-mono text-[12px]" : "text-sm font-medium"}`}>{r.label}</div>
-              <div className="mt-1 font-mono text-[11px] text-bone-dim">{r.time}</div>
+              <div className="mt-1 font-mono text-[11px] text-[#99907c]">{r.time}</div>
             </div>
             <div className="flex shrink-0 flex-col items-end gap-1">
               {r.b1}{r.b2}
-              {!r.b1 && !r.b2 && <span className="text-[11px] text-bone-dim">No activity</span>}
+              {!r.b1 && !r.b2 && <span className="text-[11px] text-[#99907c]">No activity</span>}
             </div>
           </li>
         ))}
@@ -1575,14 +1621,14 @@ function ActivityList({ headers, rows }) {
       {/* desktop: table */}
       <div className="hidden overflow-x-auto scrollbar-slim sm:block">
         <table className="w-full text-left text-[13px]">
-          <thead><tr className="text-bone-dim">{headers.map((h) => <th key={h} className="pb-2 font-mono text-[10px] uppercase tracking-wider font-normal">{h}</th>)}</tr></thead>
-          <tbody className="divide-y divide-line">
+          <thead><tr className="text-[#99907c]">{headers.map((h) => <th key={h} className="pb-2 font-mono text-[10px] uppercase tracking-wider font-normal">{h}</th>)}</tr></thead>
+          <tbody className="divide-y divide-[#262626]">
             {rows.map((r, i) => (
               <tr key={i}>
                 <td className={`py-2 pr-3 ${r.mono ? "font-mono text-[12px]" : "font-medium"}`}>{r.label}</td>
-                <td className="py-2 pr-3">{r.b1 || <span className="text-bone-dim">—</span>}</td>
-                <td className="py-2 pr-3">{r.b2 || <span className="text-bone-dim">—</span>}</td>
-                <td className="py-2 text-bone-dim">{r.time}</td>
+                <td className="py-2 pr-3">{r.b1 || <span className="text-[#99907c]">—</span>}</td>
+                <td className="py-2 pr-3">{r.b2 || <span className="text-[#99907c]">—</span>}</td>
+                <td className="py-2 text-[#99907c]">{r.time}</td>
               </tr>
             ))}
           </tbody>
@@ -1601,12 +1647,12 @@ const sheetStatus = (s) => {
     delivered: { t: "Opened by signers", c: "bg-info/12 text-info", I: Clock },
     completed: { t: "Fully signed", c: "bg-ok/12 text-ok", I: CheckCircle2 },
     declined: { t: "Declined", c: "bg-bad/12 text-bad", I: XCircle },
-    voided: { t: "Voided", c: "bg-white/8 text-bone-dim", I: XCircle }
+    voided: { t: "Voided", c: "bg-white/8 text-[#99907c]", I: XCircle }
   };
-  return m[s] || { t: s || "—", c: "bg-white/8 text-bone-dim", I: Clock };
+  return m[s] || { t: s || "—", c: "bg-white/8 text-[#99907c]", I: Clock };
 };
 
-function Paperwork({ campaigns, uid, profile, showToast }) {
+function Paperwork({ campaigns, uid, profile, showToast, go }) {
   // Every beat across the producer's campaigns, with its collaborators.
   const beatOpts = useMemo(() => {
     const out = [];
@@ -1674,18 +1720,22 @@ function Paperwork({ campaigns, uid, profile, showToast }) {
       <SectionHead eyebrow="Documents" title="Split sheets" sub="Generate a legally-binding publishing split sheet and route it to every collaborator for e-signature via DocuSign." />
 
       <Card className="mb-4 p-4 lg:mb-6 lg:p-5">
-        <div className="mb-4 flex items-center gap-2"><PenLine size={18} className="text-gold" /><h3 className="font-display text-lg">New split sheet</h3></div>
+        <div className="mb-4 flex items-center gap-2"><PenLine size={18} className="text-[#f2ca50]" /><h3 className="font-display text-lg">New split sheet</h3></div>
 
         {beatOpts.length === 0 ? (
-          <p className="py-4 text-sm text-bone-dim">No beats yet — start a campaign first, then come back to split it.</p>
+          <div className="flex flex-col items-center gap-3 py-8 text-center">
+            <span className="grid h-12 w-12 place-items-center rounded-none bg-white/5 text-[#99907c]"><FileText size={22} /></span>
+            <p className="text-sm text-[#99907c]">No beats yet — start a campaign first, then come back to split it.</p>
+            <GoldBtn onClick={() => go("submit")}><Plus size={16} /> Start a campaign</GoldBtn>
+          </div>
         ) : (
           <>
             <div className="grid gap-4 sm:grid-cols-2">
               <div><Label>Beat *</Label>
-                <select className={inputCls} value={selKey} onChange={(e) => chooseBeat(e.target.value)}>
+                <Select value={selKey} onChange={(e) => chooseBeat(e.target.value)}>
                   <option value="">Select a beat…</option>
                   {beatOpts.map((o) => <option key={o.key} value={o.key}>{o.title}</option>)}
-                </select>
+                </Select>
               </div>
               <div><Label>Recording artist</Label><input className={inputCls} placeholder="Artist this was made for (optional)" value={song.artist} onChange={(e) => setSong((s) => ({ ...s, artist: e.target.value }))} /></div>
               <div><Label>Song title *</Label><input className={inputCls} value={song.title} onChange={(e) => setSong((s) => ({ ...s, title: e.target.value }))} /></div>
@@ -1695,22 +1745,22 @@ function Paperwork({ campaigns, uid, profile, showToast }) {
             {sel && (
               <>
                 <div className="mt-5 mb-2 flex items-center justify-between">
-                  <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-bone-dim">Contributors · publishing splits</div>
+                  <div className="font-mono text-[10px] uppercase tracking-[0.14em] text-[#99907c]">Contributors · publishing splits</div>
                   <span className={`font-display text-lg ${pctOk ? "text-ok" : "text-bad"}`}>{total}%</span>
                 </div>
                 <div className="flex flex-col gap-3">
                   {writers.map((w, i) => (
-                    <div key={i} className="rounded-xl border border-line bg-ink p-4">
+                    <div key={i} className="rounded-none border border-[#262626] bg-[#131313] p-4">
                       <div className="mb-3 flex items-center justify-between">
-                        <span className="font-mono text-[11px] text-bone-dim">Contributor {i + 1}{i === 0 ? " (you)" : ""}</span>
+                        <span className="font-mono text-[11px] text-[#99907c]">Contributor {i + 1}{i === 0 ? " (you)" : ""}</span>
                         {writers.length > 1 && <button className="flex items-center gap-1 text-[12px] text-bad hover:underline" onClick={() => setWriters((p) => p.filter((_, j) => j !== i))}><Trash2 size={13} /> Remove</button>}
                       </div>
                       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                         <div><Label>Legal name *</Label><input className={inputCls} value={w.legalName} onChange={(e) => patch(i, { legalName: e.target.value })} /></div>
                         <div><Label>Email * (to sign)</Label><input className={inputCls} type="email" value={w.email} onChange={(e) => patch(i, { email: e.target.value })} /></div>
-                        <div><Label>Role</Label><select className={inputCls} value={w.role} onChange={(e) => patch(i, { role: e.target.value })}>{["Producer", "Co-producer", "Songwriter", "Composer", "Topliner", "Lyricist", "Vocalist", "Mix engineer", "Other"].map((r) => <option key={r}>{r}</option>)}</select></div>
+                        <div><Label>Role</Label><Select value={w.role} onChange={(e) => patch(i, { role: e.target.value })}>{["Producer", "Co-producer", "Songwriter", "Composer", "Topliner", "Lyricist", "Vocalist", "Mix engineer", "Other"].map((r) => <option key={r}>{r}</option>)}</Select></div>
                         <div><Label>Ownership %</Label><input className={inputCls} type="number" min="0" max="100" value={w.pct} onChange={(e) => patch(i, { pct: e.target.value })} /></div>
-                        <div><Label>PRO</Label><select className={inputCls} value={w.pro} onChange={(e) => patch(i, { pro: e.target.value })}>{PRO_OPTS.map((p) => <option key={p} value={p}>{p || "None / N/A"}</option>)}</select></div>
+                        <div><Label>PRO</Label><Select value={w.pro} onChange={(e) => patch(i, { pro: e.target.value })}>{PRO_OPTS.map((p) => <option key={p} value={p}>{p || "None / N/A"}</option>)}</Select></div>
                         <div><Label>CAE / IPI #</Label><input className={inputCls} value={w.ipi} onChange={(e) => patch(i, { ipi: e.target.value })} /></div>
                         <div><Label>Publisher</Label><input className={inputCls} value={w.publisher} onChange={(e) => patch(i, { publisher: e.target.value })} /></div>
                         <div><Label>Phone</Label><input className={inputCls} type="tel" value={w.phone} onChange={(e) => patch(i, { phone: e.target.value })} /></div>
@@ -1719,13 +1769,13 @@ function Paperwork({ campaigns, uid, profile, showToast }) {
                     </div>
                   ))}
                 </div>
-                <button className="mt-3 flex items-center gap-1.5 text-sm text-gold hover:underline" onClick={() => setWriters((p) => [...p, newWriter({ role: "Writer" })])}><Plus size={14} /> Add contributor</button>
+                <button className="mt-3 flex items-center gap-1.5 text-sm text-[#f2ca50] hover:underline" onClick={() => setWriters((p) => [...p, newWriter({ role: "Writer" })])}><Plus size={14} /> Add contributor</button>
 
                 <div className="mt-5 flex flex-col items-stretch gap-3 sm:flex-row sm:flex-wrap sm:items-center">
                   <GoldBtn className="w-full sm:w-auto" disabled={busy || !pctOk} onClick={generate}>{busy ? "Sending…" : <><Send size={15} /> Send for signature</>}</GoldBtn>
                   {!pctOk && <span className="text-center text-[13px] text-bad sm:text-left">Splits must total exactly 100%.</span>}
                 </div>
-                <p className="mt-3 text-[12px] text-bone-dim">Covers publishing (composition) only — master ownership is a separate agreement. Each contributor receives a DocuSign email and signs electronically.</p>
+                <p className="mt-3 text-[12px] text-[#99907c]">Covers publishing (composition) only — master ownership is a separate agreement. Each contributor receives a DocuSign email and signs electronically.</p>
               </>
             )}
           </>
@@ -1735,18 +1785,18 @@ function Paperwork({ campaigns, uid, profile, showToast }) {
       <Card className="p-4 lg:p-5">
         <h3 className="mb-4 font-display text-lg">Your split sheets</h3>
         {sheets === undefined ? <div className="flex flex-col gap-2">{[0, 1].map((i) => <Skeleton key={i} className="h-16" />)}</div>
-          : sheets.length === 0 ? <p className="py-6 text-center text-sm text-bone-dim">None yet. Generate one above and it'll track here as collaborators sign.</p>
+          : sheets.length === 0 ? <p className="py-6 text-center text-sm text-[#99907c]">None yet. Generate one above and it'll track here as collaborators sign.</p>
             : <div className="flex flex-col gap-2.5">{[...sheets].sort((a, b) => (b.createdAt?.toMillis?.() || 0) - (a.createdAt?.toMillis?.() || 0)).map((s) => {
               const st = sheetStatus(s.status); const I = st.I;
               return (
-                <div key={s.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-ink p-4">
+                <div key={s.id} className="flex flex-wrap items-center justify-between gap-3 rounded-none border border-[#262626] bg-[#131313] p-4">
                   <div className="min-w-0">
                     <div className="text-sm font-semibold">{s.song?.title || s.beatTitle}</div>
-                    <div className="text-[12px] text-bone-dim">{(s.writers || []).length} contributor{(s.writers || []).length !== 1 ? "s" : ""} · sent {s.createdAt?.toMillis ? new Date(s.createdAt.toMillis()).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—"}</div>
+                    <div className="text-[12px] text-[#99907c]">{(s.writers || []).length} contributor{(s.writers || []).length !== 1 ? "s" : ""} · sent {s.createdAt?.toMillis ? new Date(s.createdAt.toMillis()).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—"}</div>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ${st.c}`}><I size={12} /> {st.t}</span>
-                    <button onClick={(e) => refresh(s.id, e.currentTarget)} className="grid h-8 w-8 place-items-center rounded-lg border border-line text-bone-dim transition hover:border-strong hover:text-bone disabled:opacity-50" title="Refresh status"><RefreshCw size={14} /></button>
+                    <button onClick={(e) => refresh(s.id, e.currentTarget)} className="grid h-8 w-8 place-items-center rounded-none border border-[#262626] text-[#99907c] transition hover:border-[#4d4635] hover:text-bone disabled:opacity-50" title="Refresh status"><RefreshCw size={14} /></button>
                   </div>
                 </div>
               );
@@ -1796,30 +1846,30 @@ function LoopDrops({ user, pitchBalance, loopBalance, targetRequest, clearTarget
     <section>
       <SectionHead eyebrow="Loop Drops" title="Loop marketplace" sub={targetRequest ? `Submitting directly to ${targetRequest.createdByName}'s request.` : "Submit loops to the pool, or pull them into your beats if you're verified."} />
       {targetRequest && (
-        <Card className="mb-4 flex flex-wrap items-center justify-between gap-3 border-gold/40 bg-gold/[0.06] p-4">
+        <Card className="mb-4 flex flex-wrap items-center justify-between gap-3 border-[#f2ca50]/40 bg-[#f2ca50]/[0.06] p-4">
           <div className="min-w-0">
             <Eyebrow>Request target</Eyebrow>
             <div className="mt-1 truncate font-display text-xl text-bone">{targetRequest.title}</div>
-            <div className="mt-0.5 text-[13px] text-bone-dim">{targetRequest.createdByName} · {targetRequest.createdByRoleLabel || "Verified"}{targetRequest.labelName ? ` · ${targetRequest.labelName}` : ""}</div>
+            <div className="mt-0.5 text-[13px] text-[#99907c]">{targetRequest.createdByName} · {targetRequest.createdByRoleLabel || "Verified"}{targetRequest.labelName ? ` · ${targetRequest.labelName}` : ""}</div>
           </div>
           <GhostBtn className="px-4 py-2 text-[12px]" onClick={() => { sessionStorage.removeItem("pluggurbeats:targetRequest"); clearTargetRequest?.(); }}>Clear target</GhostBtn>
         </Card>
       )}
       <Card className="mb-4 flex flex-wrap items-center justify-between gap-4 p-4 lg:p-5">
         <div className="flex flex-wrap gap-5">
-          <div><Eyebrow>Beat credits</Eyebrow><div className="mt-1 font-display text-4xl leading-none">{pitchBalance}<span className="ml-1 font-sans text-sm font-normal text-bone-dim">available</span></div></div>
-          <div><Eyebrow>Loop credits</Eyebrow><div className="mt-1 font-display text-4xl leading-none">{loopBalance}<span className="ml-1 font-sans text-sm font-normal text-bone-dim">available</span></div></div>
+          <div><Eyebrow>Beat credits</Eyebrow><div className="mt-1 font-display text-4xl leading-none">{pitchBalance}<span className="ml-1 font-sans text-sm font-normal text-[#99907c]">available</span></div></div>
+          <div><Eyebrow>Loop credits</Eyebrow><div className="mt-1 font-display text-4xl leading-none">{loopBalance}<span className="ml-1 font-sans text-sm font-normal text-[#99907c]">available</span></div></div>
         </div>
-        <div className="text-right text-[12px] text-bone-dim">1 credit per loop submitted<br />replenish monthly with your plan</div>
+        <div className="text-right text-[12px] text-[#99907c]">1 credit per loop submitted<br />replenish monthly with your plan</div>
       </Card>
 
       <Card className="mb-4 p-4 lg:p-5">
         <h3 className="mb-4 font-display text-lg">Upload a loop</h3>
-        <div className="grid gap-3 sm:grid-cols-2"><div><Label>Title *</Label><input className={inputCls} placeholder="e.g. Dark trap 808" value={title} onChange={(e) => setTitle(e.target.value)} /></div><div><Label>Genre</Label><select className={inputCls} value={genre} onChange={(e) => setGenre(e.target.value)}>{GENRES.map((g) => <option key={g}>{g}</option>)}</select></div></div>
-        <div className="mt-3 grid gap-3 sm:grid-cols-3"><div><Label>BPM</Label><input className={inputCls} type="number" placeholder="140" value={bpm} onChange={(e) => setBpm(e.target.value)} /></div><div><Label>Key</Label><select className={inputCls} value={key} onChange={(e) => setKey(e.target.value)}>{KEY_OPTS.map((k) => <option key={k}>{k}</option>)}</select></div><div><Label>Tags (comma-sep)</Label><input className={inputCls} placeholder="dark, 808, minimal" value={tags} onChange={(e) => setTags(e.target.value)} /></div></div>
+        <div className="grid gap-3 sm:grid-cols-2"><div><Label>Title *</Label><input className={inputCls} placeholder="e.g. Dark trap 808" value={title} onChange={(e) => setTitle(e.target.value)} /></div><div><Label>Genre</Label><Select value={genre} onChange={(e) => setGenre(e.target.value)}>{GENRES.map((g) => <option key={g}>{g}</option>)}</Select></div></div>
+        <div className="mt-3 grid gap-3 sm:grid-cols-3"><div><Label>BPM</Label><input className={inputCls} type="number" placeholder="140" value={bpm} onChange={(e) => setBpm(e.target.value)} /></div><div><Label>Key</Label><Select value={key} onChange={(e) => setKey(e.target.value)}>{KEY_OPTS.map((k) => <option key={k}>{k}</option>)}</Select></div><div><Label>Tags (comma-sep)</Label><input className={inputCls} placeholder="dark, 808, minimal" value={tags} onChange={(e) => setTags(e.target.value)} /></div></div>
         <div className="mt-3">
           <Label>Audio file *</Label>
-          <label className={`flex w-fit cursor-pointer items-center gap-2 rounded-xl border border-dashed px-4 py-2.5 text-sm transition ${file ? "border-ok/40 bg-ok/[0.06] text-ok" : "border-strong text-bone-dim hover:border-gold/50 hover:text-bone"}`}>
+          <label className={`flex w-fit cursor-pointer items-center gap-2 rounded-none border border-dashed px-4 py-2.5 text-sm transition ${file ? "border-ok/40 bg-ok/[0.06] text-ok" : "border-[#4d4635] text-[#99907c] hover:border-[#f2ca50]/50 hover:text-bone"}`}>
             {file ? <Check size={15} /> : <Upload size={15} />}{file ? (file.name.length > 28 ? file.name.slice(0, 26) + "…" : file.name) : "Attach MP3"}
             <input type="file" accept=".mp3,audio/mpeg" className="hidden" onChange={(e) => {
               const f = e.target.files[0] || null;
@@ -1827,36 +1877,36 @@ function LoopDrops({ user, pitchBalance, loopBalance, targetRequest, clearTarget
               setFile(f);
             }} />
           </label>
-          {progress > 0 && progress < 100 && <div className="mt-2 h-1 overflow-hidden rounded-full bg-white/10"><div className="h-full bg-gold" style={{ width: progress + "%" }} /></div>}
+          {progress > 0 && progress < 100 && <div className="mt-2 h-1 overflow-hidden rounded-full bg-white/10"><div className="h-full bg-[#f2ca50]" style={{ width: progress + "%" }} /></div>}
         </div>
-        {msg && <div className={`mt-3 rounded-lg px-3 py-2 text-[13px] ${msg.kind === "ok" ? "bg-ok/12 text-ok" : "bg-bad/12 text-bad"}`}>{msg.text}</div>}
+        {msg && <div className={`mt-3 rounded-none px-3 py-2 text-[13px] ${msg.kind === "ok" ? "bg-ok/12 text-ok" : "bg-bad/12 text-bad"}`}>{msg.text}</div>}
         <GoldBtn className="mt-4 w-full sm:w-auto" disabled={busy} onClick={submit}>{busy ? "Submitting…" : "Submit loop — 1 credit"}</GoldBtn>
       </Card>
 
       <Card className="p-4 lg:p-5">
         <h3 className="mb-4 font-display text-lg">My submitted loops</h3>
         {!myLoops ? <div className="flex flex-col gap-2">{[0, 1].map((i) => <Skeleton key={i} className="h-16" />)}</div>
-          : myLoops.length === 0 ? <p className="py-6 text-center text-sm text-bone-dim">No loops submitted yet.</p>
+          : myLoops.length === 0 ? <p className="py-6 text-center text-sm text-[#99907c]">No loops submitted yet.</p>
             : <div className="flex flex-col gap-2.5">{myLoops.map((l) => {
               const spec = [l.genre, l.key, l.bpm && l.bpm + " BPM"].filter(Boolean).join(" · ");
               return (
-                <div key={l.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-ink p-4">
+                <div key={l.id} className="flex flex-wrap items-center justify-between gap-3 rounded-none border border-[#262626] bg-[#131313] p-4">
                   <div className="min-w-0">
                     <div className="text-sm font-semibold">{l.title}</div>
-                    <div className="text-[12px] text-bone-dim">{spec}</div>
-                    {l.tags?.length > 0 && <div className="mt-1 flex flex-wrap gap-1.5">{l.tags.map((t, i) => <span key={i} className="rounded-full border border-line bg-ink-3 px-2 py-0.5 text-[11px] text-bone-dim">{t}</span>)}</div>}
+                    <div className="text-[12px] text-[#99907c]">{spec}</div>
+                    {l.tags?.length > 0 && <div className="mt-1 flex flex-wrap gap-1.5">{l.tags.map((t, i) => <span key={i} className="rounded-full border border-[#262626] bg-[#1c1b1b] px-2 py-0.5 text-[11px] text-[#99907c]">{t}</span>)}</div>}
                   </div>
                   <div className="text-right">
-                    <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${l.status === "used" ? "bg-white/8 text-bone-dim" : "bg-ok/12 text-ok"}`}>{l.status || "live"}</span>
-                    <div className="mt-1.5 text-[12px] text-bone-dim">{l.downloads || 0} pull{l.downloads !== 1 ? "s" : ""}</div>
+                    <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${l.status === "used" ? "bg-white/8 text-[#99907c]" : "bg-ok/12 text-ok"}`}>{l.status || "live"}</span>
+                    <div className="mt-1.5 text-[12px] text-[#99907c]">{l.downloads || 0} pull{l.downloads !== 1 ? "s" : ""}</div>
                   </div>
                 </div>
               );
             })}</div>}
       </Card>
 
-      <Card className="mt-4 border-line bg-ink-3 p-4">
-        <p className="text-[13px] text-bone-dim">Want to pull loops? Visit <a href="/verified" className="font-semibold text-gold hover:underline">PluggUrBeat Verified</a> — the curated library for verified producers, A&amp;Rs, and artists.</p>
+      <Card className="mt-4 border-[#262626] bg-[#1c1b1b] p-4">
+        <p className="text-[13px] text-[#99907c]">Want to pull loops? Visit <a href="/verified" className="font-semibold text-[#f2ca50] hover:underline">PluggUrBeat Verified</a> — the curated library for verified producers, A&amp;Rs, and artists.</p>
       </Card>
     </section>
   );
@@ -1875,13 +1925,13 @@ function Billing({ tier, profile, pitchBalance, loopBalance, startSubscription, 
   const pb = planBtn("plugg"), pr = planBtn("pro");
 
   const PlanCard = ({ name, price, blurb, feats, btn, plan, highlight }) => (
-    <Card className={`flex flex-col p-4 lg:p-5 ${highlight ? "border-gold/50" : ""} ${btn.ring ? "ring-1 ring-gold" : ""}`}>
+    <Card className={`flex flex-col p-4 lg:p-5 ${highlight ? "border-[#f2ca50]/50" : ""} ${btn.ring ? "ring-1 ring-[#f2ca50]" : ""}`}>
       <div className="flex items-baseline justify-between">
-        <h4 className="font-display text-xl">{name} {highlight && <span className="ml-1 rounded-full border border-gold/40 px-2 py-0.5 align-middle font-mono text-[9px] tracking-wider text-gold">EMAIL BLAST</span>}</h4>
-        <div><span className="font-display text-2xl">${price}</span><span className="text-bone-dim">/mo</span></div>
+        <h4 className="font-display text-xl">{name} {highlight && <span className="ml-1 rounded-full border border-[#f2ca50]/40 px-2 py-0.5 align-middle font-mono text-[9px] tracking-wider text-[#f2ca50]">EMAIL BLAST</span>}</h4>
+        <div><span className="font-display text-2xl">${price}</span><span className="text-[#99907c]">/mo</span></div>
       </div>
-      <p className="mt-1 text-[13px] text-bone-dim">{blurb}</p>
-      <ul className="my-4 flex flex-col gap-2 text-[13px] text-bone-dim">{feats.map((f) => <li key={f} className="flex gap-2"><Check size={15} className="mt-0.5 shrink-0 text-gold" /> {f}</li>)}</ul>
+      <p className="mt-1 text-[13px] text-[#99907c]">{blurb}</p>
+      <ul className="my-4 flex flex-col gap-2 text-[13px] text-[#99907c]">{feats.map((f) => <li key={f} className="flex gap-2"><Check size={15} className="mt-0.5 shrink-0 text-[#f2ca50]" /> {f}</li>)}</ul>
       {btn.ghost ? <GhostBtn className="mt-auto w-full" disabled={btn.disabled} onClick={(e) => startSubscription(plan, e.currentTarget)}>{btn.label}</GhostBtn>
         : <GoldBtn className="mt-auto w-full" onClick={(e) => startSubscription(plan, e.currentTarget)}>{btn.label}</GoldBtn>}
     </Card>
@@ -1895,11 +1945,11 @@ function Billing({ tier, profile, pitchBalance, loopBalance, startSubscription, 
         <div>
           <Eyebrow>Current plan</Eyebrow>
           <div className="mt-1 font-display text-3xl leading-none">{cap(tier)}</div>
-          <div className="mt-1 text-[13px] text-bone-dim">{tier === "free" ? "Subscribe to start running campaigns" : `Status: ${status}${renewMs ? " · renews " + new Date(renewMs).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : ""}`}</div>
+          <div className="mt-1 text-[13px] text-[#99907c]">{tier === "free" ? "Subscribe to start running campaigns" : `Status: ${status}${renewMs ? " · renews " + new Date(renewMs).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : ""}`}</div>
         </div>
         <div className="flex gap-3">
-          <div className="rounded-xl border border-line bg-ink px-5 py-3 text-center"><div className="font-display text-2xl">{pitchBalance}</div><div className="text-[12px] text-bone-dim">Pitch credits</div></div>
-          <div className="rounded-xl border border-line bg-ink px-5 py-3 text-center"><div className="font-display text-2xl">{loopBalance}</div><div className="text-[12px] text-bone-dim">Loop credits</div></div>
+          <div className="rounded-none border border-[#262626] bg-[#131313] px-5 py-3 text-center"><div className="font-display text-2xl">{pitchBalance}</div><div className="text-[12px] text-[#99907c]">Pitch credits</div></div>
+          <div className="rounded-none border border-[#262626] bg-[#131313] px-5 py-3 text-center"><div className="font-display text-2xl">{loopBalance}</div><div className="text-[12px] text-[#99907c]">Loop credits</div></div>
         </div>
       </Card>
 
@@ -1919,7 +1969,7 @@ function Billing({ tier, profile, pitchBalance, loopBalance, startSubscription, 
         <PackCard label="20 credits" sub="$10 · $0.50 each" Icon={Disc3} onBuy={(e) => buyPack("loop20", e.currentTarget)} />
         <PackCard label="50 credits" sub="$20 · $0.40 each" Icon={Disc3} onBuy={(e) => buyPack("loop50", e.currentTarget)} />
       </div>
-      <p className="mt-6 text-[13px] text-bone-dim">Secure checkout via Stripe. Credits are added the moment payment clears.</p>
+      <p className="mt-6 text-[13px] text-[#99907c]">Secure checkout via Stripe. Credits are added the moment payment clears.</p>
     </section>
   );
 }
@@ -1927,8 +1977,8 @@ function PackCard({ label, sub, Icon, onBuy }) {
   return (
     <Card className="flex items-center justify-between gap-4 p-4">
       <div className="flex items-center gap-3">
-        <span className="grid h-10 w-10 place-items-center rounded-xl bg-white/5 text-gold"><Icon size={18} /></span>
-        <div><div className="font-display text-xl">{label}</div><div className="text-[12px] text-bone-dim">{sub}</div></div>
+        <span className="grid h-10 w-10 place-items-center rounded-none bg-white/5 text-[#f2ca50]"><Icon size={18} /></span>
+        <div><div className="font-display text-xl">{label}</div><div className="text-[12px] text-[#99907c]">{sub}</div></div>
       </div>
       <GhostBtn onClick={onBuy}><Wallet size={15} /> Buy</GhostBtn>
     </Card>
@@ -1962,7 +2012,7 @@ function Overlay({ onClose, children }) {
       className="fixed inset-0 z-[999] grid place-items-center overflow-y-auto overscroll-contain bg-black/70 p-4 backdrop-blur-sm"
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div className="max-h-[calc(100dvh-32px)] w-full max-w-md animate-fade-up overflow-y-auto rounded-2xl border border-strong bg-ink-2 p-6 shadow-card">{children}</div>
+      <div className="max-h-[calc(100dvh-32px)] w-full max-w-md animate-fade-up overflow-y-auto rounded-none border border-[#4d4635] bg-[#0e0e0e] p-6 shadow-card">{children}</div>
     </div>,
     document.body
   );
@@ -2020,9 +2070,9 @@ function ProfileModal({ user, profile, onClose }) {
   const initial = avatarInitial(name || user?.email);
   return (
     <Overlay onClose={onClose}>
-      <div className="mb-5 flex items-center justify-between"><h3 className="font-display text-2xl">Profile &amp; settings</h3><button onClick={onClose} className="text-bone-dim hover:text-bone"><X size={20} /></button></div>
+      <div className="mb-5 flex items-center justify-between"><h3 className="font-display text-2xl">Profile &amp; settings</h3><button onClick={onClose} className="text-[#99907c] hover:text-bone"><X size={20} /></button></div>
       <div className="mb-5 flex items-center gap-4">
-        <span className="grid h-16 w-16 place-items-center rounded-full bg-gradient-to-br from-gold to-violet font-display text-2xl text-[#1a1405]" style={preview ? { backgroundImage: `url("${preview}")`, backgroundSize: "cover" } : undefined}>{preview ? "" : initial}</span>
+        <span className="grid h-16 w-16 place-items-center rounded-full bg-gradient-to-br from-[#f2ca50] to-violet font-display text-2xl text-[#3c2f00]" style={preview ? { backgroundImage: `url("${preview}")`, backgroundSize: "cover" } : undefined}>{preview ? "" : initial}</span>
         <GhostBtn type="button" className="px-4 py-2 text-[13px]" onClick={() => fileInputRef.current?.click()}>
           <Upload size={14} /> Upload photo
         </GhostBtn>
@@ -2040,7 +2090,7 @@ function ProfileModal({ user, profile, onClose }) {
         <div><Label>Location</Label><input className={inputCls} placeholder="City, Country" value={location} onChange={(e) => setLocation(e.target.value)} /></div>
         <div><Label>Bio</Label><textarea className={`${inputCls} resize-y`} rows="3" placeholder="Tell us about your sound…" value={bio} onChange={(e) => setBio(e.target.value)} /></div>
       </div>
-      {msg && <div className={`mt-3 rounded-lg px-3 py-2 text-[13px] ${msg.kind === "ok" ? "bg-ok/12 text-ok" : "bg-bad/12 text-bad"}`}>{msg.text}</div>}
+      {msg && <div className={`mt-3 rounded-none px-3 py-2 text-[13px] ${msg.kind === "ok" ? "bg-ok/12 text-ok" : "bg-bad/12 text-bad"}`}>{msg.text}</div>}
       <GoldBtn className="mt-5 w-full" disabled={busy} onClick={save}>{busy ? "Saving…" : "Save profile"}</GoldBtn>
     </Overlay>
   );
