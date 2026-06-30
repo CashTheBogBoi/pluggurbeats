@@ -1,52 +1,73 @@
 # Resend Email Integration
 
-## What We Use It For
+## Sending Domains
 
-Resend is the transactional email provider for PluggurBeats. All outbound email goes through it — beat pitches to industry contacts, submission notifications to verified users, and any future system emails.
+Two domains are configured (or need to be) in Resend:
 
-Sending domain: `pluggurbeat.com` (not pluggurbeats.com — confirm this is verified in Resend dashboard before adding new send paths)
-From address pattern: `[Purpose Label] <role@pluggurbeat.com>`
+| Domain | Purpose | Status |
+|--------|---------|--------|
+| `pluggurbeat.com` | Submission notifications to verified requesters | Active (used by `sendSubmissionEmail`) |
+| `pluggurbeats.com` | Account verification emails, transactional auth | **Must be verified in Resend** (see setup below) |
 
-## Current Email Paths
+> **Note:** `pluggurbeat.com` (single g) and `pluggurbeats.com` (double g) are two separate domains and require separate Resend domain verifications.
 
-| Trigger | Recipient | Condition |
-|---------|-----------|-----------|
-| Campaign approved + Pro tier + desks selected | Industry contacts (contacts.json) | Public blast |
-| Campaign approved + targeted request | Requester A&R/Artist | NOT YET — push only, email pending |
+## DNS Setup for pluggurbeats.com (Required)
 
-## How Email Tracking Works
+To send from `noreply@pluggurbeats.com`, add these records to your DNS (Google Workspace Admin → Domains, or wherever `pluggurbeats.com` DNS is managed):
 
-Each send generates a unique token stored in `emailIndex/{token}` in Firestore. The download link embeds the token (`/downloadBeats?e={token}`). When the recipient opens or downloads, the webhook fires and resolves the token back to the campaign + contact — that's how per-contact opens and downloads are attributed.
+1. Log in to [resend.com/domains](https://resend.com/domains)
+2. Click **Add Domain** → enter `pluggurbeats.com`
+3. Resend generates 3–4 DNS records (SPF TXT, DKIM CNAME x2, optional DMARC)
+4. Add those records in Google Workspace Admin → Domains → DNS
+5. Back in Resend, click **Verify** — propagation takes 5–30 minutes
 
-Resend sends delivery events via Svix webhooks → `resendWebhook` Cloud Function → Firestore.
+The records coexist with Google Workspace MX records — they use different subdomains/types.
 
-## Verified User Email List
+## Email Paths
 
-When staff assigns a verified role via `setVerifiedRole`, that user's email is written to `verifiedEmailList/{uid}` in Firestore. This is the authoritative list for verified-user email targeting.
+### Account Verification (`sendVerificationEmail`)
+- **From:** `PluggurBeats <noreply@pluggurbeats.com>`
+- **Triggered:** On signup, via callable Cloud Function
+- **Contains:** Firebase `generateEmailVerificationLink` link (24h expiry)
+- **Continue URL:** `https://pluggurbeats.com/` (after verification, user lands on home)
+- **Secret required:** `RESEND_API_KEY`
 
-- Email is fetched server-side from Firebase Auth — never from the client
-- When a role is revoked (role set to ""), the doc is deleted
-- This list is intentionally NOT exposed to the client at any point
+### Submission Notifications (`sendSubmissionEmail`)
+- **From:** `PluggurBeats <submissions@pluggurbeat.com>`
+- **Triggered:** Pro-tier user submits to a verified request (beat campaign or loop)
+- **Recipient:** Pulled from `verifiedEmailList/{uid}` — never client-supplied
+- **Secret required:** `RESEND_API_KEY`
 
-## Submission Email Rule (Pro → A&R/Artist)
+## Verification Email UX Flow (as of June 2026)
 
-When a Pro user submits a campaign or loop to a verified request:
-1. Server looks up the requester's email from `verifiedEmailList/{requesterUid}`
-2. Email is sent via Resend with beat details + producer info
-3. No download link in this email — A&R accesses beats through `/verified` InboundInbox
-4. Push notification fires in parallel (separate from email)
+1. User fills signup form, checks TOS, clicks **Create Account**
+2. `createUserWithEmailAndPassword` — account created, user signed in
+3. `sendVerificationEmail` Cloud Function called — generates Firebase link, sends branded HTML email via Resend
+4. AuthModal switches to **"Check your email"** state (pulsing envelope, animated dots)
+5. Browser polls `auth.currentUser.reload()` every 3 seconds
+6. User clicks the link in their email → Firebase verifies the email
+7. Next poll detects `emailVerified = true` → `getSignedInHome` → auto-redirect (no manual sign-in step)
+8. If user closes the modal mid-flow → `signOut` is called, account remains unverified
+9. If they try to sign in unverified → error + **Resend verification email** link
 
-Non-Pro submissions (Plugg, Free) only get a push notification, no email.
+## Why Firebase's Default Sender Goes to Spam
 
-## Secrets
+Firebase Auth sends from `noreply@[project].firebaseapp.com` — a shared domain used by thousands of projects. Two failure modes:
+- **Shared reputation:** Any Firebase project that sends spam damages the entire `firebaseapp.com` domain reputation
+- **DMARC alignment failure:** `pluggurbeats.com` has a DMARC policy (Google Workspace sets this). Emails from `*.firebaseapp.com` fail DMARC alignment against `pluggurbeats.com`, which is a strong spam signal
 
-- `RESEND_API_KEY` — Firebase Secret, required on any function that calls `new Resend(...)`
-- `RESEND_WEBHOOK_SECRET` — Firebase Secret, used by `resendWebhook` to verify Svix signatures
+Sending from `noreply@pluggurbeats.com` via Resend fixes both: DKIM and SPF are aligned to `pluggurbeats.com`, and reputation is entirely our own.
 
-Any new function that sends email must add `secrets: [RESEND_API_KEY]` to its `onCall` config, otherwise the secret is undefined at runtime and the function throws silently.
+## Remember Me (Sign In)
+
+- Checked (default): Firebase uses `browserLocalStorage` — session persists across browser closes
+- Unchecked: Firebase uses `browserSessionStorage` — cleared when browser tab closes
+- Native iOS: always uses `indexedDBLocalPersistence` (set in `src/firebase/auth.js`), Remember Me has no effect
 
 ## Gotchas
 
-- Resend returns `{ data, error }` — it does NOT throw on API-level failures (e.g. unverified domain, bad address). Always check `sent?.error` explicitly after every send call.
-- The Resend `from` domain must be verified in the Resend dashboard. If emails aren't delivering, check domain verification first — the function will appear to succeed (no throw) but `data` will be null and `error` will carry the reason.
-- `RESEND_WEBHOOK_SECRET` is a Svix secret, not a Resend API key — they're different values, both stored as Firebase Secrets.
+- `sendVerificationEmail` CF is non-fatal on signup — if Resend rejects (e.g. domain not verified yet), the account is still created and the "Check your email" screen shows. User can hit **Resend** once DNS propagates.
+- Resend returns `{ data, error }` not throws — always check `sent?.error` before logging success
+- `pluggurbeats.com` domain must be verified in Resend **before deploying** `sendVerificationEmail` in production, otherwise all new signups land on the resend screen with no email in their inbox
+- Firebase verification links expire in 24 hours
+- The 60-second resend cooldown is client-side only — a page refresh resets it

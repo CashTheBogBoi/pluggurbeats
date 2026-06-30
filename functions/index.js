@@ -64,6 +64,67 @@ async function sendSubmissionEmail({ db, resendKey, requesterUid, producerName, 
   }
 }
 
+// Send a branded email verification email via Resend.
+// Called by the client immediately after account creation (user is signed in).
+// Generating the link requires only the user's email — admin SDK handles it.
+exports.sendVerificationEmail = onCall(
+  { region: REGION, secrets: [RESEND_API_KEY] },
+  async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "Sign in required.");
+    const email = request.auth.token.email;
+    if (!email) throw new HttpsError("invalid-argument", "No email on account.");
+
+    const actionCodeSettings = {
+      url: "https://pluggurbeats.com/",
+      handleCodeInApp: false,
+    };
+
+    let link;
+    try {
+      link = await admin.auth().generateEmailVerificationLink(email, actionCodeSettings);
+    } catch (err) {
+      console.error("generateEmailVerificationLink failed:", err);
+      throw new HttpsError("internal", "Could not generate verification link.");
+    }
+
+    const resend = new Resend(process.env.RESEND_API_KEY);
+    const sent = await resend.emails.send({
+      from: "PluggurBeats <noreply@pluggurbeats.com>",
+      to: email,
+      subject: "Verify your PluggurBeats account",
+      html: `
+        <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;background:#0e0e0e;color:#e8e0d0;padding:40px 32px;border:1px solid #262626">
+          <div style="margin-bottom:28px">
+            <div style="font-size:11px;letter-spacing:0.18em;text-transform:uppercase;color:#f2ca50;font-family:monospace;margin-bottom:6px">PluggurBeats</div>
+            <div style="font-size:22px;font-weight:700;color:#e8e0d0">Verify your account</div>
+          </div>
+          <p style="font-size:15px;color:#99907c;line-height:1.7;margin:0 0 24px">
+            Thanks for signing up. Click the button below to verify your email address and activate your account.
+          </p>
+          <a href="${link}" style="display:inline-block;background:#f2ca50;color:#3c2f00;font-weight:700;font-size:13px;letter-spacing:0.08em;text-transform:uppercase;padding:14px 32px;text-decoration:none;margin-bottom:28px">
+            Verify Email Address
+          </a>
+          <p style="font-size:12px;color:#4d4635;line-height:1.6;margin:0 0 8px">
+            Or copy and paste this link into your browser:
+          </p>
+          <p style="font-size:11px;color:#4d4635;word-break:break-all;margin:0 0 32px">${link}</p>
+          <div style="border-top:1px solid #262626;padding-top:20px">
+            <p style="font-size:11px;color:#4d4635;margin:0">
+              This link expires in 24 hours. If you didn't create a PluggurBeats account, you can ignore this email.
+            </p>
+          </div>
+        </div>`,
+    });
+
+    if (sent?.error) {
+      console.error("Verification email send failed:", JSON.stringify(sent.error));
+      throw new HttpsError("internal", "Failed to send verification email.");
+    }
+    console.log(`Verification email sent to ${email}, Resend id ${sent?.data?.id}`);
+    return { ok: true };
+  }
+);
+
 // Staff allowlist — emails permitted to access the moderation dashboard
 const STAFF_EMAILS = (staffConfig.emails || []).map(e => e.toLowerCase());
 function hasStaffAccess(auth) {
