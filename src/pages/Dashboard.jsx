@@ -374,7 +374,7 @@ export default function Dashboard() {
         <main className="mx-auto max-w-[1180px] px-4 pt-5 pb-28 sm:px-6 lg:px-10 lg:pt-8 lg:pb-8">
           <div key={view} className="animate-fade-up">
             {view === "overview" && <Overview name={name} campaigns={campaigns} tier={tier} pitch={pitchBalance} go={go} onPickRequest={pickRequest} uid={uid} onGoToBilling={() => go("billing")} />}
-            {view === "submit" && <CampaignBuilder tier={tier} caps={caps} pitchBalance={pitchBalance} user={user} profile={profile} campaignCount={campaigns.length} targetRequest={targetRequest} clearTargetRequest={() => setTargetRequest(null)} showToast={showToast} onSubmitted={() => go("analytics")} onGoToBilling={() => go("billing")} />}
+            {view === "submit" && <CampaignBuilder tier={tier} caps={caps} pitchBalance={pitchBalance} user={user} profile={profile} campaignCount={campaigns.length} targetRequest={targetRequest} clearTargetRequest={() => setTargetRequest(null)} showToast={showToast} onSubmitted={() => go("analytics")} onGoToBilling={() => go("billing")} requireTOS={requireTOS} />}
             {view === "analytics" && <Analytics campaigns={campaigns} uid={uid} tier={tier} />}
             {view === "paperwork" && <Paperwork campaigns={campaigns} uid={uid} profile={profile} showToast={showToast} go={go} />}
             {view === "loops" && <LoopDrops user={user} pitchBalance={pitchBalance} loopBalance={loopBalance} targetRequest={targetRequest} clearTargetRequest={() => setTargetRequest(null)} showToast={showToast} />}
@@ -923,7 +923,7 @@ function StatusBadge({ status }) {
 let beatSeq = 0;
 const newBeat = (name = "", ig = "") => ({ uid: ++beatSeq, uploadId: makeUploadId(), title: "", genre: "Trap", key: KEY_OPTS[0], bpm: "", tags: [], tagDraft: "", file: null, storagePath: "", status: "No file", open: true, progress: 0, collabs: [{ name, role: "Producer", instagram: ig, phone: "" }] });
 
-function CampaignBuilder({ tier, caps, pitchBalance, user, profile, campaignCount, targetRequest, clearTargetRequest, showToast, onSubmitted, onGoToBilling }) {
+function CampaignBuilder({ tier, caps, pitchBalance, user, profile, campaignCount, targetRequest, clearTargetRequest, showToast, onSubmitted, onGoToBilling, requireTOS }) {
   const campaignUploadId = useRef(makeUploadId());
   const [bName, setBName] = useState(profile?.displayName || "");
   const [bIg, setBIg] = useState(profile?.instagram || "");
