@@ -10,6 +10,7 @@ import {
 import { auth } from "../firebase/auth.js";
 import { getSignedInHome } from "../lib/userRouting.js";
 import { ensureUserProfile } from "../lib/userProfile.js";
+import TOSModal from "./TOSModal.jsx";
 
 // Create the account, write the user doc (credit/subscription fields start at
 // defaults and can only change via Cloud Functions per firestore.rules), send
@@ -31,6 +32,8 @@ export default function AuthModal({ open, mode, initialMsg, onClose, onModeChang
   const [msg, setMsg] = useState(null);
   const [busy, setBusy] = useState(false);
   const [resetMode, setResetMode] = useState(false);
+  const [tosAgreed, setTosAgreed] = useState(false);
+  const [tosViewOpen, setTosViewOpen] = useState(false);
 
   // Reset state whenever the modal opens.
   useEffect(() => {
@@ -139,6 +142,7 @@ export default function AuthModal({ open, mode, initialMsg, onClose, onModeChang
   }
 
   return (
+    <>
     <div
       className={`overlay${open ? " show" : ""}`}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
@@ -175,13 +179,43 @@ export default function AuthModal({ open, mode, initialMsg, onClose, onModeChang
           </button>
         )}
 
+        {isSignup && (
+          <div style={{ marginTop: "16px", display: "flex", alignItems: "flex-start", gap: "10px" }}>
+            <input
+              id="tos-agree"
+              type="checkbox"
+              checked={tosAgreed}
+              onChange={(e) => setTosAgreed(e.target.checked)}
+              style={{ marginTop: "2px", accentColor: "#f2ca50", cursor: "pointer", flexShrink: 0 }}
+            />
+            <label htmlFor="tos-agree" style={{ fontSize: "12px", color: "var(--bone-dim)", lineHeight: "1.5", cursor: "pointer" }}>
+              I agree to the{" "}
+              <button
+                type="button"
+                onClick={() => setTosViewOpen(true)}
+                style={{ background: "none", border: 0, padding: 0, color: "#f2ca50", fontSize: "12px", cursor: "pointer", textDecoration: "underline" }}
+              >
+                Terms of Service
+              </button>
+            </label>
+          </div>
+        )}
+
         {msg && <div className={`msg ${msg.kind}`}>{msg.text}</div>}
 
-        <button className="btn btn-gold btn-block" style={{ marginTop: "18px" }} disabled={busy} onClick={submit}>
+        <button
+          className="btn btn-gold btn-block"
+          style={{ marginTop: "18px" }}
+          disabled={busy || (isSignup && !tosAgreed)}
+          onClick={submit}
+        >
           {busy ? "Working…" : isSignup ? "Create account" : "Sign in"}
         </button>
 
       </div>
     </div>
+
+    <TOSModal tosKey="base" open={tosViewOpen} onClose={() => setTosViewOpen(false)} />
+    </>
   );
 }

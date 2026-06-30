@@ -12,6 +12,8 @@ import { useLiveDoc, useLiveCollection, call } from "../lib/live.js";
 import { hasVerifiedAccess } from "../lib/userRouting.js";
 import { canPlanSubmitToRole, verifiedRoleLabel } from "../lib/roles.js";
 import { avatarInitial, isAvatarImage, resolveAvatarUrl, uploadProfileAvatar } from "../lib/avatar.js";
+import { usePushAutoRegister } from "../lib/usePush.js";
+import TOSModal, { hasTOSAccepted, markTOSAccepted } from "../components/TOSModal.jsx";
 import {
   LayoutDashboard, Rocket, BarChart3, FileText, Disc3, CreditCard, ArrowLeft,
   LogOut, Menu, X, Plus, Trash2, Upload, Check, ChevronDown, Music2, Mail, Phone,
@@ -139,6 +141,7 @@ export default function Dashboard() {
   const [toast, setToast] = useState("");
   const [profileOpen, setProfileOpen] = useState(false);
   const [targetRequest, setTargetRequest] = useState(null);
+  const [tosModal, setTosModal] = useState(null); // { tosKey, onAccept }
 
   const toastTimer = useRef(null);
   const reconcileTried = useRef(false);
@@ -156,6 +159,7 @@ export default function Dashboard() {
   }, [navigate]);
 
   const uid = user?.uid;
+  usePushAutoRegister(uid, { onTap: (data) => { if (data?.route) navigate(data.route); } });
   const { data: profileDoc } = useLiveDoc(["user", uid], () => doc(db, "users", uid), { enabled: !!uid });
   const { data: campaignsData } = useLiveCollection(["campaigns", uid], () => collection(db, "users", uid, "campaigns"), { enabled: !!uid });
   const campaigns = campaignsData || [];
@@ -246,15 +250,33 @@ export default function Dashboard() {
     go(req.requestType === "loops" ? "loops" : "submit");
   };
 
+  // Show billing/submission TOS before an action if not yet accepted.
+  // onAccept is called only after the user explicitly agrees.
+  function requireTOS(tosKey, onAccept) {
+    if (hasTOSAccepted(tosKey)) { onAccept(); return; }
+    setTosModal({
+      tosKey,
+      onAccept: () => {
+        markTOSAccepted(tosKey);
+        setTosModal(null);
+        onAccept();
+      }
+    });
+  }
+
   async function startSubscription(plan, btn) {
-    const orig = btn.textContent; btn.disabled = true; btn.textContent = "Please wait…";
-    try { const data = await call("createSubscriptionCheckout", { plan }); if (data?.url) location.href = data.url; else throw new Error("No checkout URL returned."); }
-    catch (e) { showToast(e.message || "Could not start checkout."); btn.disabled = false; btn.textContent = orig; }
+    requireTOS("billing", async () => {
+      const orig = btn.textContent; btn.disabled = true; btn.textContent = "Please wait…";
+      try { const data = await call("createSubscriptionCheckout", { plan }); if (data?.url) location.href = data.url; else throw new Error("No checkout URL returned."); }
+      catch (e) { showToast(e.message || "Could not start checkout."); btn.disabled = false; btn.textContent = orig; }
+    });
   }
   async function buyPack(pack, btn) {
-    const orig = btn.textContent; btn.disabled = true; btn.textContent = "Redirecting…";
-    try { const data = await call("buyCreditPack", { pack }); if (data?.url) location.href = data.url; else throw new Error("No checkout URL returned."); }
-    catch (e) { showToast(e.message || "Could not start checkout."); btn.disabled = false; btn.textContent = orig; }
+    requireTOS("billing", async () => {
+      const orig = btn.textContent; btn.disabled = true; btn.textContent = "Redirecting…";
+      try { const data = await call("buyCreditPack", { pack }); if (data?.url) location.href = data.url; else throw new Error("No checkout URL returned."); }
+      catch (e) { showToast(e.message || "Could not start checkout."); btn.disabled = false; btn.textContent = orig; }
+    });
   }
 
   const name = profile.displayName || user?.displayName || user?.email || "Producer";
@@ -363,6 +385,15 @@ export default function Dashboard() {
 
       {profileOpen && <ProfileModal user={user} profile={profile} onClose={() => setProfileOpen(false)} />}
 
+      {tosModal && (
+        <TOSModal
+          tosKey={tosModal.tosKey}
+          open={true}
+          onAccept={tosModal.onAccept}
+          onClose={() => setTosModal(null)}
+        />
+      )}
+
       {/* ---- mobile bottom nav ---- */}
       <nav
         className="fixed inset-x-0 bottom-0 z-50 flex border-t border-[#262626] bg-[#0e0e0e]/95 backdrop-blur-xl lg:hidden"
@@ -400,7 +431,7 @@ export default function Dashboard() {
 
 function CreditPills({ tier, pitch, loop, onClick }) {
   return (
-    <button onClick={onClick} title="Pitch & loop credits — tap to manage in Billing" className="group flex items-center gap-1.5 rounded-none border border-[#262626] bg-[#0e0e0e] p-1 pr-2 transition hover:border-[#4d4635]">
+    <button onClick={onClick} title="Pitch & loop credits — tap to manage in Billing" className="group flex items-center gap-1.5 rounded-none border border-[#262626] bg-transparent p-1 pr-2 transition hover:border-[#4d4635]">
       <span title={`${pitch} pitch credits`} className="flex items-center gap-1.5 rounded-none bg-[#f2ca50]/10 px-2.5 py-1 text-[13px] font-semibold text-[#f2ca50]"><Rocket size={13} /> {pitch}</span>
       <span title={`${loop} loop credits`} className="flex items-center gap-1.5 rounded-none bg-ok/10 px-2.5 py-1 text-[13px] font-semibold text-ok"><Disc3 size={13} /> {loop}</span>
       <span className="hidden px-1 font-mono text-[10px] uppercase tracking-wider text-[#99907c] sm:inline">{tier}</span>
@@ -913,6 +944,7 @@ function CampaignBuilder({ tier, caps, pitchBalance, user, profile, campaignCoun
   const [seg, setSeg] = useState("artists");
   const [rush, setRush] = useState(false);
   const [feedback, setFeedback] = useState(false);
+  const [listInLibrary, setListInLibrary] = useState(false);
   const [busy, setBusy] = useState(false);
   const [submitBtn, setSubmitBtn] = useState("Review campaign");
   const [pay, setPay] = useState(null);
@@ -922,7 +954,8 @@ function CampaignBuilder({ tier, caps, pitchBalance, user, profile, campaignCoun
   const isFree = tier === "free" && !targetRequest;
   const beatCost = useMemo(() => beats.filter((b) => b.title.trim()).length, [beats]);
   const rushCost = rush ? 2 : 0;
-  const cost = beatCost + rushCost;
+  const libraryCost = (targetRequest && listInLibrary) ? 5 : 0;
+  const cost = beatCost + rushCost + libraryCost;
   const noCredit = cost > 0 && cost > pitchBalance;
 
   // Surfaced inline so the user knows *why* Submit is disabled, instead of
@@ -993,13 +1026,16 @@ function CampaignBuilder({ tier, caps, pitchBalance, user, profile, campaignCoun
     const builtBeats = named.map((b) => ({ title: b.title.trim(), genre: b.genre, key: b.key, bpm: b.bpm, tags: normalizeTags([...(b.tags || []), b.tagDraft || ""].join(",")), storagePath: b.storagePath, collabs: b.collabs.filter((c) => c.name.trim()).map((c) => ({ name: c.name.trim(), role: c.role, instagram: c.instagram.trim(), phone: c.phone.trim() })) }));
     const addons = [...(rush ? ["rush"] : []), ...(feedback ? ["feedback"] : [])];
     setBusy(false); setSubmitBtn("Review campaign"); setPayMsg(null);
-    setPay({ beats: builtBeats, targets: selected, addons, cost });
+    setPay({ beats: builtBeats, targets: selected, addons, cost, listInLibrary: !!(targetRequest && listInLibrary) });
   }
 
-  async function doPay() {
+  function doPay() {
+    requireTOS("submission", doPayInner);
+  }
+  async function doPayInner() {
     setPayBusy(true); setPayMsg(null);
     try {
-      await call("submitCampaign", { producer: { name: bName.trim(), instagram: bIg.trim(), email: user?.email || "", phone: profile?.phone || "" }, beats: pay.beats, targets: pay.targets, addons: pay.addons, targetRequestId: targetRequest?.id || "" });
+      await call("submitCampaign", { producer: { name: bName.trim(), instagram: bIg.trim(), email: user?.email || "", phone: profile?.phone || "" }, beats: pay.beats, targets: pay.targets, addons: pay.addons, listInLibrary: pay.listInLibrary || false, targetRequestId: targetRequest?.id || "" });
       // Backfill the account with name/Instagram if it didn't have them yet, so
       // future campaigns auto-fill. Only fills blanks — never overwrites.
       const acct = {};
@@ -1192,7 +1228,8 @@ function CampaignBuilder({ tier, caps, pitchBalance, user, profile, campaignCoun
         <h3 className="mb-4 font-display text-base">Add-ons <span className="text-[12px] font-normal text-[#99907c]">(optional)</span></h3>
         {[
           { on: rush, set: setRush, title: "Rush queue", price: "2 credits", desc: "Priority review — pushed to the front of the staff queue" },
-          { on: feedback, set: setFeedback, title: "Written feedback", price: "Included", desc: "Summary from our pitching team after the campaign closes" }
+          { on: feedback, set: setFeedback, title: "Written feedback", price: "Included", desc: "Summary from our pitching team after the campaign closes" },
+          ...(targetRequest ? [{ on: listInLibrary, set: setListInLibrary, title: "Also list in Verified library", price: "5 credits", desc: "This submission goes only to the requester by default. Add this to also publish it to the public Verified library." }] : [])
         ].map((a) => (
           <label key={a.title} className="flex cursor-pointer items-start gap-3 border-[#262626] py-2.5 [&:not(:last-child)]:border-b">
             <input type="checkbox" checked={a.on} onChange={(e) => a.set(e.target.checked)} className="mt-1 h-4 w-4 accent-[#f2ca50]" />
@@ -1813,6 +1850,7 @@ function LoopDrops({ user, pitchBalance, loopBalance, targetRequest, clearTarget
   const [bpm, setBpm] = useState("");
   const [key, setKey] = useState(KEY_OPTS[0]);
   const [tags, setTags] = useState("");
+  const [exclusivity, setExclusivity] = useState("exclusive");
   const [file, setFile] = useState(null);
   const [msg, setMsg] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -1830,12 +1868,12 @@ function LoopDrops({ user, pitchBalance, loopBalance, targetRequest, clearTarget
       const folder = Date.now().toString(36) + Math.random().toString(36).slice(2);
       const storagePath = `loops/${user.uid}/${folder}/${safeName}`;
       await uploadFile(new File([file], safeName, { type: "audio/mpeg" }), storagePath, setProgress);
-      await call("submitLoop", { title: title.trim(), bpm: bpm || null, key, genre, tags: tags.split(",").map((t) => t.trim()).filter(Boolean), storagePath, targetRequestId: targetRequest?.id || "" });
+      await call("submitLoop", { title: title.trim(), bpm: bpm || null, key, genre, tags: tags.split(",").map((t) => t.trim()).filter(Boolean), storagePath, exclusivity, targetRequestId: targetRequest?.id || "" });
       if (targetRequest) {
         sessionStorage.removeItem("pluggurbeats:targetRequest");
         clearTargetRequest?.();
       }
-      setMsg({ text: targetRequest ? "Loop submitted to request!" : "Loop submitted!", kind: "ok" });
+      setMsg({ text: targetRequest ? "Loop submitted to request — pending review." : "Loop submitted — pending review.", kind: "ok" });
       setTitle(""); setBpm(""); setTags(""); setFile(null); setProgress(0);
       setTimeout(() => setMsg(null), 3000);
     } catch (e) { setMsg({ text: e.message || "Submission failed.", kind: "err" }); }
@@ -1868,6 +1906,24 @@ function LoopDrops({ user, pitchBalance, loopBalance, targetRequest, clearTarget
         <div className="grid gap-3 sm:grid-cols-2"><div><Label>Title *</Label><input className={inputCls} placeholder="e.g. Dark trap 808" value={title} onChange={(e) => setTitle(e.target.value)} /></div><div><Label>Genre</Label><Select value={genre} onChange={(e) => setGenre(e.target.value)}>{GENRES.map((g) => <option key={g}>{g}</option>)}</Select></div></div>
         <div className="mt-3 grid gap-3 sm:grid-cols-3"><div><Label>BPM</Label><input className={inputCls} type="number" placeholder="140" value={bpm} onChange={(e) => setBpm(e.target.value)} /></div><div><Label>Key</Label><Select value={key} onChange={(e) => setKey(e.target.value)}>{KEY_OPTS.map((k) => <option key={k}>{k}</option>)}</Select></div><div><Label>Tags (comma-sep)</Label><input className={inputCls} placeholder="dark, 808, minimal" value={tags} onChange={(e) => setTags(e.target.value)} /></div></div>
         <div className="mt-3">
+          <Label>Availability</Label>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {[
+              { id: "exclusive", title: "Exclusive", desc: "One producer claims it, then it's gone. Best for premium loops." },
+              { id: "shared",    title: "Shared",    desc: "Stays in the pool — multiple producers can build on it." }
+            ].map((opt) => (
+              <button key={opt.id} type="button" onClick={() => setExclusivity(opt.id)}
+                className={`rounded-none border p-3 text-left transition ${exclusivity === opt.id ? "border-[#f2ca50] bg-[#f2ca50]/[0.06]" : "border-[#4d4635] hover:border-[#f2ca50]/50"}`}>
+                <div className={`flex items-center gap-2 text-sm font-semibold ${exclusivity === opt.id ? "text-[#f2ca50]" : "text-bone"}`}>
+                  <span className={`grid h-4 w-4 place-items-center rounded-full border ${exclusivity === opt.id ? "border-[#f2ca50]" : "border-[#4d4635]"}`}>{exclusivity === opt.id && <span className="h-2 w-2 rounded-full bg-[#f2ca50]" />}</span>
+                  {opt.title}
+                </div>
+                <div className="mt-1 pl-6 text-[12px] leading-snug text-[#99907c]">{opt.desc}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="mt-3">
           <Label>Audio file *</Label>
           <label className={`flex w-fit cursor-pointer items-center gap-2 rounded-none border border-dashed px-4 py-2.5 text-sm transition ${file ? "border-ok/40 bg-ok/[0.06] text-ok" : "border-[#4d4635] text-[#99907c] hover:border-[#f2ca50]/50 hover:text-bone"}`}>
             {file ? <Check size={15} /> : <Upload size={15} />}{file ? (file.name.length > 28 ? file.name.slice(0, 26) + "…" : file.name) : "Attach MP3"}
@@ -1897,8 +1953,20 @@ function LoopDrops({ user, pitchBalance, loopBalance, targetRequest, clearTarget
                     {l.tags?.length > 0 && <div className="mt-1 flex flex-wrap gap-1.5">{l.tags.map((t, i) => <span key={i} className="rounded-full border border-[#262626] bg-[#1c1b1b] px-2 py-0.5 text-[11px] text-[#99907c]">{t}</span>)}</div>}
                   </div>
                   <div className="text-right">
-                    <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${l.status === "used" ? "bg-white/8 text-[#99907c]" : "bg-ok/12 text-ok"}`}>{l.status || "live"}</span>
-                    <div className="mt-1.5 text-[12px] text-[#99907c]">{l.downloads || 0} pull{l.downloads !== 1 ? "s" : ""}</div>
+                    {(() => {
+                      const S = {
+                        pending_review: { label: "Pending review", cls: "bg-[#f2ca50]/12 text-[#f2ca50]" },
+                        live:           { label: "Live",           cls: "bg-ok/12 text-ok" },
+                        rejected:       { label: "Rejected",       cls: "bg-bad/12 text-bad" },
+                        used:           { label: "Claimed",        cls: "bg-white/8 text-[#99907c]" }
+                      };
+                      const s = S[l.status] || S.live;
+                      return <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${s.cls}`}>{s.label}</span>;
+                    })()}
+                    <div className="mt-1.5 text-[12px] text-[#99907c]">
+                      {l.exclusivity === "shared" ? "Shared" : "Exclusive"} · {(l.exclusivity === "shared" ? (l.pullCount || 0) : (l.downloads || 0))} pull{(l.exclusivity === "shared" ? l.pullCount : l.downloads) !== 1 ? "s" : ""}
+                    </div>
+                    {l.status === "rejected" && l.rejectionReason && <div className="mt-1 text-[11px] text-bad/80 max-w-[180px]">{l.rejectionReason}</div>}
                   </div>
                 </div>
               );

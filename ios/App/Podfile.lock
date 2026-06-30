@@ -8,6 +8,8 @@ PODS:
   - CapacitorFileTransfer (2.0.4):
     - Capacitor
     - IONFileTransferLib (~> 1.0.2)
+  - CapacitorPushNotifications (8.1.1):
+    - Capacitor
   - CapacitorShare (8.0.1):
     - Capacitor
   - IONFilesystemLib (1.1.2)
@@ -18,6 +20,7 @@ DEPENDENCIES:
   - "CapacitorCordova (from `../../node_modules/@capacitor/ios`)"
   - "CapacitorFilesystem (from `../../node_modules/@capacitor/filesystem`)"
   - "CapacitorFileTransfer (from `../../node_modules/@capacitor/file-transfer`)"
+  - "CapacitorPushNotifications (from `../../node_modules/@capacitor/push-notifications`)"
   - "CapacitorShare (from `../../node_modules/@capacitor/share`)"
 
 SPEC REPOS:
@@ -34,6 +37,8 @@ EXTERNAL SOURCES:
     :path: "../../node_modules/@capacitor/filesystem"
   CapacitorFileTransfer:
     :path: "../../node_modules/@capacitor/file-transfer"
+  CapacitorPushNotifications:
+    :path: "../../node_modules/@capacitor/push-notifications"
   CapacitorShare:
     :path: "../../node_modules/@capacitor/share"
 
@@ -42,10 +47,11 @@ SPEC CHECKSUMS:
   CapacitorCordova: eebe6bcf807b1b06f3f48237650f96bbcd0eef09
   CapacitorFilesystem: 2db285a1ac6e475cc27cae2e1bea999000f9e2be
   CapacitorFileTransfer: 445b9dc69ea5a5e0e708e011a4848e63c471abee
+  CapacitorPushNotifications: ec08d589c226a2c0db7c032ec1bf5b044ec85f8e
   CapacitorShare: 0c58305114538568059bfc07111f22dcb9cb2a82
   IONFilesystemLib: 21a63377696b2d8fab5632ecfb7d2ac67bddb68a
   IONFileTransferLib: addbbf50405c163dcd74a7b1bd8c6f9302342be2
 
-PODFILE CHECKSUM: 1b2bd9e5b8946d43cce82eef1b95a0a158de72e0
+PODFILE CHECKSUM: d6163222036162b65b88c241fa9c56cfaa170ff4
 
 COCOAPODS: 1.16.2

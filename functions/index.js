@@ -3,17 +3,66 @@ const { onRequest, onCall, HttpsError } = require("firebase-functions/v2/https")
 const { defineSecret }         = require("firebase-functions/params");
 const admin                    = require("firebase-admin");
 const crypto                   = require("crypto");
-const JSZip                    = require("jszip");
-const { Resend }               = require("resend");
-const { Webhook }              = require("svix");
-const Stripe                   = require("stripe");
-const docusign                 = require("docusign-esign");
-const { PDFDocument, StandardFonts, rgb } = require("pdf-lib");
+const { Resend }               = require("resend"); // small (~80K) — keep eager
+// COLD-START OPTIMIZATION: the heavy SDKs below (~40MB combined: pdf-lib 23M,
+// docusign-esign 7.3M, stripe 6.2M, svix 4.7M, jszip 1.1M) are lazy-required
+// INSIDE the few cold-path functions that use them. This keeps hot functions
+// (play beat, list users/beats, record view) from parsing 40MB on every cold
+// start. Stripe is callable (no `new`), so a thin lazy wrapper keeps all call
+// sites unchanged; the rest are required at the top of their handler.
+const Stripe                   = (...args) => require("stripe")(...args);
 const contacts                 = require("./contacts.json");
 const staffConfig              = require("./staff.json");
 const stripePrices             = require("./stripe-prices.json");
 
 admin.initializeApp();
+
+// Push fan-out (FCM). All sends are fire-and-forget: wrapped so a push failure
+// never breaks the underlying action. See functions/notify.js.
+const { sendPush, sendBroadcast } = require("./notify");
+
+// Send a submission notification email to a verified requester (A&R / Artist).
+// Only called server-side — requester email is never exposed to the client.
+// Fire-and-forget: always call with .catch() so failures don't block the response.
+async function sendSubmissionEmail({ db, resendKey, requesterUid, producerName, producerInstagram, beats, requestTitle, requestId, type }) {
+  const emailSnap = await db.doc(`verifiedEmailList/${requesterUid}`).get();
+  if (!emailSnap.exists) return;
+  const to = emailSnap.get("email");
+  if (!to) return;
+
+  const { Resend: ResendClient } = require("resend");
+  const resend = new ResendClient(resendKey);
+
+  const isLoop = type === "loop";
+  const label = isLoop ? "loop" : `beat${beats.length !== 1 ? "s" : ""}`;
+  const itemsHtml = beats.map((b) => {
+    const meta = [b.genre, b.bpm ? `${b.bpm} BPM` : "", b.key].filter(Boolean).join(", ");
+    return `<li><strong>${escapeHtml(String(b.title || "Untitled"))}</strong>${meta ? ` — ${meta}` : ""}</li>`;
+  }).join("");
+
+  const sent = await resend.emails.send({
+    from: "PluggurBeats <submissions@pluggurbeat.com>",
+    to,
+    subject: `New ${label} submitted to "${requestTitle}"`,
+    html: `
+      <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;color:#111;font-size:15px;line-height:1.6">
+        <p>Hi,</p>
+        <p>
+          <strong>${escapeHtml(producerName)}</strong>${producerInstagram ? ` (${escapeHtml(producerInstagram)})` : ""}
+          submitted ${beats.length} ${label} to your request <strong>"${escapeHtml(requestTitle)}"</strong>.
+        </p>
+        <ul>${itemsHtml}</ul>
+        <p>Log in to <a href="https://pluggurbeats.com/verified">PluggurBeats</a> to listen and respond.</p>
+        <p style="color:#888;font-size:12px">You received this because you are a verified user on PluggurBeats. Reply to opt out.</p>
+      </div>`
+  });
+
+  if (sent?.error) {
+    console.error(`Submission email to ${to} failed:`, JSON.stringify(sent.error));
+  } else {
+    console.log(`Submission email sent to verified requester (uid ${requesterUid}), Resend id ${sent?.data?.id}`);
+  }
+}
 
 // Staff allowlist — emails permitted to access the moderation dashboard
 const STAFF_EMAILS = (staffConfig.emails || []).map(e => e.toLowerCase());
@@ -253,6 +302,7 @@ const RATE_LIMITS = {
   listUsers:                  { limit: 120, windowMs: 60 * 1000 },
   listLoopClaims:             { limit: 120, windowMs: 60 * 1000 },
   moderateCampaign:           { limit: 60,  windowMs: 60 * 1000 },
+  removeFromLibrary:          { limit: 30,  windowMs: 60 * 1000 },
   setVerifiedPuller:          { limit: 60,  windowMs: 60 * 1000 },
   setVerifiedListener:        { limit: 60,  windowMs: 60 * 1000 },
   setVerifiedRole:            { limit: 60,  windowMs: 60 * 1000 },
@@ -605,7 +655,43 @@ function setCors(req, res) {
   res.set("Access-Control-Expose-Headers", "Content-Disposition, Content-Length, Content-Type");
 }
 
+// deliverInboundSubmission — write a targeted submission into the requester's
+// private inbox (users/{requesterUid}/inboundSubmissions). This is how a request
+// owner sees beats sent to their request WITHOUT the beat entering the public
+// library. Cloud Functions only (rules deny client writes).
+async function deliverInboundSubmission(db, campaign, producerUid, campaignId, pitchedAt) {
+  const requesterUid = campaign.targetRequesterUid;
+  if (!requesterUid) return;
+  const producer = campaign.producer || {};
+  const beats = (campaign.beats || []).map((b, beatIndex) => ({
+    title: b.title || "Untitled", genre: b.genre || "", key: b.key || "", bpm: b.bpm || "",
+    ownerUid: producerUid, campaignId, beatIndex, storagePath: b.storagePath || ""
+  }));
+  await db.doc(`users/${requesterUid}/inboundSubmissions/${campaignId}`).set({
+    producerUid,
+    producerName:       producer.name || "Producer",
+    producerInstagram:  producer.instagram || "",
+    beats,
+    beatCount:          beats.length,
+    creditsSpent:       campaign.creditCost || beats.length,
+    targetRequestId:    campaign.targetRequestId || "",
+    targetRequestTitle: campaign.targetRequestTitle || "",
+    kind:               "beats",
+    status:             "pitched",
+    submittedAt:        pitchedAt || admin.firestore.FieldValue.serverTimestamp()
+  }, { merge: true });
+}
+
 async function indexVerifiedBeats(db, ownerUid, campaignId, campaign, pitchedAtValue = null) {
+  // Single source of truth for "should this be in the public library." Refuse to
+  // (re-)index when it must stay OUT — covers the backfill paths AND the lazy
+  // re-index in resolveVerifiedBeatFile (which fires when a requester previews an
+  // exclusive beat from their inbox). Without this, playing an exclusive beat
+  // would silently republish it to the library.
+  //  - staff explicitly removed it, OR
+  //  - it's a targeted submission the producer didn't pay +5 to list (exclusive).
+  if (campaign.excludedFromLibrary === true) return;
+  if (campaign.targetRequesterUid && campaign.listInLibrary !== true) return;
   const producer = campaign.producer || {};
   const pitchedAt = pitchedAtValue || campaign.pitchedAt || admin.firestore.FieldValue.serverTimestamp();
   const tier = campaign.tier || "free";
@@ -659,6 +745,7 @@ const TARGET_LANE_MAP = {
 exports.pitchCampaign = onDocumentUpdated(
   { document: "users/{uid}/campaigns/{campaignId}", region: REGION, secrets: [RESEND_API_KEY] },
   async (event) => {
+    const JSZip = require("jszip"); // lazy — only this cold-path fn zips beats
     const before = event.data.before.data();
     const after  = event.data.after.data();
 
@@ -679,6 +766,22 @@ exports.pitchCampaign = onDocumentUpdated(
 
     if (beats.length === 0) {
       console.log("No uploaded beats on campaign", campaignId);
+      return;
+    }
+
+    // Targeted submissions (sent to a request via the chat box) are EXCLUSIVE to
+    // the requester: deliver to their private inbox and skip the public library +
+    // email blast — UNLESS the producer paid +5 credits to also list (listInLibrary).
+    if (campaign.targetRequesterUid) {
+      const pitchedAt = admin.firestore.Timestamp.now();
+      await snap.ref.update({ status: "pitched", pitchedAt, pitchedTo: [], opens: 0, downloads: 0 });
+      await deliverInboundSubmission(db, campaign, uid, campaignId, pitchedAt);
+      if (campaign.listInLibrary === true) {
+        await indexVerifiedBeats(db, uid, campaignId, campaign, pitchedAt);
+        console.log(`Targeted campaign ${campaignId}: delivered to requester + listed in library (+5)`);
+      } else {
+        console.log(`Targeted campaign ${campaignId}: delivered to requester only (exclusive, not in library)`);
+      }
       return;
     }
 
@@ -858,6 +961,7 @@ exports.downloadBeats = onRequest({ region: REGION }, async (req, res) => {
 exports.resendWebhook = onRequest(
   { region: REGION, secrets: [RESEND_WEBHOOK_SECRET] },
   async (req, res) => {
+    const { Webhook } = require("svix"); // lazy — only the webhook verifies sigs
     const db = admin.firestore();
 
     // Verify the Svix signature against the raw body
@@ -1282,7 +1386,9 @@ const TIER_CAPS_FN = {
   pro:   { beats:25, lanes:5, anr:true  }
 };
 
-exports.submitCampaign = onCall({ region: REGION }, async (request) => {
+// minInstances: 1 — the core PAID action. Keep warm so submitting a campaign is
+// seamless for paying users (no cold start on top of the credit transaction).
+exports.submitCampaign = onCall({ region: REGION, minInstances: 1, secrets: [RESEND_API_KEY] }, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
   await assertCallableRateLimit("submitCampaign", request);
   const uid = request.auth.uid;
@@ -1340,9 +1446,12 @@ exports.submitCampaign = onCall({ region: REGION }, async (request) => {
   }
   const addonsArr = [...new Set(Array.isArray(addons) ? addons : [])]
     .filter((a) => ["rush", "feedback"].includes(a));
+  // Targeted submissions are exclusive to the requester by default. Opting to
+  // ALSO list in the public Verified library costs +5 pitch credits.
+  const wantsLibrary = !!targetRequest && request.data?.listInLibrary === true;
   // Recompute cost server-side — never trust client total.
-  // 1 pitch credit per beat, plus 2 pitch credits for rush queue.
-  const cost = beats.length + (addonsArr.includes("rush") ? 2 : 0);
+  // 1 pitch credit per beat, plus 2 for rush queue, plus 5 for library listing.
+  const cost = beats.length + (addonsArr.includes("rush") ? 2 : 0) + (wantsLibrary ? 5 : 0);
   const cleanBeats = beats.map((b) => ({
     title: String(b?.title || "").trim().slice(0, 120),
     genre: String(b?.genre || "").trim().slice(0, 40),
@@ -1395,6 +1504,7 @@ exports.submitCampaign = onCall({ region: REGION }, async (request) => {
       targetRequesterRole: targetRequest?.createdByRole || "",
       targetRequestType: targetRequest?.requestType || "",
       targetRequestTitle: targetRequest?.title || "",
+      listInLibrary: wantsLibrary, // targeted + paid the +5 library add-on
       creditCost: cost,
       tier,
       status:     "pending_review",
@@ -1409,6 +1519,31 @@ exports.submitCampaign = onCall({ region: REGION }, async (request) => {
   });
 
   console.log(`Campaign ${campaignRef.id} submitted by ${uid} (${tier}) — cost ${cost} credits`);
+
+  // Notify the A&R / artist who posted the request that a beat was sent to them.
+  if (targetRequest?.createdByUid && targetRequest.createdByUid !== uid) {
+    const producerName = producer?.name || userSnap.get("displayName") || "A producer";
+    sendPush(targetRequest.createdByUid, "directSubmission", {
+      title: "New submission to your request",
+      body: `${producerName} sent ${beats.length} beat${beats.length !== 1 ? "s" : ""} to "${targetRequest.title || "your request"}"`,
+      data: { route: "/verified", requestId: targetRequestRef.id }
+    }).catch(() => {});
+
+    // Pro tier → also send an email to the verified requester.
+    if (tier === "pro") {
+      sendSubmissionEmail({
+        db,
+        resendKey: RESEND_API_KEY.value(),
+        requesterUid: targetRequest.createdByUid,
+        producerName,
+        producerInstagram: producer?.instagram || "",
+        beats,
+        requestTitle: targetRequest.title || "your request",
+        requestId: targetRequestRef.id,
+        type: "beats"
+      }).catch((e) => console.error("Submission email failed:", e.message));
+    }
+  }
   return { ok: true, campaignId: campaignRef.id, creditCost: cost };
 });
 
@@ -1471,11 +1606,16 @@ exports.reconcileCredits = onCall(
 // submitLoop — debit 1 loop credit, create the loop doc as "live".
 // storagePath is the path the client already uploaded to Storage.
 // ====================================================================
-exports.submitLoop = onCall({ region: REGION }, async (request) => {
+// minInstances: 1 — loop submit (mirror of submitCampaign for the loop economy).
+exports.submitLoop = onCall({ region: REGION, minInstances: 1, secrets: [RESEND_API_KEY] }, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
   await assertCallableRateLimit("submitLoop", request);
   const uid = request.auth.uid;
-  const { title, bpm, key, genre, tags, storagePath, targetRequestId } = request.data || {};
+  const { title, bpm, key, genre, tags, storagePath, targetRequestId, exclusivity } = request.data || {};
+  // Maker chooses the model at submit: "exclusive" (one puller claims it, then it's
+  // gone) or "shared" (stays in the pool, many pullers can build on it). Default
+  // exclusive — that's the loop product's differentiator.
+  const cleanExclusivity = exclusivity === "shared" ? "shared" : "exclusive";
 
   if (!title || typeof title !== "string" || !title.trim())
     throw new HttpsError("invalid-argument", "title is required.");
@@ -1527,9 +1667,11 @@ exports.submitLoop = onCall({ region: REGION }, async (request) => {
     targetRequesterRole: targetRequest?.createdByRole || "",
     targetRequestType: targetRequest?.requestType || "",
     targetRequestTitle: targetRequest?.title || "",
-    status:    "live",
+    exclusivity: cleanExclusivity,
+    status:    "pending_review", // mirror beat campaigns — staff approves before it goes live
     plays:     0,
     downloads: 0,
+    pullCount: 0,
     createdAt: admin.firestore.FieldValue.serverTimestamp()
   });
 
@@ -1538,18 +1680,149 @@ exports.submitLoop = onCall({ region: REGION }, async (request) => {
       submissionCount: admin.firestore.FieldValue.increment(1),
       updatedAt: admin.firestore.FieldValue.serverTimestamp()
     });
+
+    if (targetRequest?.createdByUid && targetRequest.createdByUid !== uid) {
+      sendPush(targetRequest.createdByUid, "directSubmission", {
+        title: "New loop submission to your request",
+        body: `${makerName} sent a loop to "${targetRequest.title || "your request"}"`,
+        data: { route: "/verified", requestId: targetRequestRef.id }
+      }).catch(() => {});
+
+      // Pro tier → also email the verified requester.
+      if (tier === "pro") {
+        sendSubmissionEmail({
+          db,
+          resendKey: RESEND_API_KEY.value(),
+          requesterUid: targetRequest.createdByUid,
+          producerName: makerName,
+          producerInstagram: "",
+          beats: [{ title: title.trim(), genre: genre || "", bpm, key, tags }],
+          requestTitle: targetRequest.title || "your request",
+          requestId: targetRequestRef.id,
+          type: "loop"
+        }).catch((e) => console.error("Loop submission email failed:", e.message));
+      }
+    }
   }
 
-  console.log(`Loop ${loopRef.id} submitted by ${uid}`);
+  console.log(`Loop ${loopRef.id} submitted by ${uid} (${cleanExclusivity}, pending review)`);
   return { ok: true, loopId: loopRef.id };
 });
+
+// ====================================================================
+// listReviewLoops — staff-only: pending loops awaiting review, with signed
+// preview URLs. Mirror of listReviewCampaigns for the loop economy.
+// ====================================================================
+exports.listReviewLoops = onCall({ region: REGION }, async (request) => {
+  assertStaff(request.auth);
+  await assertCallableRateLimit("listReviewLoops", request);
+  const db      = admin.firestore();
+  const storage = admin.storage().bucket();
+
+  const snap = await db.collection("loops").where("status", "==", "pending_review").get();
+  const loops = await Promise.all(snap.docs.map(async (doc) => {
+    const l = doc.data();
+    let playUrl = null;
+    if (l.storagePath) {
+      try {
+        const [url] = await storage.file(l.storagePath)
+          .getSignedUrl({ action: "read", expires: Date.now() + 2 * 60 * 60 * 1000 });
+        playUrl = url;
+      } catch (e) { console.warn("Signed URL failed for", l.storagePath, e.message); }
+    }
+    return {
+      id: doc.id, title: l.title || "Untitled", makerName: l.makerName || "", makerUid: l.makerUid || "",
+      bpm: l.bpm || "", key: l.key || "", genre: l.genre || "", tags: l.tags || [],
+      exclusivity: l.exclusivity || "exclusive",
+      targetRequestTitle: l.targetRequestTitle || "",
+      createdAt: l.createdAt?.toMillis ? l.createdAt.toMillis() : null,
+      playUrl
+    };
+  }));
+  loops.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  return { loops };
+});
+
+// ====================================================================
+// moderateLoop — staff approve (-> live) or reject (-> rejected) a pending
+// loop. Mirror of moderateCampaign: refunds the loop credit on rejection of a
+// still-pending loop (once) and emails the maker.
+// ====================================================================
+exports.moderateLoop = onCall(
+  { region: REGION, secrets: [RESEND_API_KEY] },
+  async (request) => {
+    const staffEmail = assertStaff(request.auth);
+    await assertCallableRateLimit("moderateLoop", request);
+    const { loopId, decision, reason, note } = request.data || {};
+    if (!loopId || !["live", "rejected"].includes(decision)) {
+      throw new HttpsError("invalid-argument", "loopId and a valid decision (live|rejected) are required.");
+    }
+
+    const db   = admin.firestore();
+    const ref  = db.doc(`loops/${loopId}`);
+    const snap = await ref.get();
+    if (!snap.exists) throw new HttpsError("not-found", "Loop not found.");
+    const loop = snap.data();
+
+    const update = {
+      status:      decision, // "live" (approved into the pool) or "rejected"
+      moderatedBy: staffEmail,
+      moderatedAt: admin.firestore.FieldValue.serverTimestamp()
+    };
+    if (reason) update.rejectionReason = reason;
+    if (note)   update.rejectionNote   = note;
+    await ref.update(update);
+
+    // Refund the 1 loop credit when rejecting a still-pending loop (guard on the
+    // pre-update status + a flag so it can't be refunded twice).
+    let refunded = 0;
+    if (decision === "rejected" && loop.status === "pending_review" && !loop.creditRefunded) {
+      await grantCredits(loop.makerUid, "loop", 1, "loop_rejected_refund", loopId);
+      await ref.update({ creditRefunded: true });
+      refunded = 1;
+      console.log(`Refunded 1 loop credit to ${loop.makerUid} for rejected loop ${loopId}`);
+    }
+
+    // Email the maker their rejection reason
+    if (decision === "rejected") {
+      const makerSnap  = await db.doc(`users/${loop.makerUid}`).get();
+      const makerEmail = makerSnap.get("email");
+      if (makerEmail) {
+        try {
+          const resend = new Resend(RESEND_API_KEY.value());
+          await resend.emails.send({
+            from:    "PluggurBeats Team <team@pluggurbeat.com>",
+            to:      makerEmail,
+            subject: "Your recent loop submission",
+            html: `
+              <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;color:#111;font-size:15px;line-height:1.6">
+                <p>Hi ${loop.makerName || "there"},</p>
+                <p>Our team reviewed your loop "<strong>${loop.title || "Untitled"}</strong>" and we're unable to add it to the pool at this time.</p>
+                ${reason ? `<p><strong>Reason:</strong> ${reason}</p>` : ""}
+                ${note   ? `<p>${note}</p>` : ""}
+                ${refunded ? `<p>Your loop credit has been refunded.</p>` : ""}
+                <p>You're welcome to revise and resubmit.</p>
+                <p>— The PluggurBeats Team</p>
+              </div>`
+          });
+        } catch (e) {
+          console.error("Failed to send loop rejection email:", e.message);
+        }
+      }
+    }
+
+    console.log(`Loop ${loopId} ${decision} by ${staffEmail}`);
+    return { ok: true, status: decision, refunded };
+  }
+);
 
 // ====================================================================
 // pullLoop — assert verifiedPuller, create a loopClaims record,
 // mark the loop "used", email the maker, return a signed download URL.
 // ====================================================================
+// minInstances: 1 — loop pull (mirror of the verified beat-download path).
 exports.pullLoop = onCall(
-  { region: REGION, secrets: [RESEND_API_KEY] },
+  { region: REGION, secrets: [RESEND_API_KEY], minInstances: 1 },
   async (request) => {
     if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
     await assertCallableRateLimit("pullLoop", request);
@@ -1570,41 +1843,52 @@ exports.pullLoop = onCall(
     if (!loopSnap.exists) throw new HttpsError("not-found", "Loop not found.");
     const loop = loopSnap.data();
     if (loop.status !== "live") {
-      throw new HttpsError("failed-precondition", "This loop has already been pulled.");
+      // Exclusive loops flip to "used" after one pull; pending/rejected aren't pullable.
+      throw new HttpsError("failed-precondition", "This loop isn't available to pull.");
     }
+    const isShared = loop.exclusivity === "shared";
 
-    // Create claim and update loop atomically
-    const claimRef = db.collection("loopClaims").doc();
+    // Dedupe: has THIS puller already claimed this loop? (Matters for shared loops,
+    // where the loop stays live — re-pulling just re-downloads, no new claim/count.)
+    const priorClaim = await db.collection("loopClaims")
+      .where("loopId", "==", loopId).where("pullerUid", "==", uid).limit(1).get();
+    const alreadyPulled = !priorClaim.empty;
+
+    const claimRef = alreadyPulled ? priorClaim.docs[0].ref : db.collection("loopClaims").doc();
     const batch    = db.batch();
-    batch.set(claimRef, {
-      loopId,
-      makerUid:  loop.makerUid,
-      pullerUid: uid,
-      status:    "pending",
-      createdAt: admin.firestore.FieldValue.serverTimestamp()
-    });
-    batch.update(loopRef, {
-      status:    "used",
-      downloads: admin.firestore.FieldValue.increment(1)
-    });
-    // Log a download to the maker's verified-library activity feed
-    batch.set(
-      db.doc(`users/${loop.makerUid}/libraryActivity/download_loop_${loopId}_${uid}`),
-      {
-        kind: "loop", resourceId: `loop_${loopId}`, title: loop.title || "Loop",
-        actorUid: uid, actorName: pullerSnap.get("displayName") || "A verified user",
-        type: "download", count: admin.firestore.FieldValue.increment(1),
-        lastAt: admin.firestore.FieldValue.serverTimestamp()
-      },
-      { merge: true }
-    );
-    await batch.commit();
+
+    if (!alreadyPulled) {
+      batch.set(claimRef, {
+        loopId,
+        makerUid:    loop.makerUid,
+        pullerUid:   uid,
+        exclusivity: loop.exclusivity || "exclusive",
+        status:      "pending",
+        createdAt:   admin.firestore.FieldValue.serverTimestamp()
+      });
+      // Exclusive: remove from the pool. Shared: stays live, just count the pull.
+      batch.update(loopRef, isShared
+        ? { pullCount: admin.firestore.FieldValue.increment(1), downloads: admin.firestore.FieldValue.increment(1) }
+        : { status: "used", downloads: admin.firestore.FieldValue.increment(1) });
+      // Log a download to the maker's verified-library activity feed
+      batch.set(
+        db.doc(`users/${loop.makerUid}/libraryActivity/download_loop_${loopId}_${uid}`),
+        {
+          kind: "loop", resourceId: `loop_${loopId}`, title: loop.title || "Loop",
+          actorUid: uid, actorName: pullerSnap.get("displayName") || "A verified user",
+          type: "download", count: admin.firestore.FieldValue.increment(1),
+          lastAt: admin.firestore.FieldValue.serverTimestamp()
+        },
+        { merge: true }
+      );
+      await batch.commit();
+    }
 
     // Notify the maker by email
     const makerSnap  = await db.doc(`users/${loop.makerUid}`).get();
     const makerEmail = makerSnap.get("email");
     const pullerName = pullerSnap.get("displayName") || "Someone";
-    if (makerEmail) {
+    if (makerEmail && !alreadyPulled) {
       try {
         const resend = new Resend(RESEND_API_KEY.value());
         await resend.emails.send({
@@ -1639,7 +1923,8 @@ exports.pullLoop = onCall(
 // listLiveLoops — verifiedPuller-only: returns a paginated live-loop metadata
 // page. Preview URLs are intentionally lazy-loaded by getVerifiedPreviewUrl.
 // ====================================================================
-exports.listLiveLoops = onCall({ region: REGION }, async (request) => {
+// minInstances: 1 — loop browse (mirror of listApprovedBeats).
+exports.listLiveLoops = onCall({ region: REGION, minInstances: 1 }, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
   await assertCallableRateLimit("listLiveLoops", request);
   const uid = request.auth.uid;
@@ -1691,7 +1976,9 @@ exports.listLiveLoops = onCall({ region: REGION }, async (request) => {
 // Returns a paginated metadata page of individual verified beat docs. Preview
 // URLs are lazy-loaded only when a verified user taps a beat.
 // ====================================================================
-exports.listApprovedBeats = onCall({ region: REGION }, async (request) => {
+// minInstances: 1 — keep one instance warm so browsing the library never hits a
+// cold start. This is the most-hit read path. Costs ~idle-instance billing.
+exports.listApprovedBeats = onCall({ region: REGION, minInstances: 1 }, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
   await assertCallableRateLimit("listApprovedBeats", request);
   const uid = request.auth.uid;
@@ -1876,6 +2163,24 @@ exports.createCampaignRequest = onCall({ region: REGION }, async (request) => {
     );
   }
 
+  // Broadcast to opted-in users (both events default OFF — only consenting
+  // users are queried). Skip the author.
+  if (isAnnouncement) {
+    sendBroadcast("announcements", {
+      title: title,
+      body: brief || "New announcement from the PluggurBeats team",
+      data: { route: "/verified", requestId: ref.id },
+      excludeUid: uid
+    }).catch(() => {});
+  } else {
+    sendBroadcast("openRequests", {
+      title: "New open request",
+      body: `${doc.createdByName} is looking for ${requestType} — "${title}"`,
+      data: { route: "/verified", requestId: ref.id },
+      excludeUid: uid
+    }).catch(() => {});
+  }
+
   return {
     ok: true,
     request: {
@@ -1911,7 +2216,9 @@ exports.createCampaignRequest = onCall({ region: REGION }, async (request) => {
 // listCampaignRequests — verified users see public request feed + own analytics.
 // Public identity is denormalized; requester contact info never leaves users docs.
 // ====================================================================
-exports.listCampaignRequests = onCall({ region: REGION }, async (request) => {
+// minInstances: 1 — the Verified request board + inbound submissions load. Keep
+// warm so verified users' main screen never opens on a cold start.
+exports.listCampaignRequests = onCall({ region: REGION, minInstances: 1 }, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
   await assertCallableRateLimit("listCampaignRequests", request);
   const uid = request.auth.uid;
@@ -2145,7 +2452,9 @@ exports.backfillVerifiedBeats = onCall({ region: REGION }, async (request) => {
 // getVerifiedPreviewUrl — returns a short-lived preview URL only after the
 // listener chooses a specific beat/loop. Keeps list payloads tiny.
 // ====================================================================
-exports.getVerifiedPreviewUrl = onCall({ region: REGION }, async (request) => {
+// minInstances: 1 — keep one instance warm so the first beat play is instant
+// (no cold start while resolving the signed preview URL).
+exports.getVerifiedPreviewUrl = onCall({ region: REGION, minInstances: 1 }, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
   await assertCallableRateLimit("getVerifiedPreviewUrl", request);
   const uid = request.auth.uid;
@@ -2205,12 +2514,18 @@ exports.recordLibraryView = onCall({ region: REGION }, async (request) => {
     const camp = await db.doc(`users/${ownerUid}/campaigns/${campaignId}`).get();
     if (!camp.exists || camp.get("status") !== "pitched") throw new HttpsError("not-found", "Beat not in library.");
     const resourceId = `${campaignId}_${beatIndex}`;
+    const beatTitle = title || (camp.get("beats") || [])[beatIndex]?.title || "Beat";
     await db.doc(`users/${ownerUid}/libraryActivity/view_beat_${resourceId}_${uid}`).set({
-      kind: "beat", resourceId, title: title || (camp.get("beats") || [])[beatIndex]?.title || "Beat",
+      kind: "beat", resourceId, title: beatTitle,
       actorUid: uid, actorName, type: "view",
       count: admin.firestore.FieldValue.increment(1),
       lastAt: admin.firestore.FieldValue.serverTimestamp()
     }, { merge: true });
+    if (ownerUid !== uid) sendPush(ownerUid, "beatViewed", {
+      title: "Your beat was viewed",
+      body: `${actorName} viewed "${beatTitle}"`,
+      data: { route: "/dashboard", campaignId }
+    }).catch(() => {});
     return { ok: true };
   }
 
@@ -2220,22 +2535,61 @@ exports.recordLibraryView = onCall({ region: REGION }, async (request) => {
     const loop = await db.doc(`loops/${loopId}`).get();
     if (!loop.exists) throw new HttpsError("not-found", "Loop not found.");
     const ownerUid = loop.get("makerUid");
+    const loopTitle = loop.get("title") || "Loop";
     await db.doc(`users/${ownerUid}/libraryActivity/view_loop_${loopId}_${uid}`).set({
-      kind: "loop", resourceId: `loop_${loopId}`, title: loop.get("title") || "Loop",
+      kind: "loop", resourceId: `loop_${loopId}`, title: loopTitle,
       actorUid: uid, actorName, type: "view",
       count: admin.firestore.FieldValue.increment(1),
       lastAt: admin.firestore.FieldValue.serverTimestamp()
     }, { merge: true });
+    if (ownerUid && ownerUid !== uid) sendPush(ownerUid, "beatViewed", {
+      title: "Your loop was viewed",
+      body: `${actorName} viewed "${loopTitle}"`,
+      data: { route: "/dashboard", loopId }
+    }).catch(() => {});
     return { ok: true };
   }
   throw new HttpsError("invalid-argument", "Unknown kind.");
 });
 
 // ====================================================================
+// removeFromLibrary — staff-only: pull a campaign's beats out of the Verified
+// library (deletes their verifiedBeats docs) and mark the campaign excluded so
+// the backfill never re-adds it. Used to undo a wrongly-pitched submission
+// (e.g. a targeted submission that should have stayed exclusive).
+// ====================================================================
+exports.removeFromLibrary = onCall({ region: REGION }, async (request) => {
+  const staffEmail = assertStaff(request.auth);
+  await assertCallableRateLimit("removeFromLibrary", request);
+  const { path } = request.data || {};
+  if (!path || !/^users\/[^/]+\/campaigns\/[^/]+$/.test(path)) {
+    throw new HttpsError("invalid-argument", "Invalid campaign path.");
+  }
+  const db   = admin.firestore();
+  const ref  = db.doc(path);
+  const snap = await ref.get();
+  if (!snap.exists) throw new HttpsError("not-found", "Campaign not found.");
+
+  const ownerUid   = path.split("/")[1];
+  const campaignId = path.split("/")[3];
+  const beats      = snap.get("beats") || [];
+
+  const batch = db.batch();
+  beats.forEach((b, beatIndex) =>
+    batch.delete(db.collection("verifiedBeats").doc(verifiedBeatDocId(ownerUid, campaignId, beatIndex))));
+  batch.update(ref, { excludedFromLibrary: true });
+  await batch.commit();
+
+  console.log(`Campaign ${campaignId} removed from library (${beats.length} beats) by ${staffEmail}`);
+  return { ok: true, removed: beats.length };
+});
+
+// ====================================================================
 // downloadLibraryBeat — verified user downloads a library beat. Returns a
 // short-lived signed URL and logs a download to the owner's activity feed.
 // ====================================================================
-exports.downloadLibraryBeat = onCall({ region: REGION }, async (request) => {
+// minInstances: 1 — verified in-app beat download.
+exports.downloadLibraryBeat = onCall({ region: REGION, minInstances: 1 }, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
   await assertCallableRateLimit("downloadLibraryBeat", request);
   const uid = request.auth.uid;
@@ -2249,16 +2603,23 @@ exports.downloadLibraryBeat = onCall({ region: REGION }, async (request) => {
   const file = await resolveVerifiedBeatFile(db, ownerUid, campaignId, beatIndex, storagePath);
   const [url] = await storage.file(file.storagePath).getSignedUrl({ action: "read", expires: Date.now() + 60 * 60 * 1000 });
   const resourceId = `${campaignId}_${beatIndex}`;
+  const actorName = me.get("displayName") || "A verified user";
   await db.doc(`users/${ownerUid}/libraryActivity/download_beat_${resourceId}_${uid}`).set({
     kind: "beat", resourceId, title: file.title,
-    actorUid: uid, actorName: me.get("displayName") || "A verified user", type: "download",
+    actorUid: uid, actorName, type: "download",
     count: admin.firestore.FieldValue.increment(1),
     lastAt: admin.firestore.FieldValue.serverTimestamp()
   }, { merge: true });
+  if (ownerUid !== uid) sendPush(ownerUid, "beatDownloadedLib", {
+    title: "Your beat was downloaded",
+    body: `${actorName} downloaded "${file.title}" from the library`,
+    data: { route: "/dashboard", campaignId }
+  }).catch(() => {});
   return { ok: true, url };
 });
 
-exports.downloadVerifiedBeatFile = onRequest({ region: REGION }, async (req, res) => {
+// minInstances: 1 — verified streaming beat download (direct file link).
+exports.downloadVerifiedBeatFile = onRequest({ region: REGION, minInstances: 1 }, async (req, res) => {
   setCors(req, res);
   if (req.method === "OPTIONS") { res.status(204).send(""); return; }
   if (req.method !== "GET") { res.status(405).send("Method not allowed"); return; }
@@ -2295,12 +2656,18 @@ exports.downloadVerifiedBeatFile = onRequest({ region: REGION }, async (req, res
     const [meta] = await file.getMetadata();
     const filename = fileInfo.storagePath.split("/").pop() || `${fileInfo.title || "beat"}.mp3`;
     const resourceId = `${campaignId}_${beatIndex}`;
+    const actorName = me.get("displayName") || "A verified user";
     await db.doc(`users/${ownerUid}/libraryActivity/download_beat_${resourceId}_${uid}`).set({
       kind: "beat", resourceId, title: fileInfo.title || "Beat",
-      actorUid: uid, actorName: me.get("displayName") || "A verified user", type: "download",
+      actorUid: uid, actorName, type: "download",
       count: admin.firestore.FieldValue.increment(1),
       lastAt: admin.firestore.FieldValue.serverTimestamp()
     }, { merge: true });
+    if (ownerUid !== uid) sendPush(ownerUid, "beatDownloadedEml", {
+      title: "Your beat was downloaded",
+      body: `${actorName} downloaded "${fileInfo.title || "your beat"}"`,
+      data: { route: "/dashboard", campaignId }
+    }).catch(() => {});
 
     res.set("Content-Type", meta.contentType || "audio/mpeg");
     if (meta.size) res.set("Content-Length", String(meta.size));
@@ -2353,7 +2720,8 @@ exports.setVerifiedRole = onCall({ region: REGION }, async (request) => {
   if (labelName && !isArVerifiedRole(verifiedRole)) {
     throw new HttpsError("invalid-argument", "Label names are only available for A&R roles.");
   }
-  const ref = admin.firestore().doc(`users/${uid}`);
+  const db = admin.firestore();
+  const ref = db.doc(`users/${uid}`);
   if (!(await ref.get()).exists) throw new HttpsError("not-found", "User not found.");
   await ref.set({
     verifiedRole,
@@ -2361,6 +2729,25 @@ exports.setVerifiedRole = onCall({ region: REGION }, async (request) => {
     verifiedRoleUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
     verifiedRoleUpdatedBy: staffEmail
   }, { merge: true });
+
+  // Maintain the server-side email list used to notify verified users of submissions.
+  // Email is always sourced from Firebase Auth, never from client-supplied data.
+  const emailListRef = db.doc(`verifiedEmailList/${uid}`);
+  if (verifiedRole) {
+    const authUser = await admin.auth().getUser(uid);
+    const email = (authUser.email || "").toLowerCase();
+    if (email) {
+      await emailListRef.set({
+        email,
+        displayName: authUser.displayName || "",
+        verifiedRole,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+      });
+    }
+  } else {
+    await emailListRef.delete().catch(() => {});
+  }
+
   console.log(`verifiedRole=${verifiedRole || "none"} for ${uid} by ${staffEmail}`);
   return { ok: true, uid, verifiedRole, labelName: isArVerifiedRole(verifiedRole) ? labelName : "" };
 });
@@ -2564,6 +2951,7 @@ exports.stripeWebhook = onRequest(
    e-signature via DocuSign (JWT grant). Producer (owner) only.
    ==================================================================== */
 async function dsApiClient() {
+  const docusign = require("docusign-esign"); // lazy — 7.3M, split-sheets only
   const api = new docusign.ApiClient();
   api.setOAuthBasePath(DOCUSIGN_OAUTH_HOST.value());
   const res = await api.requestJWTUserToken(
@@ -2579,6 +2967,7 @@ async function dsApiClient() {
 }
 
 async function buildSplitSheetPdf({ songTitle, artist, dateCreated, writers }) {
+  const { PDFDocument, StandardFonts, rgb } = require("pdf-lib"); // lazy — 23M
   const pdf  = await PDFDocument.create();
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
@@ -2646,6 +3035,7 @@ async function buildSplitSheetPdf({ songTitle, artist, dateCreated, writers }) {
 }
 
 exports.generateSplitSheet = onCall({ region: REGION, secrets: DS_SECRETS }, async (request) => {
+  const docusign = require("docusign-esign"); // lazy — split-sheets only
   if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
   await assertCallableRateLimit("generateSplitSheet", request);
   const uid = request.auth.uid;
@@ -2715,6 +3105,7 @@ exports.generateSplitSheet = onCall({ region: REGION, secrets: DS_SECRETS }, asy
 });
 
 exports.refreshSplitSheetStatus = onCall({ region: REGION, secrets: DS_SECRETS }, async (request) => {
+  const docusign = require("docusign-esign"); // lazy — split-sheets only
   if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
   await assertCallableRateLimit("refreshSplitSheetStatus", request);
   const uid = request.auth.uid;
