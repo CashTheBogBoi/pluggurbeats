@@ -310,7 +310,7 @@ export default function Dashboard() {
                   className="group flex items-center gap-3 rounded-none px-3 py-2.5 text-sm font-medium text-[#99907c] transition hover:bg-white/5 hover:text-bone">
                   <Icon size={18} className="text-[#f2ca50]" />
                   {label}
-                  <span className="ml-auto rounded-full border border-[#f2ca50]/30 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-[#f2ca50]">Access</span>
+                  <span className="ml-auto rounded-none border border-[#f2ca50]/30 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-[#f2ca50]">Access</span>
                 </a>
               );
             }
@@ -599,10 +599,10 @@ function UserProfilePopup({ req, allRequests = [], onClose }) {
           <div className="mb-1 font-display text-lg font-bold text-bone leading-tight">{req.createdByName}</div>
           <div className="mb-3 flex flex-wrap items-center gap-1.5">
             {req.createdByRoleLabel && (
-              <span className="rounded-full bg-violet/15 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-violet">{req.createdByRoleLabel}</span>
+              <span className="rounded-none bg-violet/15 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-violet">{req.createdByRoleLabel}</span>
             )}
             {req.labelName && (
-              <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[11px] text-[#99907c]">{req.labelName}</span>
+              <span className="rounded-none bg-white/[0.06] px-2 py-0.5 text-[11px] text-[#99907c]">{req.labelName}</span>
             )}
             {req.createdByLocation && (
               <span className="text-[11px] text-[#99907c]/70">{req.createdByLocation}</span>
@@ -639,10 +639,10 @@ function UserProfilePopup({ req, allRequests = [], onClose }) {
             {(req.genres?.length > 0 || req.tags?.length > 0) && (
               <div className="mt-2.5 flex flex-wrap gap-1.5">
                 {(req.genres || []).map((g) => (
-                  <span key={g} className="rounded-full border border-white/10 px-2 py-0.5 text-[11px] text-bone">{g}</span>
+                  <span key={g} className="rounded-none border border-white/10 px-2 py-0.5 text-[11px] text-bone">{g}</span>
                 ))}
                 {(req.tags || []).map((t) => (
-                  <span key={t} className="rounded-full bg-white/5 px-2 py-0.5 font-mono text-[10px] text-[#99907c]">#{t}</span>
+                  <span key={t} className="rounded-none bg-white/5 px-2 py-0.5 font-mono text-[10px] text-[#99907c]">#{t}</span>
                 ))}
               </div>
             )}
@@ -762,8 +762,8 @@ function RequestForum({ onPick, uid, tier = "free", onGoToBilling }) {
             <div key={i} className="flex items-end gap-2.5">
               <Skeleton className="h-8 w-8 shrink-0 rounded-full" />
               <div className="flex-1 space-y-1.5">
-                <Skeleton className="h-2.5 w-24 rounded-full" />
-                <Skeleton className="h-16 w-4/5 rounded-[18px] rounded-bl-[5px]" />
+                <Skeleton className="h-2.5 w-24 rounded-none" />
+                <Skeleton className="h-16 w-4/5 rounded-none" />
               </div>
             </div>
           ))}
@@ -851,10 +851,10 @@ function RequestBubble({ req, index, open, onToggle, onPick, onAvatarClick, tier
               {((req.genres?.length || 0) > 0 || (req.tags?.length || 0) > 0) && (
                 <div className="mb-2.5 flex flex-wrap gap-1.5">
                   {(req.genres || []).map((g) => (
-                    <span key={`g-${g}`} className="rounded-full border border-white/10 px-2 py-0.5 text-[11px] text-bone">{g}</span>
+                    <span key={`g-${g}`} className="rounded-none border border-white/10 px-2 py-0.5 text-[11px] text-bone">{g}</span>
                   ))}
                   {(req.tags || []).map((t) => (
-                    <span key={`t-${t}`} className="rounded-full bg-white/5 px-2 py-0.5 font-mono text-[10px] text-[#99907c]">#{t}</span>
+                    <span key={`t-${t}`} className="rounded-none bg-white/5 px-2 py-0.5 font-mono text-[10px] text-[#99907c]">#{t}</span>
                   ))}
                 </div>
               )}
@@ -879,7 +879,7 @@ function RequestBubble({ req, index, open, onToggle, onPick, onAvatarClick, tier
                     <div className="text-[11px] font-semibold text-bone">{minPlan} required</div>
                     <div className="text-[10px] text-[#99907c]/60">This role requires a {minPlan} subscription to submit.</div>
                   </div>
-                  <button onClick={(e) => { e.stopPropagation(); onGoToBilling?.(); }} className="shrink-0 rounded-full bg-[#f2ca50] px-3 py-1.5 text-[11px] font-semibold text-[#3c2f00] transition hover:bg-[#d4af37] active:scale-[0.97]">
+                  <button onClick={(e) => { e.stopPropagation(); onGoToBilling?.(); }} className="shrink-0 rounded-none border border-[#f2ca50] bg-[#f2ca50] px-3 py-1.5 text-[11px] font-semibold text-[#3c2f00] transition hover:bg-[#f2ca50]/90">
                     Upgrade
                   </button>
                 </div>
@@ -892,7 +892,7 @@ function RequestBubble({ req, index, open, onToggle, onPick, onAvatarClick, tier
                   )}
                   {canSubmitLoop && (
                     canSubmitBeat
-                      ? <button onClick={() => onPick({ ...req, requestType: "loops" })} className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/5 px-3.5 py-2 text-[12px] font-medium text-bone transition hover:bg-white/10 active:scale-[0.97]"><Disc3 size={12} /> Submit loop</button>
+                      ? <button onClick={() => onPick({ ...req, requestType: "loops" })} className="inline-flex items-center gap-1.5 rounded-none border border-[#4d4635] px-3.5 py-2 text-[12px] font-medium text-[#99907c] transition hover:border-[#f2ca50]/60 hover:text-[#e8e0d0]"><Disc3 size={12} /> Submit loop</button>
                       : <GoldBtn className="py-2 text-[12px]" onClick={() => onPick({ ...req, requestType: "loops" })}><Disc3 size={12} /> Submit loop</GoldBtn>
                   )}
                 </div>
@@ -916,7 +916,7 @@ function StatusBadge({ status }) {
   };
   const s = map[status] || { t: status || "—", c: "bg-white/8 text-[#99907c]", I: Clock };
   const I = s.I;
-  return <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ${s.c}`}><I size={12} /> {s.t}</span>;
+  return <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-none px-2.5 py-1 text-[11px] font-semibold ${s.c}`}><I size={12} /> {s.t}</span>;
 }
 
 /* ============================ campaign builder ============================ */
@@ -1111,7 +1111,7 @@ function CampaignBuilder({ tier, caps, pitchBalance, user, profile, campaignCoun
               <button className="flex w-full items-center gap-3 px-4 py-3 text-left" onClick={() => patchBeat(b.uid, { open: !b.open })}>
                 <span className="font-mono text-[12px] text-[#99907c]">{String(i + 1).padStart(2, "0")}</span>
                 <span className={`flex-1 truncate text-sm ${b.title.trim() ? "text-bone" : "text-[#99907c]"}`}>{b.title.trim() || "Untitled beat"}</span>
-                <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${b.status.includes("Uploaded") ? "bg-ok/12 text-ok" : b.status.includes("Uploading") ? "bg-[#f2ca50]/12 text-[#f2ca50]" : b.file ? "bg-info/12 text-info" : "bg-white/8 text-[#99907c]"}`}>{b.file && !b.storagePath ? "Ready" : b.status}</span>
+                <span className={`rounded-none px-2 py-0.5 text-[10px] font-semibold ${b.status.includes("Uploaded") ? "bg-ok/12 text-ok" : b.status.includes("Uploading") ? "bg-[#f2ca50]/12 text-[#f2ca50]" : b.file ? "bg-info/12 text-info" : "bg-white/8 text-[#99907c]"}`}>{b.file && !b.storagePath ? "Ready" : b.status}</span>
                 <ChevronDown size={16} className={`text-[#99907c] transition ${b.open ? "rotate-180" : ""}`} />
               </button>
               {b.open && (
@@ -1356,7 +1356,7 @@ function Analytics({ campaigns, uid, tier }) {
               <div className="text-[13px] text-[#99907c]">See who opened your email blast and downloaded your beats — Pro subscribers only.</div>
             </div>
           </div>
-          <span className="rounded-full border border-[#f2ca50]/40 px-3 py-1 font-mono text-[10px] uppercase tracking-wider text-[#f2ca50]">Pro only</span>
+          <span className="rounded-none border border-[#f2ca50]/40 px-3 py-1 font-mono text-[10px] uppercase tracking-wider text-[#f2ca50]">Pro only</span>
         </Card>
       )}
     </section>
@@ -1497,7 +1497,7 @@ function BeatRow({ beat, beatIndex, totalBeats, campaign, uid, tier, libActivity
             <div className="flex items-center gap-3 border-t border-[#262626] px-4 py-3">
               <span className="grid h-6 w-6 shrink-0 place-items-center rounded-none bg-[#f2ca50]/10 text-[#f2ca50]"><Mail size={12} /></span>
               <span className="text-[13px] text-[#99907c]">Email engagement</span>
-              <span className="ml-auto rounded-full border border-[#f2ca50]/40 px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-[#f2ca50]">Pro only</span>
+              <span className="ml-auto rounded-none border border-[#f2ca50]/40 px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-wider text-[#f2ca50]">Pro only</span>
             </div>
           )}
         </div>
@@ -1632,7 +1632,7 @@ function LoopActivity({ uid, libActivity }) {
     </div>
   );
 }
-const Tag = ({ c, children }) => <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${c}`}>{children}</span>;
+const Tag = ({ c, children }) => <span className={`rounded-none px-2 py-0.5 text-[11px] font-semibold ${c}`}>{children}</span>;
 
 // Activity rows render mobile-first: a stacked label/time + right-aligned status
 // chips on phones, upgrading to a 4-column table at sm and up. rows = array of
@@ -1832,7 +1832,7 @@ function Paperwork({ campaigns, uid, profile, showToast, go }) {
                     <div className="text-[12px] text-[#99907c]">{(s.writers || []).length} contributor{(s.writers || []).length !== 1 ? "s" : ""} · sent {s.createdAt?.toMillis ? new Date(s.createdAt.toMillis()).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—"}</div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ${st.c}`}><I size={12} /> {st.t}</span>
+                    <span className={`inline-flex items-center gap-1.5 rounded-none px-2.5 py-1 text-[11px] font-semibold ${st.c}`}><I size={12} /> {st.t}</span>
                     <button onClick={(e) => refresh(s.id, e.currentTarget)} className="grid h-8 w-8 place-items-center rounded-none border border-[#262626] text-[#99907c] transition hover:border-[#4d4635] hover:text-bone disabled:opacity-50" title="Refresh status"><RefreshCw size={14} /></button>
                   </div>
                 </div>
@@ -1950,7 +1950,7 @@ function LoopDrops({ user, pitchBalance, loopBalance, targetRequest, clearTarget
                   <div className="min-w-0">
                     <div className="text-sm font-semibold">{l.title}</div>
                     <div className="text-[12px] text-[#99907c]">{spec}</div>
-                    {l.tags?.length > 0 && <div className="mt-1 flex flex-wrap gap-1.5">{l.tags.map((t, i) => <span key={i} className="rounded-full border border-[#262626] bg-[#1c1b1b] px-2 py-0.5 text-[11px] text-[#99907c]">{t}</span>)}</div>}
+                    {l.tags?.length > 0 && <div className="mt-1 flex flex-wrap gap-1.5">{l.tags.map((t, i) => <span key={i} className="rounded-none border border-[#262626] bg-[#1c1b1b] px-2 py-0.5 text-[11px] text-[#99907c]">{t}</span>)}</div>}
                   </div>
                   <div className="text-right">
                     {(() => {
@@ -1961,7 +1961,7 @@ function LoopDrops({ user, pitchBalance, loopBalance, targetRequest, clearTarget
                         used:           { label: "Claimed",        cls: "bg-white/8 text-[#99907c]" }
                       };
                       const s = S[l.status] || S.live;
-                      return <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${s.cls}`}>{s.label}</span>;
+                      return <span className={`rounded-none px-2.5 py-0.5 text-[11px] font-semibold ${s.cls}`}>{s.label}</span>;
                     })()}
                     <div className="mt-1.5 text-[12px] text-[#99907c]">
                       {l.exclusivity === "shared" ? "Shared" : "Exclusive"} · {(l.exclusivity === "shared" ? (l.pullCount || 0) : (l.downloads || 0))} pull{(l.exclusivity === "shared" ? l.pullCount : l.downloads) !== 1 ? "s" : ""}
@@ -1995,7 +1995,7 @@ function Billing({ tier, profile, pitchBalance, loopBalance, startSubscription, 
   const PlanCard = ({ name, price, blurb, feats, btn, plan, highlight }) => (
     <Card className={`flex flex-col p-4 lg:p-5 ${highlight ? "border-[#f2ca50]/50" : ""} ${btn.ring ? "ring-1 ring-[#f2ca50]" : ""}`}>
       <div className="flex items-baseline justify-between">
-        <h4 className="font-display text-xl">{name} {highlight && <span className="ml-1 rounded-full border border-[#f2ca50]/40 px-2 py-0.5 align-middle font-mono text-[9px] tracking-wider text-[#f2ca50]">EMAIL BLAST</span>}</h4>
+        <h4 className="font-display text-xl">{name} {highlight && <span className="ml-1 rounded-none border border-[#f2ca50]/40 px-2 py-0.5 align-middle font-mono text-[9px] tracking-wider text-[#f2ca50]">EMAIL BLAST</span>}</h4>
         <div><span className="font-display text-2xl">${price}</span><span className="text-[#99907c]">/mo</span></div>
       </div>
       <p className="mt-1 text-[13px] text-[#99907c]">{blurb}</p>
