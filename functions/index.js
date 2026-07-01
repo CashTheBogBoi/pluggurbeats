@@ -2907,6 +2907,57 @@ exports.banUser = onCall({ region: REGION }, async (request) => {
 });
 
 // ====================================================================
+// cancelUserSubscription — staff-only: immediately cancel a user's Stripe
+// subscription and downgrade them to free. Mirrors the customer.subscription
+// .deleted webhook's Firestore reset so state stays consistent whichever
+// path gets there first (both are idempotent, so a duplicate is harmless).
+// This is an immediate cancellation, not cancel-at-period-end — no refund
+// is issued automatically; handle refunds separately in the Stripe Dashboard
+// if needed.
+// ====================================================================
+exports.cancelUserSubscription = onCall(
+  { region: REGION, secrets: [STRIPE_SECRET] },
+  async (request) => {
+    const staffEmail = assertStaff(request.auth);
+    await assertCallableRateLimit("cancelUserSubscription", request);
+    const { uid } = request.data || {};
+    if (!uid) throw new HttpsError("invalid-argument", "uid is required.");
+
+    const db   = admin.firestore();
+    const ref  = db.doc(`users/${uid}`);
+    const snap = await ref.get();
+    if (!snap.exists) throw new HttpsError("not-found", "User not found.");
+
+    const tier  = snap.get("subscription.tier") || "free";
+    const subId = snap.get("subscription.stripeSubId");
+    if (!["plugg", "pro"].includes(tier) || !subId) {
+      return { ok: true, canceled: false, reason: "no_active_paid_subscription" };
+    }
+
+    const stripe = Stripe(STRIPE_SECRET.value());
+    try {
+      await stripe.subscriptions.cancel(subId);
+    } catch (e) {
+      // Already canceled on Stripe's side (e.g. staff double-click) — treat as success.
+      if (e?.code !== "resource_missing") {
+        throw new HttpsError("internal", "Could not cancel subscription: " + (e.message || String(e)));
+      }
+    }
+
+    await ref.update({
+      "subscription.tier":         "free",
+      "subscription.status":       "canceled",
+      "subscription.stripeSubId":  null,
+      "pitchCredits.monthlyGrant": 0,
+      "loopCredits.monthlyGrant":  TIER_GRANTS.free.loop
+    });
+
+    console.log(`cancelUserSubscription: uid=${uid} tier=${tier} canceled by ${staffEmail}`);
+    return { ok: true, canceled: true, uid };
+  }
+);
+
+// ====================================================================
 // listLoopClaims — staff-only: all maker↔puller claim links
 // ====================================================================
 exports.listLoopClaims = onCall({ region: REGION }, async (request) => {

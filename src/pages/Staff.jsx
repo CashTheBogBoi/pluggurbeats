@@ -6,7 +6,8 @@ import { collection, limit as qLimit, orderBy, query, where } from "firebase/fir
 import {
   LayoutGrid, Users, Disc3, Search, RefreshCw, X, Check, Gauge, Megaphone,
   Send, DollarSign, TrendingUp, Trash2, Eye, Pin, PinOff,
-  MapPin, ShieldCheck, Ban, Plus, Minus, ChevronRight, ChevronDown, Clock
+  MapPin, ShieldCheck, Ban, Plus, Minus, ChevronRight, ChevronDown, Clock,
+  CreditCard, XCircle
 } from "lucide-react";
 import { auth } from "../firebase/auth.js";
 import { db } from "../firebase/db.js";
@@ -316,6 +317,15 @@ export default function Staff() {
       showToast(`${u.displayName || u.email} ${next ? "banned" : "unbanned"}.`);
     } catch (e) { showToast("Failed: " + (e.message || e)); }
   }
+  async function cancelSubscription(idx) {
+    const u = users[idx];
+    if (!confirm(`Cancel ${u.displayName || u.email}'s ${u.tier} subscription immediately? This does not issue a refund — handle that in Stripe separately if needed.`)) return;
+    try {
+      const res = await call("cancelUserSubscription", { uid: u.uid });
+      refreshUsers();
+      showToast(res.canceled ? `Subscription canceled for ${u.displayName || u.email}.` : `${u.displayName || u.email} has no active paid subscription.`);
+    } catch (e) { showToast("Failed: " + (e.message || e)); }
+  }
 
   // ---- derived ----
   const counts = useMemo(() => {
@@ -580,7 +590,7 @@ export default function Staff() {
 
       {openIdx !== null && users[openIdx] && (
         <UserModal user={users[openIdx]} idx={openIdx} onClose={() => setOpenIdx(null)}
-          onToggleVP={toggleVP} onToggleVL={toggleVL} onToggleStaff={toggleStaff} onSaveRole={saveVerifiedRole} onAdjust={adjustCredits} onToggleBan={toggleBan} />
+          onToggleVP={toggleVP} onToggleVL={toggleVL} onToggleStaff={toggleStaff} onSaveRole={saveVerifiedRole} onAdjust={adjustCredits} onToggleBan={toggleBan} onCancelSubscription={cancelSubscription} />
       )}
 
       {reject && (
@@ -868,7 +878,7 @@ function Overlay({ children, onClose }) {
   );
 }
 
-function UserModal({ user: u, idx, onClose, onToggleVP, onToggleVL, onToggleStaff, onSaveRole, onAdjust, onToggleBan }) {
+function UserModal({ user: u, idx, onClose, onToggleVP, onToggleVL, onToggleStaff, onSaveRole, onAdjust, onToggleBan, onCancelSubscription }) {
   const [pitchAmt, setPitchAmt] = useState("5");
   const [loopAmt, setLoopAmt] = useState("5");
   const [role, setRole] = useState(u.verifiedRole || "");
@@ -972,6 +982,22 @@ function UserModal({ user: u, idx, onClose, onToggleVP, onToggleVL, onToggleStaf
           <AccessRow active={u.verifiedListener} on="Verified listener" off="Beat library — not granted" sub="A&R / artist library" activeColor="#6EC1FF" onToggle={() => onToggleVL(idx)} />
           <AccessRow active={u.staff} on={u.staffLocked ? "Owner staff" : "Staff access"} off="Staff access — not granted" sub="Staff board + user mgmt" activeColor="#f2ca50" onToggle={() => onToggleStaff(idx)} disabled={u.staffLocked} />
         </div>
+
+        {u.tier && u.tier !== "free" && (
+          <>
+            <SectionLabel>Subscription</SectionLabel>
+            <div className="flex items-center justify-between bg-[#0e0e0e] border border-[#262626] p-3.5 mb-5">
+              <div>
+                <div className="text-[13px] font-semibold flex items-center gap-1.5 text-[#e5e2e1]"><CreditCard size={13} /> {u.tier} plan</div>
+                <div className="font-mono text-[10px] uppercase tracking-[0.06em] text-[#99907c] mt-0.5">Active Stripe subscription</div>
+              </div>
+              <button onClick={() => onCancelSubscription(idx)}
+                className="font-mono text-[11px] uppercase tracking-wider px-4 py-2 border border-[#ffb4ab] text-[#ffb4ab] hover:bg-[#ffb4ab]/10 transition-colors flex items-center gap-1.5">
+                <XCircle size={13} /> Cancel
+              </button>
+            </div>
+          </>
+        )}
 
         <button onClick={() => onToggleBan(idx)}
           className={`w-full py-3 font-mono text-[12px] uppercase tracking-wider border transition-colors flex items-center justify-center gap-2 ${u.banned ? "border-[#7CE2A4] text-[#7CE2A4] hover:bg-[#7CE2A4]/10" : "border-[#ffb4ab] text-[#ffb4ab] hover:bg-[#ffb4ab]/10"}`}>
