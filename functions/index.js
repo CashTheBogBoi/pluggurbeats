@@ -100,6 +100,20 @@ const DOCUSIGN_BASE_PATH       = defineSecret("DOCUSIGN_BASE_PATH");
 const DOCUSIGN_CONNECT_SECRET  = defineSecret("DOCUSIGN_CONNECT_SECRET");
 const DS_SECRETS = [DOCUSIGN_INTEGRATION_KEY, DOCUSIGN_USER_ID, DOCUSIGN_ACCOUNT_ID, DOCUSIGN_PRIVATE_KEY, DOCUSIGN_OAUTH_HOST, DOCUSIGN_BASE_PATH];
 
+// Documenso (open-source e-signature, REST API v2). Set via `firebase functions:secrets:set`.
+//   DOCUMENSO_API_KEY         API token (format: api_xxxxxxxx) — Documenso → Settings → API Tokens
+//   DOCUMENSO_BASE_URL        https://app.documenso.com/api/v2 (cloud) | https://<self-host>/api/v2
+//   DOCUMENSO_WEBHOOK_SECRET  secret set on the Documenso webhook; echoed back as X-Documenso-Secret
+const DOCUMENSO_API_KEY        = defineSecret("DOCUMENSO_API_KEY");
+const DOCUMENSO_BASE_URL       = defineSecret("DOCUMENSO_BASE_URL");
+const DOCUMENSO_WEBHOOK_SECRET = defineSecret("DOCUMENSO_WEBHOOK_SECRET");
+const DOCUMENSO_SECRETS = [DOCUMENSO_API_KEY, DOCUMENSO_BASE_URL];
+
+// Active e-signature provider. Flip to "docusign" + redeploy to roll back instantly.
+// Only the active provider's secrets are required at deploy time.
+const SIGN_PROVIDER = "documenso";
+const SIGN_SECRETS  = SIGN_PROVIDER === "documenso" ? DOCUMENSO_SECRETS : DS_SECRETS;
+
 // Monthly credit grants by tier. Roll over = ADD on each paid invoice,
 // capped at ROLLOVER_CAP_MULT × the monthly grant so balances don't grow forever.
 const TIER_GRANTS = {
@@ -3020,6 +3034,61 @@ async function dsApiClient() {
   return api;
 }
 
+// ---- Documenso (active provider) ---------------------------------------
+function documensoClient() {
+  const { Documenso } = require("@documenso/sdk-typescript"); // lazy — split-sheets only
+  const opts = { apiKey: DOCUMENSO_API_KEY.value() };
+  const base = (DOCUMENSO_BASE_URL.value() || "").trim();
+  if (base) opts.serverURL = base;             // omit → SDK default app.documenso.com
+  return new Documenso(opts);
+}
+
+// Map Documenso status onto the vocabulary the dashboard already renders
+// (sent | delivered | completed | declined | voided) so the UI needs no change.
+function normalizeSignStatus(raw) {
+  switch (String(raw || "").toUpperCase()) {
+    case "COMPLETED":          return "completed";
+    case "REJECTED":           return "declined";
+    case "DOCUMENT.REJECTED":  return "declined";
+    case "CANCELLED":          return "voided";
+    case "DOCUMENT.CANCELLED": return "voided";
+    case "DOCUMENT.OPENED":    return "delivered";
+    case "OPENED":             return "delivered";
+    case "PENDING":            return "sent";
+    case "DRAFT":              return "sent";
+    default:                   return "sent";
+  }
+}
+
+// create envelope → add signers + anchor fields (reusing the /sN/ /dN/
+// placeholders drawn in the PDF) → distribute. Returns the envelope id.
+async function sendViaDocumenso({ subject, docName, pdfBase64, writers }) {
+  const client = documensoClient();
+  const created = await client.envelopes.create({
+    payload: { title: docName, type: "DOCUMENT", meta: { subject, message: "Please review and sign the publishing split sheet." } },
+    files: [{ fileName: `${docName}.pdf`, content: Buffer.from(pdfBase64, "base64") }]
+  });
+  const envelopeId = created.id;
+
+  const recRes = await client.envelopes.recipients.createMany({
+    envelopeId,
+    data: writers.map((w) => ({ email: w.email, name: w.legalName, role: "SIGNER", signingOrder: 1 }))
+  });
+  const ridByEmail = new Map((recRes.data || []).map((r) => [String(r.email).toLowerCase(), r.id]));
+
+  const fields = [];
+  writers.forEach((w, i) => {
+    const rid = ridByEmail.get(w.email.toLowerCase());
+    if (rid == null) return;
+    fields.push({ type: "SIGNATURE", recipientId: rid, placeholder: `/s${i + 1}/`, matchAll: false });
+    fields.push({ type: "DATE",      recipientId: rid, placeholder: `/d${i + 1}/`, matchAll: false });
+  });
+  if (fields.length) await client.envelopes.fields.createMany({ envelopeId, data: fields });
+
+  await client.envelopes.distribute({ envelopeId });
+  return envelopeId;
+}
+
 async function buildSplitSheetPdf({ songTitle, artist, dateCreated, writers }) {
   const { PDFDocument, StandardFonts, rgb } = require("pdf-lib"); // lazy — 23M
   const pdf  = await PDFDocument.create();
@@ -3082,14 +3151,13 @@ async function buildSplitSheetPdf({ songTitle, artist, dateCreated, writers }) {
   const total = writers.reduce((s, w) => s + (Number(w.pct) || 0), 0);
   text(`TOTAL: ${total}%`, M, 11, bold, total === 100 ? rgb(0.1, 0.5, 0.3) : rgb(0.7, 0.1, 0.1));
   y -= 24; ensure(20);
-  text("Generated via PluggurBeats. Each contributor signs electronically through DocuSign.", M, 8, font, dim);
+  text("Generated via PluggurBeats. Each contributor signs electronically through Documenso.", M, 8, font, dim);
 
   const bytes = await pdf.save();
   return Buffer.from(bytes).toString("base64");
 }
 
-exports.generateSplitSheet = onCall({ region: REGION, secrets: DS_SECRETS }, async (request) => {
-  const docusign = require("docusign-esign"); // lazy — split-sheets only
+exports.generateSplitSheet = onCall({ region: REGION, memory: "512MiB", secrets: SIGN_SECRETS }, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
   await assertCallableRateLimit("generateSplitSheet", request);
   const uid = request.auth.uid;
@@ -3119,30 +3187,39 @@ exports.generateSplitSheet = onCall({ region: REGION, secrets: DS_SECRETS }, asy
 
   const pdfBase64 = await buildSplitSheetPdf({ songTitle: song.title, artist: song.artist || "", dateCreated: song.dateCreated || "", writers: clean });
 
-  const env = new docusign.EnvelopeDefinition();
-  env.emailSubject = `Sign the split sheet - ${song.title}`;
-  const doc = new docusign.Document();
-  doc.documentBase64 = pdfBase64; doc.name = `Split Sheet - ${beatTitle}`; doc.fileExtension = "pdf"; doc.documentId = "1";
-  env.documents = [doc];
-  const signers = clean.map((w, i) => {
-    const signer = docusign.Signer.constructFromObject({ email: w.email, name: w.legalName, recipientId: String(i + 1), routingOrder: "1" });
-    const signHere = docusign.SignHere.constructFromObject({ anchorString: `/s${i + 1}/`, anchorUnits: "pixels", anchorXOffset: "2", anchorYOffset: "-6" });
-    const dateTab  = docusign.DateSigned.constructFromObject({ anchorString: `/d${i + 1}/`, anchorUnits: "pixels", anchorXOffset: "2", anchorYOffset: "-6" });
-    signer.tabs = docusign.Tabs.constructFromObject({ signHereTabs: [signHere], dateSignedTabs: [dateTab] });
-    return signer;
-  });
-  env.recipients = docusign.Recipients.constructFromObject({ signers });
-  env.status = "sent";
-
   let envelopeId;
   try {
-    const api = await dsApiClient();
-    const envApi = new docusign.EnvelopesApi(api);
-    const result = await envApi.createEnvelope(DOCUSIGN_ACCOUNT_ID.value(), { envelopeDefinition: env });
-    envelopeId = result.envelopeId;
+    if (SIGN_PROVIDER === "documenso") {
+      envelopeId = await sendViaDocumenso({
+        subject:  `Sign the split sheet - ${song.title}`,
+        docName:  `Split Sheet - ${beatTitle}`,
+        pdfBase64,
+        writers:  clean
+      });
+    } else {
+      const docusign = require("docusign-esign"); // lazy — split-sheets only
+      const env = new docusign.EnvelopeDefinition();
+      env.emailSubject = `Sign the split sheet - ${song.title}`;
+      const doc = new docusign.Document();
+      doc.documentBase64 = pdfBase64; doc.name = `Split Sheet - ${beatTitle}`; doc.fileExtension = "pdf"; doc.documentId = "1";
+      env.documents = [doc];
+      const signers = clean.map((w, i) => {
+        const signer = docusign.Signer.constructFromObject({ email: w.email, name: w.legalName, recipientId: String(i + 1), routingOrder: "1" });
+        const signHere = docusign.SignHere.constructFromObject({ anchorString: `/s${i + 1}/`, anchorUnits: "pixels", anchorXOffset: "2", anchorYOffset: "-6" });
+        const dateTab  = docusign.DateSigned.constructFromObject({ anchorString: `/d${i + 1}/`, anchorUnits: "pixels", anchorXOffset: "2", anchorYOffset: "-6" });
+        signer.tabs = docusign.Tabs.constructFromObject({ signHereTabs: [signHere], dateSignedTabs: [dateTab] });
+        return signer;
+      });
+      env.recipients = docusign.Recipients.constructFromObject({ signers });
+      env.status = "sent";
+      const api = await dsApiClient();
+      const envApi = new docusign.EnvelopesApi(api);
+      const result = await envApi.createEnvelope(DOCUSIGN_ACCOUNT_ID.value(), { envelopeDefinition: env });
+      envelopeId = result.envelopeId;
+    }
   } catch (e) {
     const msg = e?.response?.body?.message || e.message || String(e);
-    console.error("DocuSign createEnvelope failed:", msg);
+    console.error(`${SIGN_PROVIDER} send failed:`, msg);
     throw new HttpsError("internal", "Could not send for signature: " + msg);
   }
 
@@ -3158,8 +3235,7 @@ exports.generateSplitSheet = onCall({ region: REGION, secrets: DS_SECRETS }, asy
   return { ok: true, sheetId: sheetRef.id, envelopeId };
 });
 
-exports.refreshSplitSheetStatus = onCall({ region: REGION, secrets: DS_SECRETS }, async (request) => {
-  const docusign = require("docusign-esign"); // lazy — split-sheets only
+exports.refreshSplitSheetStatus = onCall({ region: REGION, memory: "512MiB", secrets: SIGN_SECRETS }, async (request) => {
   if (!request.auth) throw new HttpsError("unauthenticated", "Sign in first.");
   await assertCallableRateLimit("refreshSplitSheetStatus", request);
   const uid = request.auth.uid;
@@ -3170,11 +3246,19 @@ exports.refreshSplitSheetStatus = onCall({ region: REGION, secrets: DS_SECRETS }
   const snap = await ref.get();
   if (!snap.exists) throw new HttpsError("not-found", "Split sheet not found.");
   try {
-    const api = await dsApiClient();
-    const envApi = new docusign.EnvelopesApi(api);
-    const env = await envApi.getEnvelope(DOCUSIGN_ACCOUNT_ID.value(), snap.get("envelopeId"));
-    await ref.update({ status: (env.status || "sent").toLowerCase(), updatedAt: admin.firestore.FieldValue.serverTimestamp() });
-    return { ok: true, status: env.status };
+    let status;
+    if (SIGN_PROVIDER === "documenso") {
+      const env = await documensoClient().envelopes.get({ envelopeId: snap.get("envelopeId") });
+      status = normalizeSignStatus(env.status);
+    } else {
+      const docusign = require("docusign-esign"); // lazy — split-sheets only
+      const api = await dsApiClient();
+      const envApi = new docusign.EnvelopesApi(api);
+      const env = await envApi.getEnvelope(DOCUSIGN_ACCOUNT_ID.value(), snap.get("envelopeId"));
+      status = (env.status || "sent").toLowerCase();
+    }
+    await ref.update({ status, updatedAt: admin.firestore.FieldValue.serverTimestamp() });
+    return { ok: true, status };
   } catch (e) {
     const msg = e?.response?.body?.message || e.message || String(e);
     throw new HttpsError("internal", "Could not refresh status: " + msg);
@@ -3200,4 +3284,29 @@ exports.docusignConnect = onRequest({ region: REGION, secrets: [DOCUSIGN_CONNECT
     }
     res.status(200).send("ok");
   } catch (e) { console.error("docusignConnect error:", e.message); res.status(200).send("ok"); }
+});
+
+/* Documenso Connect webhook — set the URL + a secret in Documenso (Settings →
+   Webhooks); Documenso echoes the secret in the X-Documenso-Secret header.
+   Subscribe to document.opened / signed / completed / rejected / cancelled. */
+exports.documensoWebhook = onRequest({ region: REGION, secrets: [DOCUMENSO_WEBHOOK_SECRET] }, async (req, res) => {
+  if (req.get("X-Documenso-Secret") !== DOCUMENSO_WEBHOOK_SECRET.value()) { res.status(401).send("bad secret"); return; }
+  try {
+    const body = req.body || {};
+    const data = body.payload || body.data || body;
+    const envelopeId = data.envelopeId || data.id || data.secondaryId || body.envelopeId || body.id;
+    const rawStatus  = data.status || body.event || body.type || body.status;
+    if (envelopeId != null) {
+      const db = admin.firestore();
+      const map = await db.doc(`dsEnvelopes/${envelopeId}`).get();
+      if (map.exists) {
+        const { uid, sheetId } = map.data();
+        await db.doc(`users/${uid}/splitSheets/${sheetId}`).update({
+          status: normalizeSignStatus(rawStatus),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+      }
+    }
+    res.status(200).send("ok");
+  } catch (e) { console.error("documensoWebhook error:", e.message); res.status(200).send("ok"); }
 });
