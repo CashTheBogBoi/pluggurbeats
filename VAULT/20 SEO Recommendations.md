@@ -26,7 +26,7 @@
 ## 🟡 Structured data & rich results
 
 - [x] Add JSON-LD `Organization` + `WebSite` schema (`index.html`) — name "PluggurBeats", url, logo. Plus `og:site_name` meta tag. Goal: signal to Google that "PluggurBeats" should display as the site name in search results instead of the raw `pluggurbeat.com` domain (this is a documented Google Search behavior driven by `og:site_name` + structured data + homepage `<title>` — not instant/guaranteed, Google decides after re-crawling). No `sameAs` social links added — no official PluggurBeats social accounts found in the codebase to link yet; add them once those exist.
-- [ ] Consider `SoftwareApplication`/`Product` schema for pricing rich snippets.
+- [x] `SoftwareApplication` JSON-LD (`index.html`) with `Offer` entries for Free/$0, Plugg/$29, Pro/$99. Deliberately no `aggregateRating`/`review` — no genuine review data exists, and fabricating one risks a Google manual action for structured-data spam. Add it once real reviews exist.
 - [ ] Add `apple-itunes-app` meta tag / App Link tags so Safari/iMessage can smart-banner to the iOS App Store listing.
 - [ ] Future idea (not scoped): if PluggurBeats ever exposes public per-producer profile pages, `ProfilePage`/`Person` schema with `interactionStatistic` (e.g. verified plays, beats submitted) could earn the same "Name · @handle · N stat" rich-result card style SoundCloud profile pages get. Doesn't apply to the homepage itself.
 
