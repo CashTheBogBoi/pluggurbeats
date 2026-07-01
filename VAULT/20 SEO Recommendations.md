@@ -12,10 +12,10 @@
 
 - [x] Add `robots.txt` (`public/robots.txt`) — allows `/` and `/login`; disallows `/dashboard`, `/staff`, `/verified`; references `sitemap.xml`.
 - [x] Add `sitemap.xml` (`public/sitemap.xml`) — lists `/` and `/login`.
-- [ ] Add `og:image` to `index.html` — currently missing entirely, so social shares (X/Discord/iMessage/Slack) show no preview image.
-- [ ] Add Twitter Card tags (`twitter:card`, `twitter:title`, `twitter:description`, `twitter:image`) — absent.
+- [x] Add `og:image` to `index.html` — `public/og-image.png` (2400×1260, on-brand: same mk-eq mark, gold/#131313 palette, Bricolage Grotesque/Inter/Space Mono as the live site). Generated via `scripts/generate-og-image.js` (Puppeteer screenshot of an inline HTML template, one-off run, not part of the build pipeline — re-run manually if the brand card needs updating).
+- [x] Add Twitter Card tags (`twitter:card summary_large_image`, `twitter:title`, `twitter:description`, `twitter:image`) — done, reuses the same og-image.png.
 - [x] Add `<link rel="canonical">` (`index.html`) — points at `https://pluggurbeat.com/`. Static, so it's identical on every route (harmless for gated/non-indexed routes; per-route canonicals need `react-helmet-async`).
-- [ ] Pick and enforce `www` vs apex (`pluggurbeat.com`) via redirect — currently no normalization.
+- [ ] Pick and enforce `www` vs apex (`pluggurbeat.com`) via redirect — in progress, Console-side (adding www as a verified custom domain with auto-redirect).
 
 ## 🟠 High impact — SPA crawlability
 
@@ -25,9 +25,10 @@
 
 ## 🟡 Structured data & rich results
 
-- [ ] Add JSON-LD `Organization` schema to the marketing page (name, logo, url, `sameAs` social links). Currently zero structured data anywhere.
+- [x] Add JSON-LD `Organization` + `WebSite` schema (`index.html`) — name "PluggurBeats", url, logo. Plus `og:site_name` meta tag. Goal: signal to Google that "PluggurBeats" should display as the site name in search results instead of the raw `pluggurbeat.com` domain (this is a documented Google Search behavior driven by `og:site_name` + structured data + homepage `<title>` — not instant/guaranteed, Google decides after re-crawling). No `sameAs` social links added — no official PluggurBeats social accounts found in the codebase to link yet; add them once those exist.
 - [ ] Consider `SoftwareApplication`/`Product` schema for pricing rich snippets.
 - [ ] Add `apple-itunes-app` meta tag / App Link tags so Safari/iMessage can smart-banner to the iOS App Store listing.
+- [ ] Future idea (not scoped): if PluggurBeats ever exposes public per-producer profile pages, `ProfilePage`/`Person` schema with `interactionStatistic` (e.g. verified plays, beats submitted) could earn the same "Name · @handle · N stat" rich-result card style SoundCloud profile pages get. Doesn't apply to the homepage itself.
 
 ## 🟢 On-page content
 
@@ -45,7 +46,7 @@
 
 ## 📊 Off-page / non-code setup
 
-- [ ] Verify domain + submit sitemap in Google Search Console and Bing Webmaster Tools once sitemap exists.
+- [x] Google Search Console — domain verified, sitemap submitted 2026-07-01. Bing Webmaster Tools still not done.
 - [x] Add GA4 — `gtag.js` (measurement ID `G-DDRLV9D1DV`) added to `index.html:5-12`, loads high in `<head>` per Google's recommendation. `scripts/prerender.js` blocks requests to `googletagmanager.com`/`google-analytics.com` during its headless build-time capture so builds don't send fake pageview hits from `localhost`.
 - [ ] Claim consistent social profiles / Google Business Profile so `sameAs` structured data has somewhere to point.
 - [ ] Backlink strategy: outreach to music-production blogs, producer forums (r/WeAreTheMusicMakers), A&R/industry newsletters — likely higher ROI than on-page tweaks given the site is young and mostly gated.
