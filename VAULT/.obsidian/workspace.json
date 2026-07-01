@@ -1,0 +1,217 @@
+{
+  "main": {
+    "id": "0ba39873d442d30e",
+    "type": "split",
+    "children": [
+      {
+        "id": "6be89ca53988a693",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "6bc677c45a1bf694",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "20 SEO Recommendations.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "20 SEO Recommendations"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "99f32212119d2789",
+    "type": "split",
+    "children": [
+      {
+        "id": "efb0c7594db0d143",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "0af5ddc5476caf8d",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false
+              },
+              "icon": "lucide-folder-closed",
+              "title": "Files"
+            }
+          },
+          {
+            "id": "9d6b1c0f34abe6ad",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "Search"
+            }
+          },
+          {
+            "id": "1cb745201e59eaa8",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "Bookmarks"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "4128d964b6bf0958",
+    "type": "split",
+    "children": [
+      {
+        "id": "6e547aa7937f1275",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "beeaf155a29f0656",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "Backlinks"
+            }
+          },
+          {
+            "id": "725869eb627e4cd9",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "Outgoing links"
+            }
+          },
+          {
+            "id": "2807fd4e85f72a7d",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "Tags"
+            }
+          },
+          {
+            "id": "fa585b9595f7a98c",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "All properties"
+            }
+          },
+          {
+            "id": "fc8273231b630616",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "Outline"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:Open quick switcher": false,
+      "graph:Open graph view": false,
+      "canvas:Create new canvas": false,
+      "daily-notes:Open today's daily note": false,
+      "templates:Insert template": false,
+      "command-palette:Open command palette": false,
+      "bases:Create new base": false,
+      "realclaudian:Open Claudian": false
+    }
+  },
+  "active": "6bc677c45a1bf694",
+  "lastOpenFiles": [
+    "2026-07-01 Documenso Migration and SEO Audit.md",
+    "20 SEO Recommendations.md",
+    "00 Index.md",
+    "Legal/Terms of Service Drafts/08 Email and Notifications Policy.md",
+    "Legal/Terms of Service Drafts/07 DMCA and Copyright Policy.md",
+    "Legal/Terms of Service Drafts/06 Acceptable Use and Moderation Policy.md",
+    "Legal/Terms of Service Drafts/05 Request Marketplace Terms.md",
+    "Legal/Terms of Service Drafts/04 Verified User Download and Review Terms.md",
+    "Legal/Terms of Service Drafts/03 Upload and Beat Submission Agreement.md",
+    "Legal/Terms of Service Drafts/02 Subscription Credits and Billing Terms.md",
+    "Legal/Terms of Service Drafts/01 Base Terms of Service.md",
+    "Legal/Terms of Service Drafts/00 Legal Terms Map.md",
+    "19 Push Notifications.md",
+    "18 Stripe & Payments.md",
+    "17 Verified Page Spec.md",
+    "16 Loop Economy.md",
+    "15 Credit Economy.md",
+    "09 Campaign Flow.md",
+    "04 Firebase Architecture.md",
+    "Legal/Terms of Service Drafts",
+    "Legal",
+    "Legal Drafts/08 Email and Notifications Policy.md",
+    "Legal Drafts/07 DMCA and Copyright Policy.md",
+    "Legal Drafts/06 Acceptable Use and Moderation Policy.md",
+    "Legal Drafts/05 Request Marketplace Terms.md",
+    "Legal Drafts/04 Verified User Download and Review Terms.md",
+    "Legal Drafts/03 Upload and Beat Submission Agreement.md",
+    "Legal Drafts/02 Subscription Credits and Billing Terms.md",
+    "Legal Drafts",
+    "capacitor.config.json"
+  ]
+}

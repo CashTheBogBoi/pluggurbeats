@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Allow: /login
+
+Disallow: /dashboard
+Disallow: /staff
+Disallow: /verified
+
+Sitemap: https://pluggurbeat.com/sitemap.xml

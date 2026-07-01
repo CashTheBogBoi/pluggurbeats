@@ -7,6 +7,10 @@ import react from "@vitejs/plugin-react";
 // and are copied verbatim into dist/ during the migration.
 export default defineConfig({
   plugins: [react()],
+  // Quiet dev server: only surface warnings/errors (no per-request info spam)
+  // and don't clear the screen on restart. Keeps log output minimal.
+  logLevel: "warn",
+  clearScreen: false,
   build: {
     outDir: "dist",
     emptyOutDir: true

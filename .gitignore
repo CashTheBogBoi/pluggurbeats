@@ -18,6 +18,10 @@ firebase-debug.log
 .env
 .env.*
 !.env.example
+.codex/
+obsidian-mcp-connector.mcpb
+.obsidian/plugins/mcp-tools-istefox/data.json
+VAULT/.obsidian/plugins/mcp-tools-istefox/data.json
 
 # Node
 node_modules/

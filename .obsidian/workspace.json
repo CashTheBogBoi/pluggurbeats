@@ -4,17 +4,17 @@
     "type": "split",
     "children": [
       {
-        "id": "84ddc0d3c7c12b1f",
+        "id": "8b578548c95ec48b",
         "type": "tabs",
         "children": [
           {
-            "id": "6e9bb5154486d2ee",
+            "id": "f1f221aa001d05df",
             "type": "leaf",
             "state": {
-              "type": "empty",
+              "type": "graph",
               "state": {},
-              "icon": "lucide-file",
-              "title": "New tab"
+              "icon": "lucide-git-fork",
+              "title": "Graph view"
             }
           }
         ]
@@ -37,7 +37,7 @@
               "type": "file-explorer",
               "state": {
                 "sortOrder": "alphabetical",
-                "autoReveal": false
+                "autoReveal": true
               },
               "icon": "lucide-folder-closed",
               "title": "Files"
@@ -173,34 +173,63 @@
       "daily-notes:Open today's daily note": false,
       "templates:Insert template": false,
       "command-palette:Open command palette": false,
-      "bases:Create new base": false
+      "bases:Create new base": false,
+      "obsidian42-brat:BRAT": false
     }
   },
-  "active": "6e9bb5154486d2ee",
+  "active": "032bea39133129d4",
   "lastOpenFiles": [
-    "ios/App/App/public/assets/x-hwff90-B.js",
-    "ios/App/App/public/assets/index-CvBEh1ZR.js",
-    "ios/App/App/public/assets/Dashboard-W_jXX85h.js",
-    "ios/App/App/public/assets/auth-DOgZyBoy.js",
-    "ios/App/App/public/assets/Marketing-TLA784ST.js",
-    "ios/App/App/public/assets/index-BgT4hT0w.js",
-    "ios/App/App/public/assets/live-BdHSBUVk.js",
-    "ios/App/App/public/assets/Staff-Dp_Gspw7.js",
-    "ios/App/App/public/assets/web-BjKL51lK-BQhyej1v.js",
-    "ios/App/App/public/assets/web-DIEIo_Dq.js",
-    "ios/App/App/public/assets/Verified-Cq_tr-Sm.js",
+    "dist/assets/shield-check-BFLoXxoK.js",
+    "dist/assets/index-ZMmU8--q.js",
+    "dist/assets/usePush-vMntK49S.js",
+    "dist/assets/Verified-BGL32a5E.js",
+    "dist/assets/upload-oc2laKGK.js",
+    "dist/assets/Staff-DwNNFEyq.js",
+    "dist/assets/Dashboard-BHroILg0.js",
+    "dist/assets/Marketing-Borps9NF.js",
+    "dist/assets/avatar-DP7o54Jr.js",
+    "dist/assets/auth-BRDy-cCG.js",
+    "dist/assets/index-BNN9PuIE.js",
+    "ios/App/App/public/legal/tos-submission.md",
+    "ios/App/App/public/legal/tos-billing.md",
+    "ios/App/App/public/legal/tos-base.md",
+    "dist/legal/tos-submission.md",
+    "dist/legal/tos-billing.md",
+    "dist/legal/tos-base.md",
+    "public/legal/tos-submission.md",
+    "public/legal/tos-billing.md",
+    "public/legal/tos-base.md",
+    "VAULT/19 Push Notifications.md",
+    "VAULT/18 Stripe & Payments.md",
+    "VAULT/17 Verified Page Spec.md",
+    "VAULT/16 Loop Economy.md",
+    "VAULT/15 Credit Economy.md",
+    "VAULT/09 Campaign Flow.md",
+    "VAULT/04 Firebase Architecture.md",
+    "VAULT/Legal/Terms of Service Drafts/08 Email and Notifications Policy.md",
+    "VAULT/Legal/Terms of Service Drafts/07 DMCA and Copyright Policy.md",
+    "VAULT/Legal/Terms of Service Drafts/04 Verified User Download and Review Terms.md",
+    "VAULT/Legal/Terms of Service Drafts/06 Acceptable Use and Moderation Policy.md",
+    "VAULT/Legal/Terms of Service Drafts/05 Request Marketplace Terms.md",
+    "VAULT/Legal/Terms of Service Drafts/03 Upload and Beat Submission Agreement.md",
+    "VAULT/Legal/Terms of Service Drafts/02 Subscription Credits and Billing Terms.md",
+    "VAULT/Legal/Terms of Service Drafts/01 Base Terms of Service.md",
+    "VAULT/Legal/Terms of Service Drafts/00 Legal Terms Map.md",
     "dist/favicon-512.png",
+    "dist/favicon-32.png",
+    "dist/favicon-192.png",
     "dist/apple-touch-icon.png",
-    "node_modules/undici/docs/docs/api/Dispatcher.md",
-    "node_modules/ms/license.md",
-    "ios/App/App/public/apple-touch-icon.png",
+    "Untitled 5.canvas",
+    "Untitled 4.canvas",
+    "Untitled 3.canvas",
+    "Untitled 2.canvas",
+    "stitch-ref/users.png",
+    "stitch-ref/producer-dash.png",
+    "stitch-ref/campaign-details.png",
+    "stitch-ref/broadcast.png",
+    "stitch-ref/beatdetail.png",
     "ios/App/App/public/favicon-512.png",
-    "ios/App/App/public/favicon-32.png",
     "Untitled 1.canvas",
-    "Untitled.canvas",
-    "NOTES.md",
-    "node_modules/@ionic/utils-fs/node_modules/fs-extra/README.md",
-    "2026-06-24.md",
-    "functions/node_modules/form-data/CHANGELOG.md"
+    "Untitled.canvas"
   ]
 }

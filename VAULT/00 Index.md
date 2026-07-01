@@ -33,6 +33,24 @@
 | [[18 Stripe & Payments]] | Price IDs, subscription flow, credit packs, webhooks |
 | [[19 Push Notifications]] | FCM/APNs setup, event taxonomy, opt-in rules |
 | [[Resend Email Integration]] | Email provider setup, tracking, verified user emails |
+| [[20 SEO Recommendations]] | Prioritized SEO checklist — robots.txt, sitemap, OG tags, prerendering, structured data |
+
+## Compacted Conversations
+
+These dated notes are compacted session histories. Use them to recover prior decisions, root causes, deploy warnings, and unfinished follow-ups.
+
+| File | What it covers |
+|------|---------------|
+| [[2026-06-24]] | Empty placeholder for June 24 session notes |
+| [[2026-06-29]] | Empty placeholder for June 29 session notes |
+| [[2026-06-29 Bugfixes Submissions Staffnav]] | Request submission index fix and mobile Staff nav fix |
+| [[2026-06-29 Coldstart Optimization]] | Cloud Functions lazy-loading and minInstances decisions |
+| [[2026-06-29 Inbox Playback Remove Library]] | Staff remove-from-library action and inbound playback/download |
+| [[2026-06-29 Loops Like Campaigns]] | Loop review lifecycle, exclusivity model, and frontend rollout |
+| [[2026-06-29 Mobile Optimization Push]] | Mobile performance layer, push notifications, APNs/iOS setup |
+| [[2026-06-29 Targeted Submissions Exclusive]] | Targeted submissions exclusivity and optional library listing |
+| [[2026-06-29 Verified Redesign]] | Verified page redesign, overview stats, player/waveform fixes |
+| [[2026-07-01 Documenso Migration and SEO Audit]] | Documenso branch found + secrets verified; SEO audit findings |
 
 ## Project At a Glance
 

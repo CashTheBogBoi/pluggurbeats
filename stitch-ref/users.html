@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Studio Admin | User Moderation</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=Hanken+Grotesk:wght@500;600&family=Geist:wght@400;500&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=Hanken+Grotesk:wght@100..900&family=Inter:wght@100..900&display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            background-color: #131313;
+            color: #e5e2e1;
+            -webkit-font-smoothing: antialiased;
+        }
+        .bento-grid {
+            display: grid;
+            grid-template-columns: repeat(12, 1fr);
+            gap: 24px;
+        }
+        .user-card {
+            border: 1px solid #262626;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .user-card:hover {
+            border-color: #f2ca50;
+            background-color: #1a1a1a;
+        }
+        .gold-glow {
+            box-shadow: 0 0 20px rgba(212, 175, 55, 0.05);
+        }
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: #0e0e0e; }
+        ::-webkit-scrollbar-thumb { background: #353534; border-radius: 2px; }
+        ::-webkit-scrollbar-thumb:hover { background: #f2ca50; }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "inverse-primary": "#735c00",
+                        "surface-dim": "#131313",
+                        "surface-tint": "#e9c349",
+                        "inverse-surface": "#e5e2e1",
+                        "primary-container": "#d4af37",
+                        "background": "#131313",
+                        "secondary-fixed": "#e5e2e1",
+                        "surface": "#131313",
+                        "on-secondary": "#313030",
+                        "on-surface": "#e5e2e1",
+                        "tertiary": "#d0cdcd",
+                        "tertiary-fixed": "#e4e2e1",
+                        "on-secondary-fixed": "#1c1b1b",
+                        "surface-container-high": "#2a2a2a",
+                        "on-primary-fixed": "#241a00",
+                        "primary-fixed-dim": "#e9c349",
+                        "on-tertiary-fixed": "#1b1c1c",
+                        "inverse-on-surface": "#313030",
+                        "on-tertiary": "#303030",
+                        "primary-fixed": "#ffe088",
+                        "secondary-container": "#474746",
+                        "on-tertiary-fixed-variant": "#474746",
+                        "secondary-fixed-dim": "#c8c6c5",
+                        "on-error": "#690005",
+                        "secondary": "#c8c6c5",
+                        "surface-variant": "#353534",
+                        "on-background": "#e5e2e1",
+                        "on-surface-variant": "#d0c5af",
+                        "on-tertiary-container": "#454545",
+                        "error-container": "#93000a",
+                        "on-primary-fixed-variant": "#574500",
+                        "on-error-container": "#ffdad6",
+                        "primary": "#f2ca50",
+                        "surface-container": "#201f1f",
+                        "surface-bright": "#3a3939",
+                        "outline-variant": "#4d4635",
+                        "surface-container-highest": "#353534",
+                        "error": "#ffb4ab",
+                        "surface-container-lowest": "#0e0e0e",
+                        "surface-container-low": "#1c1b1b",
+                        "tertiary-fixed-dim": "#c8c6c5",
+                        "on-primary-container": "#554300",
+                        "on-secondary-fixed-variant": "#474746",
+                        "on-primary": "#3c2f00",
+                        "outline": "#99907c",
+                        "tertiary-container": "#b4b2b2",
+                        "on-secondary-container": "#b7b5b4"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "gutter": "24px",
+                        "margin-desktop": "64px",
+                        "container-max": "1280px",
+                        "margin-mobile": "16px",
+                        "unit": "4px"
+                    },
+                    "fontFamily": {
+                        "display-lg-mobile": ["Hanken Grotesk"],
+                        "mono-code": ["Geist"],
+                        "label-caps": ["Geist"],
+                        "body-lg": ["Inter"],
+                        "display-lg": ["Hanken Grotesk"],
+                        "body-sm": ["Inter"],
+                        "headline-md": ["Hanken Grotesk"]
+                    },
+                    "fontSize": {
+                        "display-lg-mobile": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "mono-code": ["13px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "label-caps": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "500"}],
+                        "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                        "display-lg": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+                        "body-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                        "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "500"}]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background min-h-screen flex flex-col font-body-lg">
+<!-- TopAppBar -->
+<header class="w-full sticky top-0 z-50 bg-background border-b border-surface-variant flex justify-between items-center px-gutter h-16">
+<div class="flex items-center gap-4 cursor-pointer active:scale-95 transition-transform">
+<span class="material-symbols-outlined text-primary text-2xl">grid_view</span>
+<h1 class="font-display-lg-mobile text-display-lg-mobile tracking-tight text-primary">Studio Admin</h1>
+</div>
+<div class="flex items-center gap-6">
+<nav class="hidden md:flex gap-8">
+<span class="font-label-caps text-label-caps text-primary hover:bg-surface-container-high transition-colors px-2 py-1 cursor-pointer">Dashboard</span>
+<span class="font-label-caps text-label-caps text-on-surface-variant hover:bg-surface-container-high transition-colors px-2 py-1 cursor-pointer">Analytics</span>
+<span class="font-label-caps text-label-caps text-on-surface-variant hover:bg-surface-container-high transition-colors px-2 py-1 cursor-pointer">Logs</span>
+</nav>
+<div class="w-8 h-8 rounded-full border border-outline-variant bg-surface-container overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="A sharp, minimalist professional headshot of a high-end studio administrator in a dark turtleneck. The lighting is dramatic and technical, with a focus on deep shadows and obsidian black tones. The background is a clean, dark gray concrete wall, maintaining a professional and serious atmosphere consistent with a luxury technical brand." src="https://lh3.googleusercontent.com/aida-public/AB6AXuB2wtUCTguBVIr3VuORfuDMsRpUrd2LZyaFHyxCevt8x8J--kDPYNmOoQK07oYVI9mWnO3ZquiLsSh9K7fq70eJz5a_19Y9k8R_h3osdcj5dTB9X47HZL8GABp7k0KHLcRMu9GNtq9YwqeKeje6xTVnisoVvAAW4lyjnFDuAs_86cBk5V8pa5rWQFCEMxJLCUKQ01uVOybHEXKfFwNfrVh1f6wEs105d_vQsfn_1wCfEXUw7D8lYvH-OFilZP6X-ZKMvL4tLp3HosM"/>
+</div>
+</div>
+</header>
+<main class="flex-grow max-w-container-max mx-auto w-full px-margin-mobile md:px-margin-desktop py-12">
+<!-- Search Section -->
+<div class="mb-12">
+<div class="relative w-full max-w-2xl mx-auto">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline">search</span>
+<input class="w-full bg-surface-container-lowest border-b border-surface-variant focus:border-primary focus:ring-0 text-on-surface font-body-lg py-4 pl-12 pr-4 transition-all duration-300 placeholder:text-outline/50" placeholder="Search accounts by UID, email, or identity..." type="text"/>
+</div>
+<div class="mt-6 flex justify-center gap-4">
+<button class="px-4 py-1.5 font-label-caps text-label-caps border border-primary text-primary bg-transparent hover:bg-primary/5 transition-colors">ALL USERS</button>
+<button class="px-4 py-1.5 font-label-caps text-label-caps border border-outline-variant text-on-surface-variant bg-transparent hover:bg-surface-container-high transition-colors">FLAGGED ONLY</button>
+<button class="px-4 py-1.5 font-label-caps text-label-caps border border-outline-variant text-on-surface-variant bg-transparent hover:bg-surface-container-high transition-colors">VERIFIED</button>
+</div>
+</div>
+<!-- Bento Grid User Content -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-gutter">
+<!-- User Card 1: Flagged -->
+<div class="user-card bg-surface-container-lowest p-6 flex flex-col justify-between">
+<div>
+<div class="flex justify-between items-start mb-6">
+<div class="w-14 h-14 border border-outline-variant bg-surface-container-high overflow-hidden">
+<img class="w-full h-full object-cover grayscale contrast-125" data-alt="A portrait of a male tech user in a professional setting. The lighting is surgical gold highlights on a deep obsidian background. The visual style is technical, high-contrast, and focused, emphasizing a clean minimalist aesthetic. The image is crisp with a thin stroke border around the subject, evoking a sense of calm authority." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDl-TbpNLM_r0IRWCjh5Q4Wnrc1Vz9CfUTq9n6K24UNoOvL5Qkc2JNR_wF2dVQUg8gSfR05pc2b50IYpl26ravL2kQ3PMWNdI1bDFexCAE9OkJK3dxxO5wJnUq65V3c5ryDBIIp00PrAhiissL-Mzh1jxow8HcuwmJOJheezXS14mURcqS61IVBQrupqTgk_zrlS8rg9KYxWO7q5G_Um8sxH1RRvxGo7AP_3RfDi8vsOKnHslrCELCyBgiNAVfRQeeYz3CUL_LRlJc"/>
+</div>
+<span class="px-2 py-0.5 font-label-caps text-label-caps bg-error-container text-on-error-container rounded-sm">FLAGGED</span>
+</div>
+<h3 class="font-headline-md text-on-surface mb-1">Julian Thorne</h3>
+<p class="font-mono-code text-mono-code text-outline mb-4">UID: 8829-AF21</p>
+<p class="font-body-sm text-body-sm text-on-surface-variant mb-6 leading-relaxed">System flag triggered: Multiple failed authentication attempts from restricted IP range.</p>
+</div>
+<div class="flex gap-2">
+<button class="flex-1 py-3 border border-primary text-primary font-label-caps text-label-caps hover:bg-primary/10 transition-colors active:scale-95">REVIEW</button>
+<button class="flex-1 py-3 border border-error text-error font-label-caps text-label-caps hover:bg-error/10 transition-colors active:scale-95">RESTRICT</button>
+</div>
+</div>
+<!-- User Card 2: Verified -->
+<div class="user-card bg-surface-container-lowest p-6 flex flex-col justify-between">
+<div>
+<div class="flex justify-between items-start mb-6">
+<div class="w-14 h-14 border border-outline-variant bg-surface-container-high overflow-hidden">
+<img class="w-full h-full object-cover grayscale contrast-125" data-alt="A portrait of a female digital artist in a dark studio setting. Minimalist obsidian surfaces are illuminated by surgical gold highlights from the side. The mood is professional and quiet luxury. Deep black background with high contrast. The subject has a serious, focused expression, aligning with the dark mode expert persona." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDujVlcpWAWAZGiPC-q1fVqUkOqedsXP3mhmiAnceb4_JASR4as2Gr3B2SXH4J7KGu2XEMAVY8qNb8vOg9hyAAm1OT3WrDGwxDP5NaZrKhYttrFx4ejELBu63BwP28F2kPQZbJ-GAvrRUs_5eF-csfSKfKLC0VaRhxBTYnheJ6KG8gNKk4scoRq5NaBqk-trOssqffw36tz5U4No9LOEatO3cCRepnc1b_yy7sTIB7GDUCS-jT7Zl1XzW6KVM5rxFhIrduL1-ubhdM"/>
+</div>
+<span class="px-2 py-0.5 font-label-caps text-label-caps bg-surface-container-high text-primary rounded-sm">VERIFIED</span>
+</div>
+<h3 class="font-headline-md text-on-surface mb-1">Elias Vance</h3>
+<p class="font-mono-code text-mono-code text-outline mb-4">UID: 4492-BX10</p>
+<p class="font-body-sm text-body-sm text-on-surface-variant mb-6 leading-relaxed">Identity confirmed. Professional Tier subscriber since Jan 2024. No prior violations.</p>
+</div>
+<div class="flex gap-2">
+<button class="w-full py-3 border border-outline text-on-surface font-label-caps text-label-caps hover:bg-surface-container-high transition-colors active:scale-95">VIEW ACTIVITY</button>
+</div>
+</div>
+<!-- User Card 3: Flagged -->
+<div class="user-card bg-surface-container-lowest p-6 flex flex-col justify-between">
+<div>
+<div class="flex justify-between items-start mb-6">
+<div class="w-14 h-14 border border-outline-variant bg-surface-container-high overflow-hidden">
+<img class="w-full h-full object-cover grayscale contrast-125" data-alt="A high-end portrait of a software developer. The aesthetic is obsidian dark mode with sharp gold highlights. Minimal clutter, maximum focus. The lighting is cold and precise. Deep shadows frame the face in a technical, gallery-style composition. The overall mood is one of calm, professional authority within a modern corporate workspace." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBylZ14-5d3A9XiYTxG6R7Lo0Lad_hFylIE_v2NY7_UPFGxKnKmg8f1SqcQeoxQgYaO9h4hwfT1hPFpSOdwmT4WEHpbgz1hqFR23jFaIVFWJ_RvJUHUzCRbPJNUsFYWDnaMKLsUZhapkBRAhtwIQWsqTSmdo6W93fHICcKSHwanV7JQjn72vWYMimMlqxmOFo9KRK9-_YJ1sCfDup6STXQazDz9T2L2AZ00ZOXPLla36q3fbNGv8ham_gcL9sXdraXODZtCIIFMhyQ"/>
+</div>
+<span class="px-2 py-0.5 font-label-caps text-label-caps bg-error-container text-on-error-container rounded-sm">FLAGGED</span>
+</div>
+<h3 class="font-headline-md text-on-surface mb-1">Soren Kincaid</h3>
+<p class="font-mono-code text-mono-code text-outline mb-4">UID: 1205-QC09</p>
+<p class="font-body-sm text-body-sm text-on-surface-variant mb-6 leading-relaxed">Spam detection: High frequency of automated interactions detected in community sector.</p>
+</div>
+<div class="flex gap-2">
+<button class="flex-1 py-3 border border-primary text-primary font-label-caps text-label-caps hover:bg-primary/10 transition-colors active:scale-95">REVIEW</button>
+<button class="flex-1 py-3 border border-error text-error font-label-caps text-label-caps hover:bg-error/10 transition-colors active:scale-95">RESTRICT</button>
+</div>
+</div>
+<!-- User Card 4: Verified -->
+<div class="user-card bg-surface-container-lowest p-6 flex flex-col justify-between">
+<div>
+<div class="flex justify-between items-start mb-6">
+<div class="w-14 h-14 border border-outline-variant bg-surface-container-high overflow-hidden">
+<img class="w-full h-full object-cover grayscale contrast-125" data-alt="A portrait of a male creative director in a professional dark-themed environment. Surgical gold lighting accents the sharp contours of the face. The background is pure black, creating a high-contrast relationship with the subject. The visual style is minimalist and high-end, representing a power user in a luxury tech ecosystem." src="https://lh3.googleusercontent.com/aida-public/AB6AXuB7GDjODEpk2EG-0Dt9amUrIRpya0ZwtmyJmtg7v90Ssdt4hjpDkhY2pv4r7RZvVsHZ7ZFAVOMTs08BfZzHrDJMqpmt-Frs1oRNNm6i7tHzcbHGr-BvmCoGtaiEcKbJgdD1IaBU7vYuwv_TjmdEMneJluL6HIM6HlNaJqc0ns86H3rhviTAL3veTqvwqXqTAmMBdcgcQHfiLeJd6i2FJZmYQjDKI2s5N1xHfVnDZ2lAziPCn0C3T0nA7ixYJtrCo_5u1917eBlI1Lk"/>
+</div>
+<span class="px-2 py-0.5 font-label-caps text-label-caps bg-surface-container-high text-primary rounded-sm">VERIFIED</span>
+</div>
+<h3 class="font-headline-md text-on-surface mb-1">Marcus Wolfe</h3>
+<p class="font-mono-code text-mono-code text-outline mb-4">UID: 9002-DL19</p>
+<p class="font-body-sm text-body-sm text-on-surface-variant mb-6 leading-relaxed">Corporate Enterprise account. Verified via SSO authentication. Full clearance level.</p>
+</div>
+<div class="flex gap-2">
+<button class="w-full py-3 border border-outline text-on-surface font-label-caps text-label-caps hover:bg-surface-container-high transition-colors active:scale-95">VIEW ACTIVITY</button>
+</div>
+</div>
+<!-- User Card 5: Flagged -->
+<div class="user-card bg-surface-container-lowest p-6 flex flex-col justify-between">
+<div>
+<div class="flex justify-between items-start mb-6">
+<div class="w-14 h-14 border border-outline-variant bg-surface-container-high overflow-hidden">
+<img class="w-full h-full object-cover grayscale contrast-125" data-alt="A professional portrait of a tech executive. The lighting is high-key but soft, creating a modern professional aesthetic. The color palette is dominated by deep obsidian and surgical gold. The atmosphere is calm and authoritative. Every detail is sharp and legible against the deep, minimalist background of a high-end dark-mode studio." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDtix7fDXvsh_HsQLL8dPei6X-BERZ2hcqrHS8towY1chByx3xorPL4UvAUR-WVoToXZNwsgi2FJxHx42nPdqCQOwm7nkljD49_QusrimLij9ZYEcSsRmLdeBRQcWP9Y8mBIwIYTydYv1F1iPX3P1dKxyVx5wKHqeHUBP7VgvfnKrAyxBYnMPYM5aqqbqcsfEhZDBVPVCCO_SJCBoN5crQSrygo9gPhlb7KeJanGdkxoYoGq693h5eRWEuGftdaxrCtS3k5o37lTtE"/>
+</div>
+<span class="px-2 py-0.5 font-label-caps text-label-caps bg-error-container text-on-error-container rounded-sm">FLAGGED</span>
+</div>
+<h3 class="font-headline-md text-on-surface mb-1">Aria Vance</h3>
+<p class="font-mono-code text-mono-code text-outline mb-4">UID: 3318-PK55</p>
+<p class="font-body-sm text-body-sm text-on-surface-variant mb-6 leading-relaxed">Financial anomaly: Inconsistent billing data across multiple sessions. Potential fraud.</p>
+</div>
+<div class="flex gap-2">
+<button class="flex-1 py-3 border border-primary text-primary font-label-caps text-label-caps hover:bg-primary/10 transition-colors active:scale-95">REVIEW</button>
+<button class="flex-1 py-3 border border-error text-error font-label-caps text-label-caps hover:bg-error/10 transition-colors active:scale-95">RESTRICT</button>
+</div>
+</div>
+<!-- Empty State / Add Placeholder -->
+<div class="user-card bg-transparent border-dashed border-2 border-surface-variant p-6 flex items-center justify-center cursor-pointer hover:border-primary transition-all">
+<div class="text-center">
+<span class="material-symbols-outlined text-4xl text-outline mb-2">person_add</span>
+<p class="font-label-caps text-label-caps text-outline">MANUAL ONBOARD</p>
+</div>
+</div>
+</div>
+</main>
+<!-- BottomNavBar (Mobile only) -->
+<nav class="md:hidden fixed bottom-0 w-full z-50 h-16 bg-surface-container-lowest border-t border-surface-variant flex justify-around items-center px-margin-mobile">
+<div class="flex items-center justify-center text-primary scale-110">
+<span class="material-symbols-outlined">dashboard</span>
+</div>
+<div class="flex items-center justify-center text-outline">
+<span class="material-symbols-outlined">analytics</span>
+</div>
+<div class="flex items-center justify-center text-outline">
+<span class="material-symbols-outlined">library_music</span>
+</div>
+<div class="flex items-center justify-center text-outline">
+<span class="material-symbols-outlined">settings</span>
+</div>
+</nav>
+<script>
+        // Simple micro-interaction for cards
+        document.querySelectorAll('.user-card').forEach(card => {
+            card.addEventListener('mousedown', () => card.style.transform = 'scale(0.98)');
+            card.addEventListener('mouseup', () => card.style.transform = 'scale(1)');
+            card.addEventListener('mouseleave', () => card.style.transform = 'scale(1)');
+        });
+
+        // Search highlight effect
+        const searchInput = document.querySelector('input');
+        searchInput.addEventListener('focus', () => {
+            searchInput.parentElement.classList.add('gold-glow');
+        });
+        searchInput.addEventListener('blur', () => {
+            searchInput.parentElement.classList.remove('gold-glow');
+        });
+    </script>
+</body></html>

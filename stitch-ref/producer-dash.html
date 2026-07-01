@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Producer Hub | PluggurBeat</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Hanken+Grotesk:wght@400;500;600;700;800&amp;family=Geist:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "tertiary-container": "#b4b2b2",
+                    "tertiary-fixed": "#e4e2e1",
+                    "secondary-fixed": "#e5e2e1",
+                    "surface-dim": "#131313",
+                    "on-primary": "#3c2f00",
+                    "on-secondary-fixed-variant": "#474746",
+                    "inverse-primary": "#735c00",
+                    "on-tertiary-fixed": "#1b1c1c",
+                    "on-error-container": "#ffdad6",
+                    "tertiary-fixed-dim": "#c8c6c5",
+                    "surface-container-high": "#2a2a2a",
+                    "on-background": "#e5e2e1",
+                    "surface-container": "#201f1f",
+                    "on-secondary": "#313030",
+                    "error": "#ffb4ab",
+                    "on-surface-variant": "#d0c5af",
+                    "secondary-container": "#474746",
+                    "surface-container-lowest": "#0e0e0e",
+                    "surface-variant": "#353534",
+                    "on-tertiary-fixed-variant": "#474746",
+                    "secondary": "#c8c6c5",
+                    "primary": "#f2ca50",
+                    "on-secondary-container": "#b7b5b4",
+                    "error-container": "#93000a",
+                    "primary-fixed-dim": "#e9c349",
+                    "surface": "#131313",
+                    "background": "#131313",
+                    "tertiary": "#d0cdcd",
+                    "inverse-surface": "#e5e2e1",
+                    "on-primary-fixed": "#241a00",
+                    "primary-fixed": "#ffe088",
+                    "on-primary-fixed-variant": "#574500",
+                    "on-primary-container": "#554300",
+                    "surface-container-highest": "#353534",
+                    "secondary-fixed-dim": "#c8c6c5",
+                    "surface-container-low": "#1c1b1b",
+                    "on-tertiary-container": "#454545",
+                    "on-secondary-fixed": "#1c1b1b",
+                    "on-error": "#690005",
+                    "primary-container": "#d4af37",
+                    "outline": "#99907c",
+                    "inverse-on-surface": "#313030",
+                    "surface-tint": "#e9c349",
+                    "outline-variant": "#4d4635",
+                    "surface-bright": "#3a3939",
+                    "on-tertiary": "#303030",
+                    "on-surface": "#e5e2e1"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "spacing": {
+                    "margin-desktop": "64px",
+                    "unit": "4px",
+                    "margin-mobile": "16px",
+                    "gutter": "24px",
+                    "container-max": "1280px"
+            },
+            "fontFamily": {
+                    "display-lg": ["Hanken Grotesk"],
+                    "mono-code": ["Geist"],
+                    "headline-md": ["Hanken Grotesk"],
+                    "body-sm": ["Inter"],
+                    "body-lg": ["Inter"],
+                    "label-caps": ["Geist"],
+                    "display-lg-mobile": ["Hanken Grotesk"]
+            },
+            "fontSize": {
+                    "display-lg": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+                    "mono-code": ["13px", {"lineHeight": "20px", "fontWeight": "400"}],
+                    "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "500"}],
+                    "body-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                    "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "label-caps": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "500"}],
+                    "display-lg-mobile": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "600"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body {
+            background-color: #000000;
+            color: #e5e2e1;
+            -webkit-font-smoothing: antialiased;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+        }
+        .gold-border {
+            border: 1px solid rgba(242, 202, 80, 0.2);
+        }
+        .obsidian-card {
+            background-color: #0A0A0A;
+            border: 1px solid #262626;
+        }
+        .obsidian-card:hover {
+            background-color: #111111;
+            border-color: #333333;
+        }
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #000000;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #262626;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #333333;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="min-h-screen flex flex-col font-body-lg">
+<!-- TopAppBar -->
+<header class="w-full top-0 sticky bg-surface border-b border-outline-variant h-16 flex justify-between items-center px-margin-mobile md:px-margin-desktop z-50">
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-primary cursor-pointer active:opacity-80 transition-colors" data-icon="menu">menu</span>
+<h1 class="font-display-lg-mobile text-display-lg-mobile md:font-display-lg md:text-display-lg font-bold tracking-tighter text-primary">PRODUCER HUB</h1>
+</div>
+<div class="flex items-center gap-6">
+<div class="hidden md:flex gap-8">
+<a class="font-label-caps text-label-caps text-primary transition-colors" href="#">Dashboard</a>
+<a class="font-label-caps text-label-caps text-on-surface-variant hover:text-primary transition-colors" href="#">Requests</a>
+<a class="font-label-caps text-label-caps text-on-surface-variant hover:text-primary transition-colors" href="#">Campaigns</a>
+<a class="font-label-caps text-label-caps text-on-surface-variant hover:text-primary transition-colors" href="#">Analytics</a>
+</div>
+<div class="w-10 h-10 rounded-full bg-secondary-container flex items-center justify-center overflow-hidden border border-outline-variant cursor-pointer active:opacity-80 transition-all">
+<img class="w-full h-full object-cover" data-alt="Close-up professional portrait of a music producer in a dark high-tech studio environment. The lighting is moody with warm golden rim light highlighting their profile. The aesthetic is clean, sophisticated, and aligns with the Obsidian Gold luxury design system, emphasizing expertise and technical authority." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBviGpNvCB3lzvap-0fPi7qTmo52PpaGUwvbYXqVhemOm6bOOKXuolP7HNCJ3BLs99bu_x8SayO6vFJmdL4hwsS9QIW6r1qKlImQLDVP9N2WACRPcy3SMTVPA_nBbizxrzbPIS0X22P1i3QOfw_28halCAxBK-iq6uOkDrK42UeYFTiuYncGCHfPIe2zgXVY1r1byUfumKskgHDJ44-PH2Kuj3-PYcK1XJzdVAgcPqH8Ybm5dDwoASiKcvMKtg_P-C8-RgtMwKyo6M"/>
+</div>
+</div>
+</header>
+<!-- Main Canvas -->
+<main class="flex-grow w-full max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-8 mb-24">
+<!-- Welcome Section -->
+<section class="mb-12">
+<div class="flex flex-col gap-2">
+<span class="font-label-caps text-label-caps text-primary tracking-widest uppercase">Welcome back</span>
+<div class="flex items-center gap-3">
+<h2 class="font-display-lg-mobile text-display-lg-mobile md:font-display-lg md:text-display-lg text-on-surface">Hey Producer <span class="animate-pulse">👋</span></h2>
+</div>
+<p class="text-on-surface-variant font-body-lg">Here's the latest pulse on your catalog performance.</p>
+</div>
+</section>
+<!-- Bento Grid: Quick Stats -->
+<section class="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-gutter mb-12">
+<div class="obsidian-card p-6 flex flex-col gap-4 group transition-all duration-300">
+<div class="flex justify-between items-start">
+<span class="material-symbols-outlined text-primary" data-icon="rocket_launch">rocket_launch</span>
+<span class="text-xs text-primary font-mono-code">+12%</span>
+</div>
+<div>
+<span class="block text-4xl font-display-lg text-on-surface mb-1">14</span>
+<span class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Campaigns Submitted</span>
+</div>
+</div>
+<div class="obsidian-card p-6 flex flex-col gap-4 group transition-all duration-300">
+<div class="flex justify-between items-start">
+<span class="material-symbols-outlined text-primary" data-icon="forum">forum</span>
+<span class="text-xs text-primary font-mono-code">+5</span>
+</div>
+<div>
+<span class="block text-4xl font-display-lg text-on-surface mb-1">42</span>
+<span class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Pitches Sent</span>
+</div>
+</div>
+<div class="obsidian-card p-6 flex flex-col gap-4 group transition-all duration-300">
+<div class="flex justify-between items-start">
+<span class="material-symbols-outlined text-primary" data-icon="insights">insights</span>
+<span class="text-xs text-primary font-mono-code">82%</span>
+</div>
+<div>
+<span class="block text-4xl font-display-lg text-on-surface mb-1">75%</span>
+<span class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Open Rate</span>
+</div>
+</div>
+<div class="obsidian-card p-6 flex flex-col gap-4 group transition-all duration-300 border-primary/20">
+<div class="flex justify-between items-start">
+<span class="material-symbols-outlined text-primary" data-icon="download">download</span>
+<span class="text-xs text-primary font-mono-code">HOT</span>
+</div>
+<div>
+<span class="block text-4xl font-display-lg text-on-surface mb-1">128</span>
+<span class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Beat Downloads</span>
+</div>
+</div>
+</section>
+<!-- Middle Content Split -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-gutter mb-12">
+<!-- Open Requests Feed -->
+<section class="lg:col-span-2 obsidian-card overflow-hidden">
+<div class="p-6 border-b border-outline-variant flex justify-between items-center bg-surface-container-low">
+<div class="flex items-center gap-3">
+<div class="w-2 h-2 rounded-full bg-primary animate-pulse"></div>
+<h3 class="font-headline-md text-headline-md text-on-surface uppercase tracking-tight">Open requests</h3>
+<span class="text-xs font-mono-code text-on-surface-variant ml-2">12 LIVE</span>
+</div>
+<button class="text-primary font-label-caps text-label-caps hover:underline">VIEW ALL</button>
+</div>
+<div class="divide-y divide-outline-variant h-[400px] overflow-y-auto">
+<!-- Message Item 1 -->
+<div class="p-6 flex gap-4 hover:bg-surface-container-high transition-colors">
+<div class="flex-shrink-0 w-10 h-10 bg-primary-container rounded-lg flex items-center justify-center text-on-primary">
+<span class="material-symbols-outlined" data-icon="campaign" style="font-variation-settings: 'FILL' 1;">campaign</span>
+</div>
+<div class="flex-grow">
+<div class="flex justify-between mb-1">
+<span class="font-label-caps text-label-caps text-primary">ANNOUNCEMENT</span>
+<span class="font-mono-code text-[10px] text-on-surface-variant">2M AGO</span>
+</div>
+<h4 class="text-on-surface font-semibold mb-2">New Trap Melodies needed for Top 40 Artist</h4>
+<p class="text-on-surface-variant text-body-sm mb-4">Looking for dark, atmospheric piano melodies with hard-hitting 808s. High tempo (140-160 BPM).</p>
+<div class="flex gap-2">
+<span class="px-2 py-1 bg-surface-container-highest text-[10px] font-mono-code text-primary uppercase">Staff Choice</span>
+<span class="px-2 py-1 bg-surface-container-highest text-[10px] font-mono-code text-on-surface-variant uppercase">Deadline: 24h</span>
+</div>
+</div>
+</div>
+<!-- Message Item 2 -->
+<div class="p-6 flex gap-4 hover:bg-surface-container-high transition-colors">
+<div class="flex-shrink-0 w-10 h-10 bg-secondary-container rounded-lg flex items-center justify-center text-on-secondary">
+<span class="material-symbols-outlined" data-icon="person">person</span>
+</div>
+<div class="flex-grow">
+<div class="flex justify-between mb-1">
+<span class="font-label-caps text-label-caps text-secondary">A&amp;R REQUEST</span>
+<span class="font-mono-code text-[10px] text-on-surface-variant">1H AGO</span>
+</div>
+<h4 class="text-on-surface font-semibold mb-2">Mitchell Beat Feedback</h4>
+<p class="text-on-surface-variant text-body-sm mb-4">"The bridge needs more energy. Try adding some cinematic percussion or synth risers before the drop."</p>
+<button class="gold-border px-4 py-2 text-primary font-label-caps text-label-caps hover:bg-primary/10 transition-all">REPLY TO A&amp;R</button>
+</div>
+</div>
+<!-- Message Item 3 -->
+<div class="p-6 flex gap-4 hover:bg-surface-container-high transition-colors">
+<div class="flex-shrink-0 w-10 h-10 bg-primary-container rounded-lg flex items-center justify-center text-on-primary">
+<span class="material-symbols-outlined" data-icon="broadcast_on_personal">broadcast_on_personal</span>
+</div>
+<div class="flex-grow">
+<div class="flex justify-between mb-1">
+<span class="font-label-caps text-label-caps text-primary">BROADCAST</span>
+<span class="font-mono-code text-[10px] text-on-surface-variant">4H AGO</span>
+</div>
+<h4 class="text-on-surface font-semibold mb-2">Broadcast to Production Flow</h4>
+<p class="text-on-surface-variant text-body-sm">All pending paperwork for June must be submitted by Friday for next month's payout cycle.</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Recent Campaigns Small Panel -->
+<aside class="obsidian-card flex flex-col">
+<div class="p-6 border-b border-outline-variant bg-surface-container-low flex justify-between items-center">
+<h3 class="font-headline-md text-headline-md text-on-surface uppercase tracking-tight">Recent</h3>
+<span class="material-symbols-outlined text-on-surface-variant text-sm cursor-pointer" data-icon="more_vert">more_vert</span>
+</div>
+<div class="p-4 flex-grow space-y-4">
+<div class="flex items-center gap-4 p-2 rounded hover:bg-surface-container-high transition-all group">
+<div class="w-12 h-12 bg-surface-variant border border-outline-variant overflow-hidden flex items-center justify-center group-hover:border-primary/50 transition-colors">
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-primary" data-icon="music_note">music_note</span>
+</div>
+<div class="flex-grow overflow-hidden">
+<h5 class="text-on-surface font-medium truncate">Obsidian Night</h5>
+<div class="flex items-center gap-2">
+<span class="text-[10px] font-mono-code text-primary uppercase">Pitched</span>
+<span class="text-[10px] font-mono-code text-on-surface-variant">• 3 Lanes</span>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-4 p-2 rounded hover:bg-surface-container-high transition-all group">
+<div class="w-12 h-12 bg-surface-variant border border-outline-variant overflow-hidden flex items-center justify-center group-hover:border-primary/50 transition-colors">
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-primary" data-icon="music_note">music_note</span>
+</div>
+<div class="flex-grow overflow-hidden">
+<h5 class="text-on-surface font-medium truncate">Gold Rush Flow</h5>
+<div class="flex items-center gap-2">
+<span class="text-[10px] font-mono-code text-on-surface-variant uppercase">Under Review</span>
+<span class="text-[10px] font-mono-code text-on-surface-variant">• 1 Lane</span>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-4 p-2 rounded hover:bg-surface-container-high transition-all group">
+<div class="w-12 h-12 bg-surface-variant border border-outline-variant overflow-hidden flex items-center justify-center group-hover:border-primary/50 transition-colors">
+<span class="material-symbols-outlined text-on-surface-variant group-hover:text-primary" data-icon="music_note">music_note</span>
+</div>
+<div class="flex-grow overflow-hidden">
+<h5 class="text-on-surface font-medium truncate">Surgical Precise</h5>
+<div class="flex items-center gap-2">
+<span class="text-[10px] font-mono-code text-primary uppercase">Pitched</span>
+<span class="text-[10px] font-mono-code text-on-surface-variant">• 2 Lanes</span>
+</div>
+</div>
+</div>
+</div>
+<div class="p-6 mt-auto">
+<button class="w-full obsidian-card py-3 font-label-caps text-label-caps text-on-surface-variant hover:text-primary hover:border-primary/50 transition-all flex items-center justify-center gap-2">
+                        VIEW ALL HISTORY <span class="material-symbols-outlined text-xs" data-icon="arrow_forward">arrow_forward</span>
+</button>
+</div>
+</aside>
+</div>
+<!-- Quick Actions Grid -->
+<section>
+<h3 class="font-headline-md text-headline-md text-on-surface uppercase tracking-tight mb-6">Quick actions</h3>
+<div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+<button class="obsidian-card p-6 flex items-center gap-4 group transition-all duration-300 text-left">
+<div class="w-10 h-10 bg-primary/10 border border-primary/20 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined" data-icon="rocket_launch">rocket_launch</span>
+</div>
+<div>
+<h4 class="font-label-caps text-label-caps text-on-surface uppercase group-hover:text-primary transition-colors">Start a campaign</h4>
+<p class="text-[10px] font-mono-code text-on-surface-variant">Beats → Lanes → Pitch</p>
+</div>
+</button>
+<button class="obsidian-card p-6 flex items-center gap-4 group transition-all duration-300 text-left">
+<div class="w-10 h-10 bg-secondary/10 border border-secondary/20 flex items-center justify-center text-secondary group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined" data-icon="bar_chart">bar_chart</span>
+</div>
+<div>
+<h4 class="font-label-caps text-label-caps text-on-surface uppercase group-hover:text-primary transition-colors">Check analytics</h4>
+<p class="text-[10px] font-mono-code text-on-surface-variant">Opens &amp; downloads</p>
+</div>
+</button>
+<button class="obsidian-card p-6 flex items-center gap-4 group transition-all duration-300 text-left">
+<div class="w-10 h-10 bg-primary/10 border border-primary/20 flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined" data-icon="album">album</span>
+</div>
+<div>
+<h4 class="font-label-caps text-label-caps text-on-surface uppercase group-hover:text-primary transition-colors">Drop a loop</h4>
+<p class="text-[10px] font-mono-code text-on-surface-variant">Earn from the pool</p>
+</div>
+</button>
+<button class="obsidian-card p-6 flex items-center gap-4 group transition-all duration-300 text-left">
+<div class="w-10 h-10 bg-secondary/10 border border-secondary/20 flex items-center justify-center text-secondary group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined" data-icon="description">description</span>
+</div>
+<div>
+<h4 class="font-label-caps text-label-caps text-on-surface uppercase group-hover:text-primary transition-colors">File paperwork</h4>
+<p class="text-[10px] font-mono-code text-on-surface-variant">Split sheets</p>
+</div>
+</button>
+</div>
+</section>
+</main>
+<!-- BottomNavBar (Mobile) -->
+<nav class="md:hidden fixed bottom-0 left-0 w-full h-20 bg-surface-container border-t border-outline-variant flex justify-around items-center px-4 z-50">
+<a class="flex flex-col items-center justify-center text-primary font-bold bg-secondary-container rounded-full px-4 py-1 active:scale-95 transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard" style="font-variation-settings: 'FILL' 1;">dashboard</span>
+<span class="font-label-caps text-[10px] mt-1">Dashboard</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary active:scale-95 transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="forum">forum</span>
+<span class="font-label-caps text-[10px] mt-1">Requests</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary active:scale-95 transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="rocket_launch">rocket_launch</span>
+<span class="font-label-caps text-[10px] mt-1">Campaign</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary active:scale-95 transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="campaign">campaign</span>
+<span class="font-label-caps text-[10px] mt-1">News</span>
+</a>
+</nav>
+<script>
+        // Micro-interaction for cards
+        document.querySelectorAll('.obsidian-card').forEach(card => {
+            card.addEventListener('mouseenter', () => {
+                card.style.transform = 'translateY(-2px)';
+            });
+            card.addEventListener('mouseleave', () => {
+                card.style.transform = 'translateY(0px)';
+            });
+        });
+
+        // Simple dashboard notification mock
+        setTimeout(() => {
+            const feed = document.querySelector('.divide-y');
+            const newReq = document.createElement('div');
+            newReq.className = 'p-6 flex gap-4 bg-primary/5 hover:bg-surface-container-high transition-colors animate-pulse';
+            newReq.innerHTML = `
+                <div class="flex-shrink-0 w-10 h-10 bg-primary rounded-lg flex items-center justify-center text-on-primary">
+                    <span class="material-symbols-outlined" data-icon="notification_important">notification_important</span>
+                </div>
+                <div class="flex-grow">
+                    <div class="flex justify-between mb-1">
+                        <span class="font-label-caps text-label-caps text-primary">URGENT</span>
+                        <span class="font-mono-code text-[10px] text-on-surface-variant">JUST NOW</span>
+                    </div>
+                    <h4 class="text-on-surface font-semibold mb-2">Paperwork Verification Required</h4>
+                    <p class="text-on-surface-variant text-body-sm">Your recent submission 'Obsidian Night' is missing split sheet signatures.</p>
+                </div>
+            `;
+            feed.prepend(newReq);
+            setTimeout(() => newReq.classList.remove('animate-pulse'), 3000);
+        }, 5000);
+    </script>
+</body></html>

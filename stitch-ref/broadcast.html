@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Studio Admin | Broadcast Center</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Hanken+Grotesk:wght@500;600;800&amp;family=Geist:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 200, 'GRAD' 0, 'opsz' 24;
+            font-size: 20px;
+        }
+        body {
+            background-color: #131313;
+            color: #e5e2e1;
+            -webkit-font-smoothing: antialiased;
+        }
+        .obsidian-card {
+            background-color: #0A0A0A;
+            border: 1px solid #262626;
+        }
+        .gold-glow:focus-within {
+            border-color: #f2ca50;
+            box-shadow: 0 0 20px rgba(212, 175, 55, 0.05);
+        }
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "inverse-primary": "#735c00",
+                    "surface-dim": "#131313",
+                    "surface-tint": "#e9c349",
+                    "inverse-surface": "#e5e2e1",
+                    "primary-container": "#d4af37",
+                    "background": "#131313",
+                    "secondary-fixed": "#e5e2e1",
+                    "surface": "#131313",
+                    "on-secondary": "#313030",
+                    "on-surface": "#e5e2e1",
+                    "tertiary": "#d0cdcd",
+                    "tertiary-fixed": "#e4e2e1",
+                    "on-secondary-fixed": "#1c1b1b",
+                    "surface-container-high": "#2a2a2a",
+                    "on-primary-fixed": "#241a00",
+                    "primary-fixed-dim": "#e9c349",
+                    "on-tertiary-fixed": "#1b1c1c",
+                    "inverse-on-surface": "#313030",
+                    "on-tertiary": "#303030",
+                    "primary-fixed": "#ffe088",
+                    "secondary-container": "#474746",
+                    "on-tertiary-fixed-variant": "#474746",
+                    "secondary-fixed-dim": "#c8c6c5",
+                    "on-error": "#690005",
+                    "secondary": "#c8c6c5",
+                    "surface-variant": "#353534",
+                    "on-background": "#e5e2e1",
+                    "on-surface-variant": "#d0c5af",
+                    "on-tertiary-container": "#454545",
+                    "error-container": "#93000a",
+                    "on-primary-fixed-variant": "#574500",
+                    "on-error-container": "#ffdad6",
+                    "primary": "#f2ca50",
+                    "surface-container": "#201f1f",
+                    "surface-bright": "#3a3939",
+                    "outline-variant": "#4d4635",
+                    "surface-container-highest": "#353534",
+                    "error": "#ffb4ab",
+                    "surface-container-lowest": "#0e0e0e",
+                    "surface-container-low": "#1c1b1b",
+                    "tertiary-fixed-dim": "#c8c6c5",
+                    "on-primary-container": "#554300",
+                    "on-secondary-fixed-variant": "#474746",
+                    "on-primary": "#3c2f00",
+                    "outline": "#99907c",
+                    "tertiary-container": "#b4b2b2",
+                    "on-secondary-container": "#b7b5b4"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.125rem",
+                    "lg": "0.25rem",
+                    "xl": "0.5rem",
+                    "full": "0.75rem"
+            },
+            "spacing": {
+                    "gutter": "24px",
+                    "margin-desktop": "64px",
+                    "container-max": "1280px",
+                    "margin-mobile": "16px",
+                    "unit": "4px"
+            },
+            "fontFamily": {
+                    "display-lg-mobile": ["Hanken Grotesk"],
+                    "mono-code": ["Geist"],
+                    "label-caps": ["Geist"],
+                    "body-lg": ["Inter"],
+                    "display-lg": ["Hanken Grotesk"],
+                    "body-sm": ["Inter"],
+                    "headline-md": ["Hanken Grotesk"]
+            },
+            "fontSize": {
+                    "display-lg-mobile": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                    "mono-code": ["13px", {"lineHeight": "20px", "fontWeight": "400"}],
+                    "label-caps": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "500"}],
+                    "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "display-lg": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+                    "body-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                    "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "500"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-background min-h-screen flex flex-col font-body-lg">
+<!-- TopAppBar -->
+<header class="w-full sticky top-0 z-50 bg-background dark:bg-background border-b border-surface-variant dark:border-surface-variant flex justify-between items-center px-gutter h-16 w-full">
+<div class="flex items-center gap-4 cursor-pointer active:scale-95 transition-transform">
+<span class="material-symbols-outlined text-primary">grid_view</span>
+<h1 class="font-display-lg text-headline-md tracking-tight text-primary">Studio Admin</h1>
+</div>
+<div class="flex items-center gap-6">
+<nav class="hidden md:flex gap-8 items-center">
+<span class="font-label-caps text-label-caps text-on-surface-variant hover:bg-surface-container-high transition-colors px-3 py-2 rounded cursor-pointer">DASHBOARD</span>
+<span class="font-label-caps text-label-caps text-primary hover:bg-surface-container-high transition-colors px-3 py-2 rounded cursor-pointer">BROADCAST</span>
+<span class="font-label-caps text-label-caps text-on-surface-variant hover:bg-surface-container-high transition-colors px-3 py-2 rounded cursor-pointer">ANALYTICS</span>
+</nav>
+<div class="w-8 h-8 rounded-full bg-surface-container-high border border-outline-variant flex items-center justify-center cursor-pointer overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="A professional headshot of a creative studio manager in a high-end dark minimalist office. The lighting is dramatic and moody, focusing on sharp features and a sophisticated black blazer. The background is blurred with subtle warm golden light accents, matching a luxury obsidian aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAXLNOo_OUt9BP8vzKqPjs0dAUrUGTir8v1CgVX7afqspHULYgU3f0M0cGFk8EBhbTfgXO5jdnLehP5BrWY5_OAH6HbO_6Hh5uxRCIjlZqTId3lHST0WwUPgAsNbjxVnA94_BJbtG4GAWA2-an4l-t-XDIegSpwMfaN7jzGjOB2Vsb7kZtgEmii4XV7X5RTuP-2xXlC4IlGtzzBPCjTueJJotuONWtIgjWZnqIjadEJUfh2LSjD4zrTM4IrpD3_S5PmjU7zZcbsIow"/>
+</div>
+</div>
+</header>
+<main class="flex-grow w-full max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-12 lg:py-20">
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-20">
+<!-- Left Column: Composer -->
+<section class="lg:col-span-7 flex flex-col gap-10">
+<div class="space-y-2">
+<span class="font-label-caps text-label-caps text-primary tracking-widest">SYSTEM BROADCAST</span>
+<h2 class="font-display-lg text-display-lg-mobile md:text-display-lg text-on-surface">Compose Dispatch</h2>
+</div>
+<div class="obsidian-card p-1 rounded-lg gold-glow transition-all duration-300">
+<div class="relative">
+<textarea class="w-full h-64 bg-transparent border-none text-on-surface placeholder:text-outline focus:ring-0 p-6 font-body-lg resize-none" placeholder="Type your broadcast message here..."></textarea>
+<div class="absolute bottom-4 right-6 flex items-center gap-4 text-outline font-mono-code text-mono-code">
+<span>0 / 280</span>
+</div>
+</div>
+</div>
+<div class="flex flex-wrap items-center justify-between gap-6">
+<div class="flex gap-4">
+<button class="px-6 py-3 border border-outline-variant hover:border-outline transition-colors flex items-center gap-2 font-label-caps text-label-caps rounded">
+<span class="material-symbols-outlined">schedule</span>
+                            SCHEDULE
+                        </button>
+<button class="px-6 py-3 border border-outline-variant hover:border-outline transition-colors flex items-center gap-2 font-label-caps text-label-caps rounded">
+<span class="material-symbols-outlined">group</span>
+                            RECIPIENTS
+                        </button>
+</div>
+<button class="px-10 py-3 bg-transparent border border-primary text-primary hover:bg-primary hover:text-on-primary-container transition-all active:scale-[0.98] font-label-caps text-label-caps rounded-sm tracking-widest">
+                        SEND BROADCAST
+                    </button>
+</div>
+</section>
+<!-- Right Column: History & Stats -->
+<section class="lg:col-span-5 flex flex-col gap-10">
+<div class="space-y-2">
+<span class="font-label-caps text-label-caps text-outline tracking-widest">LOGS</span>
+<h3 class="font-headline-md text-headline-md text-on-surface">Recent Activity</h3>
+</div>
+<div class="flex flex-col divide-y divide-surface-variant">
+<!-- History Item 1 -->
+<div class="py-6 first:pt-0 group cursor-pointer">
+<div class="flex justify-between items-start mb-3">
+<div class="flex flex-col">
+<span class="font-mono-code text-mono-code text-outline">OCT 24, 2023 • 14:20</span>
+<p class="text-on-surface mt-2 group-hover:text-primary transition-colors">Maintenance scheduled for upcoming Sunday. Access will be limited.</p>
+</div>
+<span class="px-2 py-0.5 border border-primary/30 text-primary text-[10px] font-label-caps rounded">SENT</span>
+</div>
+<div class="flex gap-6 items-center">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-outline text-[16px]">visibility</span>
+<span class="font-mono-code text-mono-code text-on-surface-variant">12.4k Reach</span>
+</div>
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-outline text-[16px]">ads_click</span>
+<span class="font-mono-code text-mono-code text-on-surface-variant">8.2% CTR</span>
+</div>
+</div>
+</div>
+<!-- History Item 2 -->
+<div class="py-6 group cursor-pointer">
+<div class="flex justify-between items-start mb-3">
+<div class="flex flex-col">
+<span class="font-mono-code text-mono-code text-outline">OCT 22, 2023 • 09:15</span>
+<p class="text-on-surface mt-2 group-hover:text-primary transition-colors">New collection 'Obsidian Prime' is now live for all users.</p>
+</div>
+<span class="px-2 py-0.5 border border-primary/30 text-primary text-[10px] font-label-caps rounded">SENT</span>
+</div>
+<div class="flex gap-6 items-center">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-outline text-[16px]">visibility</span>
+<span class="font-mono-code text-mono-code text-on-surface-variant">45.1k Reach</span>
+</div>
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-outline text-[16px]">ads_click</span>
+<span class="font-mono-code text-mono-code text-on-surface-variant">14.5% CTR</span>
+</div>
+</div>
+</div>
+<!-- History Item 3 -->
+<div class="py-6 group cursor-pointer">
+<div class="flex justify-between items-start mb-3">
+<div class="flex flex-col">
+<span class="font-mono-code text-mono-code text-outline">OCT 20, 2023 • 18:45</span>
+<p class="text-on-surface mt-2 group-hover:text-primary transition-colors">Security alert: Please review your active login sessions.</p>
+</div>
+<span class="px-2 py-0.5 border border-outline-variant text-outline text-[10px] font-label-caps rounded">DRAFT</span>
+</div>
+<div class="flex gap-6 items-center">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-outline text-[16px]">monitoring</span>
+<span class="font-mono-code text-mono-code text-on-surface-variant">Pending</span>
+</div>
+</div>
+</div>
+</div>
+<div class="mt-4 pt-6 border-t border-surface-variant">
+<button class="text-primary font-label-caps text-label-caps flex items-center gap-2 hover:translate-x-1 transition-transform">
+                        VIEW FULL ARCHIVE
+                        <span class="material-symbols-outlined">arrow_right_alt</span>
+</button>
+</div>
+</section>
+</div>
+</main>
+<!-- BottomNavBar (Mobile Only) -->
+<nav class="md:hidden fixed bottom-0 w-full z-50 h-16 bg-surface-container-lowest dark:bg-surface-container-lowest border-t border-surface-variant dark:border-surface-variant flex justify-around items-center px-margin-mobile w-full">
+<div class="flex items-center justify-center text-outline dark:text-outline active:opacity-70 transition-opacity">
+<span class="material-symbols-outlined">dashboard</span>
+</div>
+<div class="flex items-center justify-center text-primary dark:text-primary scale-110 active:opacity-70 transition-opacity">
+<span class="material-symbols-outlined">analytics</span>
+</div>
+<div class="flex items-center justify-center text-outline dark:text-outline active:opacity-70 transition-opacity">
+<span class="material-symbols-outlined">library_music</span>
+</div>
+<div class="flex items-center justify-center text-outline dark:text-outline active:opacity-70 transition-opacity">
+<span class="material-symbols-outlined">settings</span>
+</div>
+</nav>
+<!-- Global Decoration -->
+<div class="fixed top-0 right-0 p-8 opacity-10 pointer-events-none">
+<span class="font-mono-code text-[120px] font-bold leading-none select-none">B/C</span>
+</div>
+<script>
+        // Micro-interaction for text area
+        const textarea = document.querySelector('textarea');
+        const charCount = document.querySelector('.font-mono-code span');
+
+        textarea.addEventListener('input', (e) => {
+            const length = e.target.value.length;
+            charCount.textContent = `${length} / 280`;
+            
+            if (length > 280) {
+                charCount.classList.add('text-error');
+            } else {
+                charCount.classList.remove('text-error');
+            }
+        });
+
+        // Simple button active state feedback
+        document.querySelectorAll('button').forEach(btn => {
+            btn.addEventListener('click', function() {
+                this.classList.add('scale-95');
+                setTimeout(() => this.classList.remove('scale-95'), 100);
+            });
+        });
+    </script>
+</body></html>

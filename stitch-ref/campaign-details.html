@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Producer Hub - Start a Campaign</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Hanken+Grotesk:wght@500;600;700;800&family=Geist:wght@400;500&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=Hanken+Grotesk:wght@100..900&family=Inter:wght@100..900&display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "tertiary-container": "#b4b2b2",
+            "tertiary-fixed": "#e4e2e1",
+            "secondary-fixed": "#e5e2e1",
+            "surface-dim": "#131313",
+            "on-primary": "#3c2f00",
+            "on-secondary-fixed-variant": "#474746",
+            "inverse-primary": "#735c00",
+            "on-tertiary-fixed": "#1b1c1c",
+            "on-error-container": "#ffdad6",
+            "tertiary-fixed-dim": "#c8c6c5",
+            "surface-container-high": "#2a2a2a",
+            "on-background": "#e5e2e1",
+            "surface-container": "#201f1f",
+            "on-secondary": "#313030",
+            "error": "#ffb4ab",
+            "on-surface-variant": "#d0c5af",
+            "secondary-container": "#474746",
+            "surface-container-lowest": "#0e0e0e",
+            "surface-variant": "#353534",
+            "on-tertiary-fixed-variant": "#474746",
+            "secondary": "#c8c6c5",
+            "primary": "#f2ca50",
+            "on-secondary-container": "#b7b5b4",
+            "error-container": "#93000a",
+            "primary-fixed-dim": "#e9c349",
+            "surface": "#131313",
+            "background": "#131313",
+            "tertiary": "#d0cdcd",
+            "inverse-surface": "#e5e2e1",
+            "on-primary-fixed": "#241a00",
+            "primary-fixed": "#ffe088",
+            "on-primary-fixed-variant": "#574500",
+            "on-primary-container": "#554300",
+            "surface-container-highest": "#353534",
+            "secondary-fixed-dim": "#c8c6c5",
+            "surface-container-low": "#1c1b1b",
+            "on-tertiary-container": "#454545",
+            "on-secondary-fixed": "#1c1b1b",
+            "on-error": "#690005",
+            "primary-container": "#d4af37",
+            "outline": "#99907c",
+            "inverse-on-surface": "#313030",
+            "surface-tint": "#e9c349",
+            "outline-variant": "#4d4635",
+            "surface-bright": "#3a3939",
+            "on-tertiary": "#303030",
+            "on-surface": "#e5e2e1"
+          },
+          "borderRadius": {
+            "DEFAULT": "0.125rem",
+            "lg": "0.25rem",
+            "xl": "0.5rem",
+            "full": "0.75rem"
+          },
+          "spacing": {
+            "margin-desktop": "64px",
+            "unit": "4px",
+            "margin-mobile": "16px",
+            "gutter": "24px",
+            "container-max": "1280px"
+          },
+          "fontFamily": {
+            "display-lg": ["Hanken Grotesk"],
+            "mono-code": ["Geist"],
+            "headline-md": ["Hanken Grotesk"],
+            "body-sm": ["Inter"],
+            "body-lg": ["Inter"],
+            "label-caps": ["Geist"],
+            "display-lg-mobile": ["Hanken Grotesk"]
+          },
+          "fontSize": {
+            "display-lg": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "600"}],
+            "mono-code": ["13px", {"lineHeight": "20px", "fontWeight": "400"}],
+            "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "500"}],
+            "body-sm": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+            "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+            "label-caps": ["12px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "500"}],
+            "display-lg-mobile": ["32px", {"lineHeight": "40px", "letterSpacing": "-0.01em", "fontWeight": "600"}]
+          }
+        },
+      },
+    }
+  </script>
+<style>
+    body {
+      background-color: #000000;
+      color: #e5e2e1;
+      -webkit-font-smoothing: antialiased;
+    }
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 20;
+      font-size: 20px;
+    }
+    input::placeholder {
+      color: #474746;
+    }
+    .obsidian-card {
+      background-color: #0A0A0A;
+      border: 1px solid #262626;
+      transition: border-color 0.3s ease;
+    }
+    .obsidian-card:focus-within {
+      border-color: #f2ca50;
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 4px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: #000000;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #262626;
+    }
+  </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="custom-scrollbar mb-20 md:mb-0">
+<!-- TopAppBar -->
+<header class="w-full top-0 sticky z-50 bg-surface dark:bg-surface border-b border-outline-variant flex justify-between items-center px-margin-mobile md:px-margin-desktop h-16 w-full">
+<div class="flex items-center gap-4">
+<span class="material-symbols-outlined text-primary cursor-pointer active:opacity-80">menu</span>
+<h1 class="font-display-lg-mobile text-display-lg-mobile font-bold tracking-tighter text-primary">PRODUCER HUB</h1>
+</div>
+<div class="flex items-center gap-4">
+<div class="hidden md:flex gap-6 items-center px-4">
+<span class="font-label-caps text-label-caps text-on-surface-variant hover:text-primary transition-colors cursor-pointer">Dashboard</span>
+<span class="font-label-caps text-label-caps text-on-surface-variant hover:text-primary transition-colors cursor-pointer">Requests</span>
+<span class="font-label-caps text-label-caps text-primary cursor-pointer">Campaign</span>
+<span class="font-label-caps text-label-caps text-on-surface-variant hover:text-primary transition-colors cursor-pointer">News</span>
+</div>
+<div class="w-10 h-10 rounded-full border border-outline-variant overflow-hidden cursor-pointer active:opacity-80">
+<img class="w-full h-full object-cover" data-alt="A professional close-up headshot of a music producer in a dark, atmospheric studio. Warm, low-key lighting from a gold-tinted desk lamp highlights his sharp features and focused expression. The background is softly blurred, showing glimpses of high-end analog synthesizers and monitors in a deep black obsidian aesthetic. The overall mood is sophisticated, technical, and expertly refined." src="https://lh3.googleusercontent.com/aida-public/AB6AXuARAtOCFVg5LHo18fxbxEfPRWnbLKRZrVLBDOyOw5T3UKvitS05ODGz3NUqgWG4cJmMuRWTM8dI9Y56cFy2w-PI-rPIUVuEqKeQ_lAwgd6ag23hlbtkBdig9wGmaACAYtRsRC4IlVDqXzHmax0LF7m5ZnCHahf-6qQfTy94g4LiCZSk5li6isvSS2v2u8ZU1vzGbchMq7-Fn2Hwar5UAcJtpqGpt4jWR_SMQsH0WdK4dpGeS0BKN0hdFK5cGOqvPYpTD9e3n5d6xhU"/>
+</div>
+</div>
+</header>
+<main class="max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop py-12">
+<!-- Header Section -->
+<div class="mb-12">
+<h2 class="font-display-lg text-display-lg text-on-surface mb-2">Start a campaign</h2>
+<p class="font-body-lg text-body-lg text-on-surface-variant">Approved campaigns go to Verified; optionally add up to 5 Pro desk lanes.</p>
+</div>
+<!-- Stats Bar -->
+<div class="obsidian-card p-6 mb-12 flex justify-between items-end">
+<div>
+<span class="font-label-caps text-label-caps text-primary tracking-widest uppercase block mb-1">Pitch Credits</span>
+<div class="flex items-baseline gap-2">
+<span class="font-display-lg text-display-lg text-on-surface">264</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">available</span>
+</div>
+</div>
+<div class="text-right">
+<span class="font-body-sm text-body-sm text-on-surface-variant">1 per beat</span>
+<div class="flex items-baseline gap-2 justify-end">
+<span class="font-display-lg text-display-lg text-primary">0</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">credits</span>
+</div>
+</div>
+</div>
+<form class="space-y-8">
+<!-- Section 1: Your Details -->
+<section>
+<div class="flex items-center gap-4 mb-6">
+<span class="font-mono-code text-mono-code text-primary">1</span>
+<h3 class="font-headline-md text-headline-md text-on-surface">Your details</h3>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-gutter">
+<div class="flex flex-col gap-2">
+<label class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Your Name *</label>
+<input class="bg-transparent border border-outline-variant p-4 font-body-lg text-body-lg text-on-surface focus:border-primary focus:ring-0 transition-colors outline-none obsidian-card" type="text" value="Cash McDearis"/>
+</div>
+<div class="flex flex-col gap-2">
+<label class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Your Instagram *</label>
+<input class="bg-transparent border border-outline-variant p-4 font-body-lg text-body-lg text-on-surface focus:border-primary focus:ring-0 transition-colors outline-none obsidian-card" type="text" value="@n0_Cash_"/>
+</div>
+</div>
+</section>
+<!-- Section 2: Your Beats -->
+<section>
+<div class="flex justify-between items-center mb-6">
+<div class="flex items-center gap-4">
+<span class="font-mono-code text-mono-code text-primary">2</span>
+<h3 class="font-headline-md text-headline-md text-on-surface">Your beats</h3>
+</div>
+<span class="font-mono-code text-mono-code text-on-surface-variant">1 / 25</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant mb-6">Each beat uploads when you submit. MP3 or WAV — untagged mixes pitch best.</p>
+<!-- Beat Slot -->
+<div class="obsidian-card p-6 md:p-8">
+<div class="flex justify-between items-center mb-8 pb-4 border-b border-outline-variant">
+<div class="flex items-center gap-3">
+<span class="font-mono-code text-mono-code text-on-surface-variant">01</span>
+<h4 class="font-body-lg text-body-lg font-semibold text-on-surface">Untitled beat</h4>
+</div>
+<div class="flex items-center gap-4">
+<span class="font-label-caps text-label-caps text-on-surface-variant">No file</span>
+<span class="material-symbols-outlined text-on-surface-variant cursor-pointer">expand_less</span>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-6 gap-6">
+<!-- Beat Title -->
+<div class="md:col-span-3 flex flex-col gap-2">
+<label class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Beat Title *</label>
+<input class="bg-transparent border border-outline-variant p-3 font-body-sm text-body-sm text-on-surface focus:border-primary focus:ring-0 outline-none obsidian-card" placeholder="e.g. Midnight Run" type="text"/>
+</div>
+<!-- Genre -->
+<div class="md:col-span-1.5 flex flex-col gap-2">
+<label class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Genre</label>
+<div class="relative">
+<select class="w-full bg-transparent border border-outline-variant p-3 font-body-sm text-body-sm text-on-surface focus:border-primary focus:ring-0 outline-none appearance-none obsidian-card">
+<option>Trap</option>
+<option>Boom Bap</option>
+<option>Lo-Fi</option>
+<option>Drill</option>
+</select>
+<span class="material-symbols-outlined absolute right-3 top-3 pointer-events-none text-on-surface-variant">expand_more</span>
+</div>
+</div>
+<!-- Key -->
+<div class="md:col-span-1.5 flex flex-col gap-2">
+<label class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Key</label>
+<div class="relative">
+<select class="w-full bg-transparent border border-outline-variant p-3 font-body-sm text-body-sm text-on-surface focus:border-primary focus:ring-0 outline-none appearance-none obsidian-card">
+<option>C Major</option>
+<option>A Minor</option>
+<option>G Major</option>
+<option>F# Minor</option>
+</select>
+<span class="material-symbols-outlined absolute right-3 top-3 pointer-events-none text-on-surface-variant">expand_more</span>
+</div>
+</div>
+<!-- BPM -->
+<div class="md:col-span-3 flex flex-col gap-2">
+<label class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">BPM</label>
+<input class="bg-transparent border border-outline-variant p-3 font-body-sm text-body-sm text-on-surface focus:border-primary focus:ring-0 outline-none obsidian-card" placeholder="e.g. 140" type="text"/>
+</div>
+<!-- File Upload -->
+<div class="md:col-span-3 flex flex-col gap-2">
+<label class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">File *</label>
+<div class="border border-dashed border-outline-variant obsidian-card p-3 flex justify-center items-center gap-2 cursor-pointer hover:border-primary transition-colors">
+<span class="material-symbols-outlined text-on-surface-variant">upload_file</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Attach MP3</span>
+</div>
+</div>
+<!-- Tags -->
+<div class="md:col-span-6 flex flex-col gap-2">
+<label class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider">Tags</label>
+<input class="bg-transparent border border-outline-variant p-3 font-body-sm text-body-sm text-on-surface focus:border-primary focus:ring-0 outline-none obsidian-card" placeholder="dark trap, melodic, 808 heavy" type="text"/>
+</div>
+<!-- Collaborators -->
+<div class="md:col-span-6">
+<label class="font-label-caps text-label-caps text-on-surface-variant uppercase tracking-wider block mb-2">Collaborators</label>
+<div class="flex flex-wrap md:flex-nowrap gap-3 items-center">
+<input class="flex-1 min-w-[120px] bg-transparent border border-outline-variant p-2 font-body-sm text-body-sm text-on-surface focus:border-primary outline-none obsidian-card" placeholder="Name" type="text"/>
+<div class="relative w-32">
+<select class="w-full bg-transparent border border-outline-variant p-2 font-body-sm text-body-sm text-on-surface focus:border-primary outline-none appearance-none obsidian-card">
+<option>Producer</option>
+<option>Artist</option>
+<option>Engineer</option>
+</select>
+</div>
+<input class="flex-1 min-w-[120px] bg-transparent border border-outline-variant p-2 font-body-sm text-body-sm text-on-surface focus:border-primary outline-none obsidian-card" placeholder="@instagram" type="text"/>
+<input class="flex-1 min-w-[120px] bg-transparent border border-outline-variant p-2 font-body-sm text-body-sm text-on-surface focus:border-primary outline-none obsidian-card" placeholder="Phone" type="text"/>
+<button class="material-symbols-outlined text-on-surface-variant hover:text-error transition-colors p-2" type="button">close</button>
+</div>
+<button class="mt-4 flex items-center gap-2 text-primary font-label-caps text-label-caps hover:underline" type="button">
+<span class="material-symbols-outlined !text-[16px]">add</span>
+                Add collaborator
+              </button>
+</div>
+</div>
+<div class="mt-8 flex justify-end">
+<button class="flex items-center gap-2 text-error font-label-caps text-label-caps hover:underline opacity-80 hover:opacity-100" type="button">
+<span class="material-symbols-outlined !text-[16px]">delete</span>
+              Remove beat
+            </button>
+</div>
+</div>
+<button class="w-full mt-6 py-4 border border-dashed border-outline-variant flex items-center justify-center gap-2 font-label-caps text-label-caps text-on-surface-variant hover:border-primary hover:text-primary transition-all obsidian-card" type="button">
+<span class="material-symbols-outlined">add</span>
+          Add beat
+        </button>
+</section>
+<!-- Sticky Action Bar (Desktop) / FAB (Mobile) -->
+<div class="md:flex justify-end pt-12">
+<button class="w-full md:w-auto px-12 py-4 bg-transparent border border-primary text-primary font-headline-md text-headline-md font-bold hover:bg-primary/10 transition-all active:scale-95" type="submit">
+          Submit Campaign
+        </button>
+</div>
+</form>
+</main>
+<!-- BottomNavBar (Mobile Only) -->
+<nav class="md:hidden fixed bottom-0 left-0 w-full h-20 flex justify-around items-center px-4 bg-surface-container border-t border-outline-variant z-50">
+<div class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-all active:scale-95">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-label-caps text-[10px]">Dashboard</span>
+</div>
+<div class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-all active:scale-95">
+<span class="material-symbols-outlined">forum</span>
+<span class="font-label-caps text-[10px]">Requests</span>
+</div>
+<div class="flex flex-col items-center justify-center text-primary font-bold bg-secondary-container rounded-full px-4 py-1 active:scale-95 transition-transform">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">rocket_launch</span>
+<span class="font-label-caps text-[10px]">Campaign</span>
+</div>
+<div class="flex flex-col items-center justify-center text-on-surface-variant hover:text-primary transition-all active:scale-95">
+<span class="material-symbols-outlined">campaign</span>
+<span class="font-label-caps text-[10px]">News</span>
+</div>
+</nav>
+<script>
+    // Micro-interactions for form focus
+    const inputs = document.querySelectorAll('input, select');
+    inputs.forEach(input => {
+      input.addEventListener('focus', () => {
+        input.closest('.obsidian-card').style.borderColor = '#f2ca50';
+      });
+      input.addEventListener('blur', () => {
+        input.closest('.obsidian-card').style.borderColor = '#262626';
+      });
+    });
+
+    // Handle form submission prevent default for demo
+    document.querySelector('form').addEventListener('submit', (e) => {
+      e.preventDefault();
+      console.log('Campaign submitted');
+    });
+  </script>
+</body></html>

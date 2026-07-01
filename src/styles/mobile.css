@@ -1,0 +1,118 @@
+/* ============================================================================
+   mobile.css — production WebView performance layer for Capacitor iOS/Android
+   Imported once in main.jsx. Applies globally to Dashboard, Verified, and Staff.
+
+   Goals:
+   - Instant-feeling taps (no 300ms delay, no grey flash)
+   - 60fps gesture/scroll (GPU compositing, momentum scroll, no rubber-band leak)
+   - Kill the WebKit autofill bugs (yellow box, value-stuck, zoom-on-focus)
+   - Respect reduced-motion and the notch (safe-area insets)
+   Everything here is layout-neutral: no element changes size or position.
+   ============================================================================ */
+
+/* --- 1. Instant taps -------------------------------------------------------
+   viewport meta already sets maximum-scale=1 (kills the legacy 300ms delay).
+   touch-action: manipulation removes double-tap-zoom hit-testing on controls.
+   Remove the grey iOS/Android tap-highlight flash so taps feel native. */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+a, button, [role="button"], input, select, textarea, label, summary {
+  touch-action: manipulation;
+}
+
+/* --- 2. Text & callout behavior -------------------------------------------
+   Stop iOS from showing the "Copy / Define" callout on long-press of UI chrome,
+   but KEEP selection working inside real text content (inputs, paragraphs). */
+html, body {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+input, textarea, [contenteditable], p, h1, h2, h3, [data-selectable] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* --- 3. Scrolling ----------------------------------------------------------
+   Momentum scrolling + contain overscroll so a scroll inside a list doesn't
+   rubber-band the whole WebView (the classic "page bounces behind a modal"). */
+html, body {
+  overscroll-behavior-y: none;
+}
+.scroll-area, [data-scroll] {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+/* --- 4. GPU compositing for animated surfaces ------------------------------
+   Promote ONLY things that actually animate to their own layer so transforms
+   run on the compositor thread (60fps) instead of the main thread.
+   Use the .gpu / [data-animate] hook on sheets, drawers, the now-playing bar,
+   and the waveform — NOT on everything (over-promotion eats VRAM). */
+.gpu,
+[data-animate],
+.vf-now-playing,
+[data-sheet],
+[data-drawer] {
+  will-change: transform, opacity;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+/* Standard 60fps transition: ONLY transform + opacity (never width/height/top/
+   left — those trigger layout/paint). Apply via class on animated elements. */
+.anim-fast { transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
+                         opacity   180ms cubic-bezier(0.22, 1, 0.36, 1); }
+.anim-sheet { transition: transform 260ms cubic-bezier(0.32, 0.72, 0, 1); }
+
+/* Optimistic-tap feedback: scale down instantly on press, spring back on
+   release. Pure transform = no layout, feels instantaneous even before the
+   async action resolves. */
+.tap-press { transition: transform 90ms ease-out; }
+.tap-press:active { transform: scale(0.96); }
+
+/* --- 5. WebKit autofill / input bug workarounds ----------------------------
+   (a) Kill the yellow/blue autofill background that ignores your dark theme.
+       WebKit only lets you override it via an inset box-shadow + long delay. */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill,
+select:-webkit-autofill {
+  -webkit-text-fill-color: #e8e0d0 !important;          /* bone text */
+  -webkit-box-shadow: 0 0 0 1000px #131313 inset !important; /* ink bg */
+  caret-color: #f2ca50;
+  transition: background-color 9999s ease-in-out 0s;    /* defeat autofill repaint */
+}
+
+/* (b) Stop iOS from zooming the viewport when a sub-16px input is focused.
+       16px is the magic minimum that prevents the zoom; clamp it. */
+input, select, textarea {
+  font-size: max(16px, 1em);
+}
+
+/* (c) Disable the iOS autocorrect/caps "ghost value" by neutralizing the
+       spellcheck underline on fields you mark data-nofix. Pair with the JSX
+       attrs: autoComplete="off" autoCorrect="off" autoCapitalize="off". */
+input[data-nofix], textarea[data-nofix] {
+  -webkit-autofill: off;
+}
+
+/* --- 6. Safe-area insets (notch / home indicator) -------------------------- */
+:root {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+.safe-top    { padding-top: var(--safe-top); }
+.safe-bottom { padding-bottom: var(--safe-bottom); }
+
+/* --- 7. Honor reduced-motion --------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

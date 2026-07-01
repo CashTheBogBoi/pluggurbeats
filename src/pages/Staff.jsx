@@ -12,6 +12,7 @@ import { auth } from "../firebase/auth.js";
 import { db } from "../firebase/db.js";
 import { call, useLiveCollection } from "../lib/live.js";
 import { isArRole, VERIFIED_ROLES, verifiedRoleLabel } from "../lib/roles.js";
+import { usePushAutoRegister } from "../lib/usePush.js";
 
 // Cross-user staff data isn't client-readable under the proven backend's rules
 // (that needed the torn-down custom-claim infra), so it comes through Cloud
@@ -111,7 +112,10 @@ export default function Staff() {
   const [reject, setReject] = useState(null); // { path, reason, note, busy }
   const [backfillBusy, setBackfillBusy] = useState(false);
   const [toast, setToast] = useState("");
+  const [uid, setUid] = useState(null);
   const toastTimer = useRef(null);
+
+  usePushAutoRegister(uid, { onTap: (data) => { if (data?.route) navigate(data.route); } });
 
   const showToast = (t) => {
     setToast(t);
@@ -123,6 +127,7 @@ export default function Staff() {
     const unsub = onAuthStateChanged(auth, (user) => {
       if (!user || !user.emailVerified) { navigate("/"); return; }
       setWho(user.email);
+      setUid(user.uid);
       setReady(true);
     });
     return () => unsub();
@@ -147,6 +152,12 @@ export default function Staff() {
     enabled: ready && view === "loops",
     refetchInterval: 20000
   });
+  const reviewLoopsQ = useQuery({
+    queryKey: ["staff", "reviewLoops"],
+    queryFn: () => call("listReviewLoops").then((d) => d.loops || []),
+    enabled: ready && view === "loopReview",
+    refetchInterval: 20000
+  });
   const overviewQ = useQuery({
     queryKey: ["staff", "overview"],
     queryFn: () => call("getStaffOverview"),
@@ -163,6 +174,7 @@ export default function Staff() {
   const campaigns = campaignsQ.data || [];
   const users = usersQ.data || [];
   const claims = claimsQ.data || [];
+  const reviewLoops = reviewLoopsQ.data || [];
   const gate = (!ready || campaignsQ.isLoading) ? "loading" : (campaignsQ.isError ? "error" : "ok");
   const loadErr = campaignsQ.error?.message || "";
 
@@ -173,6 +185,16 @@ export default function Staff() {
   };
   const refreshCampaigns = () => qc.invalidateQueries({ queryKey: ["staff", "campaigns"] });
   const refreshUsers = () => qc.invalidateQueries({ queryKey: ["staff", "users"] });
+  const refreshReviewLoops = () => qc.invalidateQueries({ queryKey: ["staff", "reviewLoops"] });
+
+  // ---- loop moderation (mirror of campaign moderation) ----
+  async function decideLoop(loopId) {
+    try {
+      await call("moderateLoop", { loopId, decision: "live" });
+      refreshReviewLoops();
+      showToast("Loop approved — live in the pool.");
+    } catch (e) { showToast("Failed: " + (e.message || e)); }
+  }
 
   // ---- campaign moderation ----
   async function decide(path) {
@@ -187,6 +209,13 @@ export default function Staff() {
       await call("moderateCampaign", { path, decision: "approved" });
       refreshCampaigns();
       showToast("Re-pitch triggered — pitching now.");
+    } catch (e) { showToast("Failed: " + (e.message || e)); }
+  }
+  async function removeFromLibrary(path) {
+    try {
+      const res = await call("removeFromLibrary", { path });
+      refreshCampaigns();
+      showToast(`Removed ${res.removed} beat${res.removed !== 1 ? "s" : ""} from the library.`);
     } catch (e) { showToast("Failed: " + (e.message || e)); }
   }
   async function runVerifiedBackfill() {
@@ -214,10 +243,17 @@ export default function Staff() {
   async function confirmReject() {
     setReject((r) => ({ ...r, busy: true }));
     try {
-      await call("moderateCampaign", { path: reject.path, decision: "rejected", reason: reject.reason, note: (reject.note || "").trim() });
-      refreshCampaigns();
-      setReject(null);
-      showToast("Campaign rejected — producer notified by email.");
+      if (reject.kind === "loop") {
+        await call("moderateLoop", { loopId: reject.loopId, decision: "rejected", reason: reject.reason, note: (reject.note || "").trim() });
+        refreshReviewLoops();
+        setReject(null);
+        showToast("Loop rejected — maker notified by email.");
+      } else {
+        await call("moderateCampaign", { path: reject.path, decision: "rejected", reason: reject.reason, note: (reject.note || "").trim() });
+        refreshCampaigns();
+        setReject(null);
+        showToast("Campaign rejected — producer notified by email.");
+      }
     } catch (e) {
       showToast("Failed: " + (e.message || e));
       setReject((r) => ({ ...r, busy: false }));
@@ -336,6 +372,7 @@ export default function Staff() {
     overview: { watermark: "O/V", eyebrow: "Staff / Overview", title: "Studio overview", desc: "Live revenue, growth, and the verified request board — post announcements and moderate the feed." },
     campaigns: { watermark: "C/Q", eyebrow: "Staff / Campaigns", title: "Campaign queue", desc: "Review submissions, inspect beats, and push approved campaigns into the pitch flow." },
     users: { watermark: "U/M", eyebrow: "Staff / Users", title: "User control", desc: "Find accounts, manage credits, grant access, and handle user status." },
+    loopReview: { watermark: "L/R", eyebrow: "Staff / Loop Review", title: "Loop review", desc: "Approve or reject submitted loops before they enter the verified pool." },
     loops: { watermark: "L/C", eyebrow: "Staff / Loops", title: "Loop claims", desc: "Track loop pull activity and placements across the verified pool." }
   };
   const meta = META[view];
@@ -344,6 +381,7 @@ export default function Staff() {
     { id: "overview", icon: Gauge, label: "Overview", count: 0 },
     { id: "campaigns", icon: LayoutGrid, label: "Campaigns", count: campaigns.length },
     { id: "users", icon: Users, label: "Users", count: users.length },
+    { id: "loopReview", icon: ShieldCheck, label: "Loop Review", count: reviewLoops.length },
     { id: "loops", icon: Disc3, label: "Loop Claims", count: claims.length }
   ];
 
@@ -470,9 +508,28 @@ export default function Staff() {
                       <CampaignCard key={c.path} c={c} index={i + 1}
                         onApprove={decide}
                         onReject={(path) => setReject({ path, reason: "Low quality mix", note: "" })}
-                        onRetry={repitch} />
+                        onRetry={repitch}
+                        onRemoveLibrary={removeFromLibrary} />
                     ))}
               </div>
+            </div>
+          </section>
+        )}
+
+        {/* LOOP REVIEW */}
+        {view === "loopReview" && (
+          <section className={`${CARD}`}>
+            <div className="hidden md:grid grid-cols-[40px_minmax(0,1.6fr)_120px_110px_24px] gap-3 px-5 py-3 border-b border-[#262626]">
+              {["#", "Loop / Maker", "Model", "Spec", ""].map((h, i) => <span key={i} className={LABEL}>{h}</span>)}
+            </div>
+            <div className="divide-y divide-[#262626]">
+              {reviewLoopsQ.isLoading ? <div className="p-16 text-center text-[#99907c] text-sm">Loading loops…</div>
+                : reviewLoops.length === 0 ? <div className="p-16 text-center text-[#99907c] text-sm">No loops awaiting review.</div>
+                  : reviewLoops.map((l, i) => (
+                    <LoopReviewCard key={l.id} l={l} index={i + 1}
+                      onApprove={decideLoop}
+                      onReject={(loopId) => setReject({ kind: "loop", loopId, reason: "Low quality", note: "" })} />
+                  ))}
             </div>
           </section>
         )}
@@ -569,7 +626,7 @@ function Stat({ label, value, urgent }) {
   );
 }
 
-function CampaignCard({ c, index, onApprove, onReject, onRetry }) {
+function CampaignCard({ c, index, onApprove, onReject, onRetry, onRemoveLibrary }) {
   const [open, setOpen] = useState(false);
   const isPending = c.status === "pending_review";
   const isSendFailed = c.status === "send_failed";
@@ -646,6 +703,12 @@ function CampaignCard({ c, index, onApprove, onReject, onRetry }) {
               <Btn variant="gold" onClick={() => onRetry(c.path)}><RefreshCw size={14} /> Retry pitch</Btn>
             </div>
           )}
+          {c.status === "pitched" && onRemoveLibrary && (
+            <div className="flex flex-wrap items-center gap-3 mt-4">
+              <Btn variant="danger" onClick={() => onRemoveLibrary(c.path)}><Trash2 size={14} /> Remove from library</Btn>
+              {c.targetRequestTitle && <span className="text-[12px] text-[#99907c]">Targeted submission — re: {c.targetRequestTitle}</span>}
+            </div>
+          )}
         </div>
       )}
     </article>
@@ -659,6 +722,46 @@ function Pill({ tone, children }) {
     info: "bg-[#6EC1FF]/15 text-[#6EC1FF]"
   };
   return <span className={`inline-flex px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.08em] ${tones[tone]}`}>{children}</span>;
+}
+
+function LoopReviewCard({ l, index, onApprove, onReject }) {
+  const [open, setOpen] = useState(false);
+  const spec = [l.genre, l.key, l.bpm && l.bpm + " BPM"].filter(Boolean).join(" · ");
+  const shared = l.exclusivity === "shared";
+  return (
+    <article>
+      <button onClick={() => setOpen((o) => !o)} className="w-full grid grid-cols-[32px_1fr_auto] md:grid-cols-[40px_minmax(0,1.6fr)_120px_110px_24px] items-center gap-3 px-4 md:px-5 py-4 text-left hover:bg-[#1a1a1a] transition-colors">
+        <span className="font-mono text-[13px] text-[#99907c]">{index}</span>
+        <div className="min-w-0">
+          <h3 className="font-display text-[16px] text-[#e5e2e1] truncate">{l.title}</h3>
+          <div className="mt-1 text-[12px] text-[#99907c] truncate">{l.makerName || "Unknown maker"}{l.targetRequestTitle ? ` · for "${l.targetRequestTitle}"` : ""}</div>
+        </div>
+        <div className="hidden md:block"><Pill tone={shared ? "info" : "gold"}>{shared ? "Shared" : "Exclusive"}</Pill></div>
+        <span className="hidden md:block font-mono text-[11px] text-[#99907c] truncate">{spec || "—"}</span>
+        <ChevronRight size={16} className={`hidden md:block text-[#99907c] transition-transform ${open ? "rotate-90" : ""}`} />
+      </button>
+      {open && (
+        <div className="px-4 md:px-5 pb-5 md:pl-[60px]">
+          <div className="flex flex-wrap gap-x-5 gap-y-2 mb-3 text-[12px] text-[#99907c]">
+            <span>{fmtDate(l.createdAt)}</span>
+            <span className="font-mono">{l.id}</span>
+            <span className="md:hidden">{spec || "—"}</span>
+            <span className="md:hidden">{shared ? "Shared" : "Exclusive"}</span>
+          </div>
+          {l.playUrl ? <audio controls preload="none" src={l.playUrl} className="w-full h-9 mb-3" /> : <div className="font-mono text-[11px] text-[#99907c] mb-3">No file</div>}
+          {Array.isArray(l.tags) && l.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-3 text-[12px] text-[#99907c]">
+              {l.tags.map((t, j) => <span key={j} className="px-2 py-1 border border-[#262626] bg-[#1c1b1b]">#{t}</span>)}
+            </div>
+          )}
+          <div className="flex flex-wrap gap-3 mt-2">
+            <Btn variant="approve" onClick={() => onApprove(l.id)}><Check size={14} /> Approve &amp; go live</Btn>
+            <Btn variant="danger" onClick={() => onReject(l.id)}><X size={14} /> Reject</Btn>
+          </div>
+        </div>
+      )}
+    </article>
+  );
 }
 
 function LoopClaimRow({ claim: c }) {

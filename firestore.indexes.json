@@ -9,6 +9,14 @@
       ]
     },
     {
+      "collectionGroup": "campaigns",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "targetRequestId", "order": "ASCENDING"  },
+        { "fieldPath": "createdAt",       "order": "DESCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "loops",
       "queryScope": "COLLECTION",
       "fields": [
