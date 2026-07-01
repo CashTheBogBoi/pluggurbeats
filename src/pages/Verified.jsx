@@ -558,7 +558,7 @@ export default function Verified() {
         <div className="flex flex-col items-center gap-4 text-center">
           <span className="grid h-16 w-16 place-items-center border border-[#262626] bg-[#0e0e0e] text-[#99907c]"><ShieldCheck size={28} /></span>
           <h2 className="text-2xl font-semibold text-[#e8e0d0]">Verified access required</h2>
-          <p className="max-w-sm text-sm leading-relaxed text-[#99907c]">PluggUrBeat Verified is invite-only for A&Rs, artists, and verified producers. Contact us to request access.</p>
+          <p className="max-w-sm text-sm leading-relaxed text-[#99907c]">PluggUrBeat Verified is only for artists, A&Rs, and producers verified by our team. Paid plans do not grant Verified library access. Contact us to request verification.</p>
           <a href="/"><GoldBtn className="mt-2"><ArrowLeft size={16} /> Back to PluggurBeats</GoldBtn></a>
         </div>
       </div>

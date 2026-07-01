@@ -24,6 +24,11 @@ export function markTOSAccepted(tosKey) {
   try { localStorage.setItem(storageKey(tosKey), "1"); } catch {}
 }
 
+export function hasScrolledToBottom(node, threshold = 8) {
+  if (!node) return false;
+  return node.scrollTop + node.clientHeight >= node.scrollHeight - threshold;
+}
+
 // Simple markdown renderer covering h1/h2/h3, bullet lists, and paragraphs.
 // Sufficient for the legal doc structure — no inline formatting needed.
 function renderMarkdown(text) {
@@ -74,17 +79,29 @@ function renderMarkdown(text) {
 export default function TOSModal({ tosKey, open, onAccept, onClose }) {
   const [content, setContent] = useState(null);
   const [error, setError]     = useState(null);
+  const [hasReadToEnd, setHasReadToEnd] = useState(false);
   const scrollRef = useRef(null);
+
+  const updateReadProgress = () => {
+    setHasReadToEnd(hasScrolledToBottom(scrollRef.current));
+  };
 
   useEffect(() => {
     if (!open || !tosKey) return;
     setContent(null);
     setError(null);
+    setHasReadToEnd(false);
     fetch(`/legal/tos-${tosKey}.md`)
       .then((r) => { if (!r.ok) throw new Error("Could not load terms."); return r.text(); })
       .then(setContent)
       .catch(() => setError("Could not load the terms. Please try again."));
   }, [open, tosKey]);
+
+  useEffect(() => {
+    if (!open || !content) return;
+    const frame = requestAnimationFrame(updateReadProgress);
+    return () => cancelAnimationFrame(frame);
+  }, [open, content]);
 
   // Close on Escape
   useEffect(() => {
@@ -120,7 +137,7 @@ export default function TOSModal({ tosKey, open, onAccept, onClose }) {
         </div>
 
         {/* Scrollable content */}
-        <div ref={scrollRef} className="flex-1 overflow-y-auto px-5 py-4">
+        <div ref={scrollRef} onScroll={updateReadProgress} className="flex-1 overflow-y-auto px-5 py-4">
           {error && <p className="text-[13px] text-red-400">{error}</p>}
           {!content && !error && (
             <div className="flex items-center gap-2 text-[12px] text-[#4d4635]">
@@ -137,6 +154,11 @@ export default function TOSModal({ tosKey, open, onAccept, onClose }) {
             <p className="mb-3 text-[11px] text-[#4d4635]">
               By clicking "I Accept" you agree to the above terms. This acceptance is recorded with your account.
             </p>
+            {content && !error && !hasReadToEnd && (
+              <p className="mb-3 text-[11px] text-[#99907c]">
+                Scroll to the bottom of the terms to enable acceptance.
+              </p>
+            )}
             <div className="flex gap-3">
               <button
                 onClick={onClose}
@@ -146,7 +168,7 @@ export default function TOSModal({ tosKey, open, onAccept, onClose }) {
               </button>
               <button
                 onClick={onAccept}
-                disabled={!content}
+                disabled={!content || !hasReadToEnd || !!error}
                 className="flex-1 border border-[#f2ca50] bg-[#f2ca50] px-4 py-2 text-[12px] font-semibold uppercase tracking-wider text-[#3c2f00] transition hover:bg-[#f2ca50]/90 disabled:opacity-40"
               >
                 I Accept
