@@ -50,7 +50,7 @@ function Btn({ variant = "ghost", className = "", ...p }) {
   };
   return (
     <button
-      className={`inline-flex items-center justify-center gap-2 px-5 py-2.5 font-mono text-[12px] uppercase tracking-wider transition-colors active:scale-[0.97] disabled:opacity-50 disabled:pointer-events-none ${variants[variant]} ${className}`}
+      className={`inline-flex min-h-[44px] items-center justify-center gap-2 px-4 py-2.5 font-mono text-[11px] uppercase tracking-wider transition-colors active:scale-[0.97] disabled:opacity-50 disabled:pointer-events-none sm:px-5 sm:text-[12px] ${variants[variant]} ${className}`}
       {...p}
     />
   );
@@ -66,7 +66,7 @@ function StatusBadge({ status }) {
 function Select({ wrapClass = "", className = "", children, ...p }) {
   return (
     <div className={`relative inline-flex ${wrapClass}`}>
-      <select {...p} className={`appearance-none [-webkit-appearance:none] w-full bg-[#0e0e0e] border border-[#4d4635] focus:border-[#f2ca50] focus:outline-none text-[#d0c5af] text-sm pl-3 pr-9 py-2.5 ${className}`}>
+      <select {...p} className={`min-h-[44px] appearance-none [-webkit-appearance:none] w-full bg-[#0e0e0e] border border-[#4d4635] focus:border-[#f2ca50] focus:outline-none text-[#d0c5af] text-sm pl-3 pr-9 py-2.5 ${className}`}>
         {children}
       </select>
       <ChevronDown size={14} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[#99907c]" />
@@ -394,13 +394,20 @@ export default function Staff() {
     { id: "loopReview", icon: ShieldCheck, label: "Loop Review", count: reviewLoops.length },
     { id: "loops", icon: Disc3, label: "Loop Claims", count: claims.length }
   ];
+  const mobileNavLabel = {
+    overview: "Overview",
+    campaigns: "Campaigns",
+    users: "Users",
+    loopReview: "Review",
+    loops: "Claims"
+  };
 
   return (
-    <div className="min-h-screen bg-[#131313] text-[#e5e2e1] font-sans flex flex-col">
+    <div className="min-h-screen overflow-x-hidden bg-[#131313] text-[#e5e2e1] font-sans flex flex-col">
       {/* Top app bar */}
-      <header className="sticky top-0 z-50 h-16 bg-[#131313]/95 backdrop-blur border-b border-[#353534] flex items-center justify-between px-4 md:px-8">
-        <div className="flex items-center gap-3">
-          <button className="md:hidden text-[#99907c]" onClick={() => setStaffNavOpen(true)} aria-label="Open navigation">
+      <header className="sticky top-0 z-50 min-h-[calc(4rem+var(--safe-top))] bg-[#131313]/95 backdrop-blur border-b border-[#353534] flex items-center justify-between px-4 pt-[var(--safe-top)] md:px-8">
+        <div className="flex min-w-0 items-center gap-3">
+          <button className="grid h-11 w-11 place-items-center text-[#99907c] md:hidden" onClick={() => setStaffNavOpen(true)} aria-label="Open navigation">
             <LayoutGrid size={20} />
           </button>
           <span className="material-eq flex items-end gap-[2px] h-4">
@@ -408,7 +415,7 @@ export default function Staff() {
             <i className="w-[3px] h-4 bg-[#f2ca50]" />
             <i className="w-[3px] h-3 bg-[#f2ca50] animate-pulse" />
           </span>
-          <h1 className={`${DISPLAY} text-xl text-[#f2ca50]`}>Pluggur Staff</h1>
+          <h1 className={`${DISPLAY} truncate text-lg text-[#f2ca50] sm:text-xl`}>Pluggur Staff</h1>
         </div>
         <nav className="hidden md:flex items-center gap-2">
           {NAV.map(({ id, label }) => (
@@ -429,36 +436,36 @@ export default function Staff() {
 
       {/* Mobile drawer */}
       {staffNavOpen && (
-        <div className="md:hidden fixed inset-0 z-[60] flex" onClick={() => setStaffNavOpen(false)}>
+        <div className="fixed inset-0 z-[60] flex md:hidden" onClick={() => setStaffNavOpen(false)}>
           <div className="absolute inset-0 bg-black/70" />
-          <aside className="relative w-[80vw] max-w-[300px] h-full bg-[#0e0e0e] border-r border-[#353534] p-6 flex flex-col gap-1" onClick={(e) => e.stopPropagation()}>
+          <aside data-drawer className="scroll-area relative h-full w-[min(86vw,320px)] overflow-y-auto bg-[#0e0e0e] border-r border-[#353534] px-5 pb-[calc(1.5rem+var(--safe-bottom))] pt-[calc(1.25rem+var(--safe-top))] flex flex-col gap-1" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-6">
               <h2 className={`${DISPLAY} text-lg text-[#f2ca50]`}>Pluggur Staff</h2>
-              <button onClick={() => setStaffNavOpen(false)} className="text-[#99907c]"><X size={20} /></button>
+              <button onClick={() => setStaffNavOpen(false)} className="grid h-11 w-11 place-items-center text-[#99907c]"><X size={20} /></button>
             </div>
             {NAV.map(({ id, icon: Icon, label, count }) => (
               <button key={id} onClick={() => switchView(id)}
-                className={`flex items-center justify-between px-3 py-3 font-mono text-[13px] uppercase tracking-wider transition-colors ${view === id ? "bg-[#f2ca50] text-[#3c2f00]" : "text-[#d0c5af] hover:bg-[#2a2a2a]"}`}>
+                className={`flex min-h-[48px] items-center justify-between px-3 py-3 font-mono text-[13px] uppercase tracking-wider transition-colors ${view === id ? "bg-[#f2ca50] text-[#3c2f00]" : "text-[#d0c5af] hover:bg-[#2a2a2a]"}`}>
                 <span className="flex items-center gap-3"><Icon size={16} /> {label}</span>
                 <span className="opacity-70">{count || ""}</span>
               </button>
             ))}
             <div className="mt-auto pt-6 border-t border-[#353534] flex flex-col gap-2">
-              <button onClick={() => navigate("/verified")} className="text-left font-mono text-[12px] uppercase tracking-wider text-[#99907c] py-2">Verified</button>
-              <button onClick={() => navigate("/dashboard")} className="text-left font-mono text-[12px] uppercase tracking-wider text-[#99907c] py-2">Dashboard</button>
+              <button onClick={() => navigate("/verified")} className="min-h-[44px] text-left font-mono text-[12px] uppercase tracking-wider text-[#99907c] py-2">Verified</button>
+              <button onClick={() => navigate("/dashboard")} className="min-h-[44px] text-left font-mono text-[12px] uppercase tracking-wider text-[#99907c] py-2">Dashboard</button>
               <div className="text-[11px] text-[#99907c] truncate">{who}</div>
-              <button onClick={() => signOut(auth).then(() => navigate("/"))} className="text-left font-mono text-[12px] uppercase tracking-wider text-[#ffb4ab] py-2">Sign out</button>
+              <button onClick={() => signOut(auth).then(() => navigate("/"))} className="min-h-[44px] text-left font-mono text-[12px] uppercase tracking-wider text-[#ffb4ab] py-2">Sign out</button>
             </div>
           </aside>
         </div>
       )}
 
       {/* Corner watermark */}
-      <div className="fixed top-16 right-0 p-6 opacity-[0.04] pointer-events-none select-none z-0">
+      <div className="fixed top-16 right-0 hidden p-6 opacity-[0.04] pointer-events-none select-none z-0 md:block">
         <span className="font-mono text-[120px] font-bold leading-none">{meta.watermark}</span>
       </div>
 
-      <main className="flex-grow w-full max-w-[1280px] mx-auto px-4 md:px-8 py-10 md:py-14 pb-28 md:pb-14 relative z-10">
+      <main className="relative z-10 w-full max-w-[1280px] flex-grow overflow-x-hidden px-4 py-8 pb-[calc(6.5rem+var(--safe-bottom))] md:mx-auto md:px-8 md:py-14 md:pb-14">
         {/* Head */}
         <div className="mb-10">
           <span className={EYEBROW}>{meta.eyebrow}</span>
@@ -511,9 +518,9 @@ export default function Staff() {
 
               <div className="divide-y divide-[#262626]">
                 {gate === "error"
-                  ? <div className="p-16 text-center text-[#99907c] text-sm">Could not load campaigns: {loadErr}</div>
+                  ? <div className="p-8 text-center text-[#99907c] text-sm sm:p-16">Could not load campaigns: {loadErr}</div>
                   : filteredCampaigns.length === 0
-                    ? <div className="p-16 text-center text-[#99907c] text-sm">No {tab} campaigns{search ? " matching your search" : ""}.</div>
+                    ? <div className="p-8 text-center text-[#99907c] text-sm sm:p-16">No {tab} campaigns{search ? " matching your search" : ""}.</div>
                     : filteredCampaigns.map((c, i) => (
                       <CampaignCard key={c.path} c={c} index={i + 1}
                         onApprove={decide}
@@ -533,8 +540,8 @@ export default function Staff() {
               {["#", "Loop / Maker", "Model", "Spec", ""].map((h, i) => <span key={i} className={LABEL}>{h}</span>)}
             </div>
             <div className="divide-y divide-[#262626]">
-              {reviewLoopsQ.isLoading ? <div className="p-16 text-center text-[#99907c] text-sm">Loading loops…</div>
-                : reviewLoops.length === 0 ? <div className="p-16 text-center text-[#99907c] text-sm">No loops awaiting review.</div>
+              {reviewLoopsQ.isLoading ? <div className="p-8 text-center text-[#99907c] text-sm sm:p-16">Loading loops…</div>
+                : reviewLoops.length === 0 ? <div className="p-8 text-center text-[#99907c] text-sm sm:p-16">No loops awaiting review.</div>
                   : reviewLoops.map((l, i) => (
                     <LoopReviewCard key={l.id} l={l} index={i + 1}
                       onApprove={decideLoop}
@@ -552,8 +559,8 @@ export default function Staff() {
               <input value={userSearch} onChange={(e) => setUserSearch(e.target.value)} placeholder="Search by name, email, location, or UID…"
                 className="w-full bg-[#0e0e0e] border-b border-[#353534] focus:border-[#f2ca50] focus:outline-none text-[#e5e2e1] py-4 pl-12 pr-4 placeholder:text-[#99907c]/60" />
             </div>
-            {usersQ.isLoading ? <div className="p-16 text-center text-[#99907c] text-sm">Loading users…</div>
-              : filteredUsers.length === 0 ? <div className="p-16 text-center text-[#99907c] text-sm">No users found.</div>
+            {usersQ.isLoading ? <div className="p-8 text-center text-[#99907c] text-sm sm:p-16">Loading users…</div>
+              : filteredUsers.length === 0 ? <div className="p-8 text-center text-[#99907c] text-sm sm:p-16">No users found.</div>
                 : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {filteredUsers.map(({ u, i }) => <UserCard key={u.uid} u={u} onOpen={() => setOpenIdx(i)} />)}
@@ -569,8 +576,8 @@ export default function Staff() {
               {["Loop", "Maker", "Puller", "Status"].map((h) => <span key={h} className={LABEL}>{h}</span>)}
             </div>
             <div className="divide-y divide-[#262626]">
-              {claimsQ.isLoading ? <div className="p-16 text-center text-[#99907c] text-sm">Loading loop claims…</div>
-                : claims.length === 0 ? <div className="p-16 text-center text-[#99907c] text-sm">No loop claims yet.</div>
+              {claimsQ.isLoading ? <div className="p-8 text-center text-[#99907c] text-sm sm:p-16">Loading loop claims…</div>
+                : claims.length === 0 ? <div className="p-8 text-center text-[#99907c] text-sm sm:p-16">No loop claims yet.</div>
                   : claims.map((c, i) => <LoopClaimRow key={`${c.loopId || "loop"}-${i}`} claim={c} />)}
             </div>
           </section>
@@ -578,12 +585,12 @@ export default function Staff() {
       </main>
 
       {/* Mobile bottom nav */}
-      <nav className="md:hidden fixed bottom-0 inset-x-0 z-40 h-16 bg-[#0e0e0e]/95 backdrop-blur border-t border-[#353534] flex justify-around items-center">
+      <nav className="fixed bottom-0 inset-x-0 z-40 flex border-t border-[#353534] bg-[#0e0e0e]/95 pb-[var(--safe-bottom)] backdrop-blur md:hidden">
         {NAV.map(({ id, icon: Icon, label, count }) => (
-          <button key={id} onClick={() => switchView(id)} className={`flex flex-col items-center gap-1 ${view === id ? "text-[#f2ca50]" : "text-[#99907c]"}`}>
+          <button key={id} onClick={() => switchView(id)} className={`relative flex min-h-[60px] min-w-0 flex-1 flex-col items-center justify-center gap-1 px-1 ${view === id ? "text-[#f2ca50]" : "text-[#99907c]"}`} aria-label={label}>
             <Icon size={20} />
-            <span className="font-mono text-[9px] uppercase tracking-wider">{label}</span>
-            {!!count && <span className="absolute -mt-9 ml-6 min-w-4 px-1 bg-[#f2ca50] text-[#3c2f00] text-[9px] font-mono text-center">{count}</span>}
+            <span className="max-w-full truncate font-mono text-[9px] uppercase tracking-wider">{mobileNavLabel[id] || label}</span>
+            {!!count && <span className="absolute right-2 top-1 min-w-4 px-1 bg-[#f2ca50] text-[#3c2f00] text-[9px] font-mono text-center">{count}</span>}
           </button>
         ))}
       </nav>
@@ -595,8 +602,8 @@ export default function Staff() {
 
       {reject && (
         <Overlay onClose={() => setReject(null)}>
-          <div className={`${CARD} bg-[#1c1b1b] w-full max-w-md p-7 relative`}>
-            <button className="absolute top-4 right-4 text-[#99907c] hover:text-[#e5e2e1]" onClick={() => setReject(null)}><X size={18} /></button>
+          <div className={`${CARD} scroll-area relative max-h-[calc(100dvh_-_2rem_-_var(--safe-top)_-_var(--safe-bottom))] w-full max-w-md overflow-y-auto bg-[#1c1b1b] p-5 sm:p-7`}>
+            <button className="absolute top-3 right-3 grid h-11 w-11 place-items-center text-[#99907c] hover:text-[#e5e2e1]" onClick={() => setReject(null)}><X size={18} /></button>
             <h3 className={`${DISPLAY} text-xl mb-5`}>Reject campaign</h3>
             <label className={`${LABEL} block mb-2`}>Reason</label>
             <Select wrapClass="w-full mb-4" className="text-[#e5e2e1]" value={reject.reason} onChange={(e) => setReject((r) => ({ ...r, reason: e.target.value }))}>
@@ -703,19 +710,19 @@ function CampaignCard({ c, index, onApprove, onReject, onRetry, onRemoveLibrary 
           {showDetail && <PitchDetail c={c} />}
 
           {isPending && (
-            <div className="flex flex-wrap gap-3 mt-4">
-              <Btn variant="approve" onClick={() => onApprove(c.path)}><Check size={14} /> Approve &amp; pitch</Btn>
-              <Btn variant="danger" onClick={() => onReject(c.path)}><X size={14} /> Reject</Btn>
+            <div className="grid gap-3 mt-4 sm:flex sm:flex-wrap">
+              <Btn variant="approve" onClick={() => onApprove(c.path)} className="w-full sm:w-auto"><Check size={14} /> Approve &amp; pitch</Btn>
+              <Btn variant="danger" onClick={() => onReject(c.path)} className="w-full sm:w-auto"><X size={14} /> Reject</Btn>
             </div>
           )}
           {isSendFailed && (
-            <div className="flex flex-wrap gap-3 mt-4">
-              <Btn variant="gold" onClick={() => onRetry(c.path)}><RefreshCw size={14} /> Retry pitch</Btn>
+            <div className="grid gap-3 mt-4 sm:flex sm:flex-wrap">
+              <Btn variant="gold" onClick={() => onRetry(c.path)} className="w-full sm:w-auto"><RefreshCw size={14} /> Retry pitch</Btn>
             </div>
           )}
           {c.status === "pitched" && onRemoveLibrary && (
-            <div className="flex flex-wrap items-center gap-3 mt-4">
-              <Btn variant="danger" onClick={() => onRemoveLibrary(c.path)}><Trash2 size={14} /> Remove from library</Btn>
+            <div className="grid gap-3 mt-4 sm:flex sm:flex-wrap sm:items-center">
+              <Btn variant="danger" onClick={() => onRemoveLibrary(c.path)} className="w-full sm:w-auto"><Trash2 size={14} /> Remove from library</Btn>
               {c.targetRequestTitle && <span className="text-[12px] text-[#99907c]">Targeted submission — re: {c.targetRequestTitle}</span>}
             </div>
           )}
@@ -764,9 +771,9 @@ function LoopReviewCard({ l, index, onApprove, onReject }) {
               {l.tags.map((t, j) => <span key={j} className="px-2 py-1 border border-[#262626] bg-[#1c1b1b]">#{t}</span>)}
             </div>
           )}
-          <div className="flex flex-wrap gap-3 mt-2">
-            <Btn variant="approve" onClick={() => onApprove(l.id)}><Check size={14} /> Approve &amp; go live</Btn>
-            <Btn variant="danger" onClick={() => onReject(l.id)}><X size={14} /> Reject</Btn>
+          <div className="grid gap-3 mt-2 sm:flex sm:flex-wrap">
+            <Btn variant="approve" onClick={() => onApprove(l.id)} className="w-full sm:w-auto"><Check size={14} /> Approve &amp; go live</Btn>
+            <Btn variant="danger" onClick={() => onReject(l.id)} className="w-full sm:w-auto"><X size={14} /> Reject</Btn>
           </div>
         </div>
       )}
@@ -816,25 +823,27 @@ function PitchDetail({ c }) {
         <span className="text-[#99907c]">{c.opens} opens</span>
         <span className="text-[#99907c]">{c.downloads} downloads</span>
       </div>
-      <table className="w-full text-[12px]">
-        <thead>
-          <tr className="text-left">
-            {["Contact", "Opened", "Downloaded", "Last activity"].map((h) => (
-              <th key={h} className="py-2 px-2 border-b border-[#262626] font-mono text-[10px] uppercase tracking-[0.08em] text-[#99907c]">{h}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {[...byContact.entries()].map(([key, rec]) => (
-            <tr key={key} className="border-b border-[#262626] last:border-0">
-              <td className="py-2 px-2 text-[#e5e2e1]">{rec.label}</td>
-              <td className="py-2 px-2">{rec.opened ? <span className="font-mono text-[10px] uppercase px-2 py-0.5 bg-[#f2ca50]/15 text-[#f2ca50]">Opened</span> : <span className="text-[#99907c]">—</span>}</td>
-              <td className="py-2 px-2">{rec.downloaded ? <span className="font-mono text-[10px] uppercase px-2 py-0.5 bg-[#7CE2A4]/15 text-[#7CE2A4]">Downloaded</span> : <span className="text-[#99907c]">—</span>}</td>
-              <td className="py-2 px-2 text-[#99907c]">{fmtDate(rec.last)}</td>
+      <div className="scroll-area overflow-x-auto">
+        <table className="w-full min-w-[520px] text-[12px]">
+          <thead>
+            <tr className="text-left">
+              {["Contact", "Opened", "Downloaded", "Last activity"].map((h) => (
+                <th key={h} className="py-2 px-2 border-b border-[#262626] font-mono text-[10px] uppercase tracking-[0.08em] text-[#99907c]">{h}</th>
+              ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {[...byContact.entries()].map(([key, rec]) => (
+              <tr key={key} className="border-b border-[#262626] last:border-0">
+                <td className="py-2 px-2 text-[#e5e2e1]">{rec.label}</td>
+                <td className="py-2 px-2">{rec.opened ? <span className="font-mono text-[10px] uppercase px-2 py-0.5 bg-[#f2ca50]/15 text-[#f2ca50]">Opened</span> : <span className="text-[#99907c]">—</span>}</td>
+                <td className="py-2 px-2">{rec.downloaded ? <span className="font-mono text-[10px] uppercase px-2 py-0.5 bg-[#7CE2A4]/15 text-[#7CE2A4]">Downloaded</span> : <span className="text-[#99907c]">—</span>}</td>
+                <td className="py-2 px-2 text-[#99907c]">{fmtDate(rec.last)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -872,7 +881,7 @@ function UserCard({ u, onOpen }) {
 
 function Overlay({ children, onClose }) {
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+    <div className="fixed inset-0 z-[90] flex items-end justify-center bg-black/75 p-4 pb-[calc(1rem+var(--safe-bottom))] pt-[calc(1rem+var(--safe-top))] backdrop-blur-sm sm:items-center" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       {children}
     </div>
   );
@@ -899,13 +908,13 @@ function UserModal({ user: u, idx, onClose, onToggleVP, onToggleVL, onToggleStaf
   const inputCls = "w-full bg-[#0e0e0e] border border-[#4d4635] focus:border-[#f2ca50] focus:outline-none text-[#e5e2e1] text-sm px-3 py-2.5";
 
   const AccessRow = ({ active, on, off, sub, activeColor, onToggle, disabled }) => (
-    <div className="flex items-center justify-between bg-[#0e0e0e] border border-[#262626] p-3.5">
-      <div>
+    <div className="grid gap-3 bg-[#0e0e0e] border border-[#262626] p-3.5 sm:flex sm:items-center sm:justify-between">
+      <div className="min-w-0">
         <div className="text-[13px] font-semibold" style={{ color: active ? activeColor : "#99907c" }}>{active ? on : off}</div>
         <div className="font-mono text-[10px] uppercase tracking-[0.06em] text-[#99907c] mt-0.5">{sub}</div>
       </div>
       <button disabled={disabled} onClick={onToggle}
-        className={`font-mono text-[11px] uppercase tracking-wider px-4 py-2 border transition-colors disabled:opacity-40 disabled:pointer-events-none ${active ? "border-[#ffb4ab] text-[#ffb4ab] hover:bg-[#ffb4ab]/10" : "border-[#f2ca50] text-[#f2ca50] hover:bg-[#f2ca50]/10"}`}>
+        className={`min-h-[44px] font-mono text-[11px] uppercase tracking-wider px-4 py-2 border transition-colors disabled:opacity-40 disabled:pointer-events-none ${active ? "border-[#ffb4ab] text-[#ffb4ab] hover:bg-[#ffb4ab]/10" : "border-[#f2ca50] text-[#f2ca50] hover:bg-[#f2ca50]/10"}`}>
         {active ? "Revoke" : "Grant"}
       </button>
     </div>
@@ -913,11 +922,11 @@ function UserModal({ user: u, idx, onClose, onToggleVP, onToggleVL, onToggleStaf
 
   return (
     <Overlay onClose={onClose}>
-      <div className="bg-[#1c1b1b] border border-[#353534] w-full max-w-lg max-h-[90vh] overflow-y-auto p-6 relative" role="dialog" aria-modal="true">
-        <button className="absolute top-4 right-4 text-[#99907c] hover:text-[#e5e2e1]" onClick={onClose}><X size={18} /></button>
+      <div className="scroll-area relative max-h-[calc(100dvh_-_2rem_-_var(--safe-top)_-_var(--safe-bottom))] w-full max-w-lg overflow-y-auto border border-[#353534] bg-[#1c1b1b] p-4 sm:p-6" role="dialog" aria-modal="true">
+        <button className="absolute top-2 right-2 grid h-11 w-11 place-items-center text-[#99907c] hover:text-[#e5e2e1] sm:top-4 sm:right-4" onClick={onClose}><X size={18} /></button>
 
         {/* Header */}
-        <div className="flex items-center gap-4 mb-5">
+        <div className="flex items-start gap-3 mb-5 pr-9 sm:items-center sm:gap-4 sm:pr-0">
           <div className="w-16 h-16 border border-[#4d4635] bg-[#2a2a2a] grid place-items-center font-display font-extrabold text-2xl text-[#f2ca50] overflow-hidden"
             style={u.avatarUrl ? { backgroundImage: `url('${u.avatarUrl}')`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}>
             {u.avatarUrl ? "" : initial}
@@ -956,7 +965,7 @@ function UserModal({ user: u, idx, onClose, onToggleVP, onToggleVL, onToggleStaf
 
         {/* Credits */}
         <SectionLabel>Credits</SectionLabel>
-        <div className="grid grid-cols-2 gap-3 mb-5">
+        <div className="grid grid-cols-1 gap-3 mb-5 sm:grid-cols-2">
           {[
             { kind: "pitch", balance: u.pitchBalance, amt: pitchAmt, setAmt: setPitchAmt },
             { kind: "loop", balance: u.loopBalance, amt: loopAmt, setAmt: setLoopAmt }
@@ -967,9 +976,9 @@ function UserModal({ user: u, idx, onClose, onToggleVP, onToggleVL, onToggleStaf
                 <span className="font-display font-extrabold text-2xl text-[#e5e2e1]">{balance || 0}</span>
               </div>
               <div className="flex items-center gap-1.5">
-                <input type="number" min="1" value={amt} onChange={(e) => setAmt(e.target.value)} className="w-12 bg-[#1c1b1b] border border-[#4d4635] text-[#e5e2e1] text-sm text-center px-1 py-1.5" />
-                <button onClick={() => onAdjust(idx, kind, 1, amt)} className="flex-1 py-1.5 border border-[#7CE2A4] text-[#7CE2A4] hover:bg-[#7CE2A4]/10 grid place-items-center"><Plus size={14} /></button>
-                <button onClick={() => onAdjust(idx, kind, -1, amt)} className="flex-1 py-1.5 border border-[#ffb4ab] text-[#ffb4ab] hover:bg-[#ffb4ab]/10 grid place-items-center"><Minus size={14} /></button>
+                <input type="number" min="1" value={amt} onChange={(e) => setAmt(e.target.value)} className="min-h-[44px] w-16 bg-[#1c1b1b] border border-[#4d4635] text-[#e5e2e1] text-sm text-center px-1 py-1.5" />
+                <button onClick={() => onAdjust(idx, kind, 1, amt)} className="grid min-h-[44px] flex-1 place-items-center border border-[#7CE2A4] py-1.5 text-[#7CE2A4] hover:bg-[#7CE2A4]/10"><Plus size={14} /></button>
+                <button onClick={() => onAdjust(idx, kind, -1, amt)} className="grid min-h-[44px] flex-1 place-items-center border border-[#ffb4ab] py-1.5 text-[#ffb4ab] hover:bg-[#ffb4ab]/10"><Minus size={14} /></button>
               </div>
             </div>
           ))}
@@ -986,13 +995,13 @@ function UserModal({ user: u, idx, onClose, onToggleVP, onToggleVL, onToggleStaf
         {u.tier && u.tier !== "free" && (
           <>
             <SectionLabel>Subscription</SectionLabel>
-            <div className="flex items-center justify-between bg-[#0e0e0e] border border-[#262626] p-3.5 mb-5">
-              <div>
+            <div className="grid gap-3 bg-[#0e0e0e] border border-[#262626] p-3.5 mb-5 sm:flex sm:items-center sm:justify-between">
+              <div className="min-w-0">
                 <div className="text-[13px] font-semibold flex items-center gap-1.5 text-[#e5e2e1]"><CreditCard size={13} /> {u.tier} plan</div>
                 <div className="font-mono text-[10px] uppercase tracking-[0.06em] text-[#99907c] mt-0.5">Active Stripe subscription</div>
               </div>
               <button onClick={() => onCancelSubscription(idx)}
-                className="font-mono text-[11px] uppercase tracking-wider px-4 py-2 border border-[#ffb4ab] text-[#ffb4ab] hover:bg-[#ffb4ab]/10 transition-colors flex items-center gap-1.5">
+                className="flex min-h-[44px] items-center justify-center gap-1.5 border border-[#ffb4ab] px-4 py-2 font-mono text-[11px] uppercase tracking-wider text-[#ffb4ab] transition-colors hover:bg-[#ffb4ab]/10">
                 <XCircle size={13} /> Cancel
               </button>
             </div>
@@ -1228,7 +1237,7 @@ function RequestFeed({ showToast }) {
         </div>
         <span className="font-mono text-[11px] text-[#f2ca50]">{items.length} open</span>
       </div>
-      <div className="overflow-y-auto divide-y divide-[#262626]" style={{ maxHeight: 480 }}>
+      <div className="scroll-area overflow-y-auto divide-y divide-[#262626]" style={{ maxHeight: 480 }}>
         {loading ? <div className="p-12 text-center text-[#99907c] text-sm">Loading feed…</div>
           : items.length === 0 ? <div className="p-12 text-center text-[#99907c] text-sm">No open requests.</div>
             : items.map((r) => <FeedBubble key={r.id} r={r} onModerate={moderate} />)}
@@ -1270,9 +1279,9 @@ function FeedBubble({ r, onModerate }) {
               </>
             )}
             <span className="flex-1" />
-            <button onClick={() => onModerate(r.id, r.pinned ? "unpin" : "pin")} className="inline-flex items-center gap-1 px-2 py-1 border border-[#4d4635] text-[#f2ca50] hover:bg-[#f2ca50]/10 uppercase tracking-wider transition-colors">{r.pinned ? <><PinOff size={11} /> Unpin</> : <><Pin size={11} /> Pin</>}</button>
-            <button onClick={() => onModerate(r.id, "close")} className="inline-flex items-center gap-1 px-2 py-1 border border-[#4d4635] text-[#d0c5af] hover:bg-[#2a2a2a] uppercase tracking-wider transition-colors"><Ban size={11} /> Close</button>
-            <button onClick={() => onModerate(r.id, "delete")} className="inline-flex items-center gap-1 px-2 py-1 border border-[#ffb4ab] text-[#ffb4ab] hover:bg-[#ffb4ab]/10 uppercase tracking-wider transition-colors"><Trash2 size={11} /> Delete</button>
+            <button onClick={() => onModerate(r.id, r.pinned ? "unpin" : "pin")} className="inline-flex min-h-[36px] items-center gap-1 border border-[#4d4635] px-2 py-1 uppercase tracking-wider text-[#f2ca50] transition-colors hover:bg-[#f2ca50]/10 sm:min-h-0">{r.pinned ? <><PinOff size={11} /> Unpin</> : <><Pin size={11} /> Pin</>}</button>
+            <button onClick={() => onModerate(r.id, "close")} className="inline-flex min-h-[36px] items-center gap-1 border border-[#4d4635] px-2 py-1 uppercase tracking-wider text-[#d0c5af] transition-colors hover:bg-[#2a2a2a] sm:min-h-0"><Ban size={11} /> Close</button>
+            <button onClick={() => onModerate(r.id, "delete")} className="inline-flex min-h-[36px] items-center gap-1 border border-[#ffb4ab] px-2 py-1 uppercase tracking-wider text-[#ffb4ab] transition-colors hover:bg-[#ffb4ab]/10 sm:min-h-0"><Trash2 size={11} /> Delete</button>
           </div>
         </div>
       </div>
