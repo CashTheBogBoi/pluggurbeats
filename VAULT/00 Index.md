@@ -51,6 +51,7 @@ These dated notes are compacted session histories. Use them to recover prior dec
 | [[2026-06-29 Targeted Submissions Exclusive]] | Targeted submissions exclusivity and optional library listing |
 | [[2026-06-29 Verified Redesign]] | Verified page redesign, overview stats, player/waveform fixes |
 | [[2026-07-01 Documenso Migration and SEO Audit]] | Documenso branch found + secrets verified; SEO audit findings |
+| [[2026-07-01 Dashboard Redesign]] | Producer dashboard modernized to Verified/Staff design language; dead CSS + missing import fixed |
 
 ## Project At a Glance
 
